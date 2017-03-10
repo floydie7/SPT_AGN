@@ -4,7 +4,6 @@ Author: Benjamin Floyd
 This script is designed to automate the process of calculating the AGN surface density for the SPT clusters.
 """
 from __future__ import print_function
-import matplotlib.pyplot as plt
 import numpy as np
 import warnings  # For suppressing the astropy warnings that pop up when reading headers.
 from os import listdir, system, chmod
@@ -14,11 +13,9 @@ from astropy.table import Table, Column
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
-from tools import area, m500Tor500
 from itertools import islice
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
-from time import time
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -47,16 +44,16 @@ def file_pairing(cat_dir, img_dir):
     image_files = [f for f in listdir(img_dir) if not f.startswith('.')]
 
     # Pair the catalogs with their corresponding images.
-    clusts = [[] for j in range(len(cat_files))]
+    clusters = [[] for _ in range(len(cat_files))]
     for i in range(len(cat_files)):
-        clusts[i].append(cat_dir + cat_files[i])
+        clusters[i].append(cat_dir + cat_files[i])
         cat_coord = cat_files[i][7:16]
         for image in image_files:
             img_coord = image[10:19]
             if cat_coord == img_coord:
-                clusts[i].append(img_dir + image)
+                clusters[i].append(img_dir + image)
 
-    return [x for x in clusts if len(x) == 5]
+    return [x for x in clusters if len(x) == 5]
 
 
 def catalog_image_match(cluster_info, catalog, cat_ra_col='ra', cat_dec_col='dec'):
@@ -467,7 +464,6 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     """
 
     # Array element names
-    sex_cat_path = cluster_info[0]
     catalog_id = cluster_info[5]
     sex_catalog = cluster_info[9]
 
@@ -498,45 +494,25 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     return cluster_info
 
 
-def surface_density(cluster_list):
-    """
-    Computes the AGN surface density of a cluster.
-    :param cluster_list: Array.
-        An array consisting of lists containing the cluster's filenames.
-    :return:
-    """
-
-    for i in range(len(cluster_list)):
-        # Calculate the area (in deg^2) of the combined coverage mask.
-        I1I2_area = area(cluster_list[i][7])/(60.0 ** 2)
-        # TODO Make sure the index corresponds to the right filename.
-        # TODO "area" needs to be rewritten to specify radius.
-
-        # Read in the catalog from the cluster list.
-        catalog = ascii.read(cluster_list[i][1], format='SExtractor')
-        # TODO The catalog is already in memory.
-
-        # Generate a catalog of objects subject to the coverage mask.
-        cov_cat = Object_Selection(catalog, cluster_list[i][7], mincov=mincov, aperdiam=r500)
-
-        surf_den = float(len(cov_cat))/I1I2_area
-
-    return surf_den
-
-
-def final_catalogs(cluster_list, catalog_cols):
+def final_catalogs(cluster_info, catalog_cols):
     """
     Writes the final catalogs to disk.
-    :param cluster_list:
-    :param catalog_cols:
+    :param cluster_info: Array.
+        An array of lists containing the paths to the clusters' files and the SExtractor catalog stored in memory.
+    :param catalog_cols: List of strings.
+        List of column names in the SExtractor catalog that we wish to include in the final version of the catalog.
     :return:
     """
 
-    for i in range(len(cluster_list)):
+    # Array element names
+    sex_cat_path = cluster_info[0]
+    sex_catalog = cluster_info[9]
 
-        final_cat = cluster_list[i][1][catalog_cols]
+    final_cat = sex_catalog[catalog_cols]
 
-        ascii.write(final_cat, 'Data/Output/' + cluster_list[i][0][11:27] + '_AGN.cat')
+    final_cat_path = 'Data/Output/' + sex_cat_path[-23:-7] + '_AGN.cat'
+
+    ascii.write(final_cat, final_cat_path)
 
 
 def visualizer(cluster_list):
@@ -560,50 +536,4 @@ def visualizer(cluster_list):
     system('./ds9viz')
 
 
-# Run the pipeline.
-start_time = time()
-print("Beginning Pipeline")
-clusters = file_pairing('Data/test/', 'Data/Images/')
-print("File pairing complete, Clusters in directory: ", len(clusters))
 
-Bleem = Table(fits.getdata('Data/2500d_cluster_sample_fiducial_cosmology.fits'))
-
-print("Matching Images against Bleem Catalog.")
-matched_list = catalog_image_match(Bleem, clusters, cat_ra_col='RA', cat_dec_col='DEC')
-
-# fig, ax = plt.subplots()
-# ax.hist([matched_list[i][6] for i in range(len(matched_list))], bins=1e4)
-# ax.set(title='Separation between Bleem and center pixel', xlabel='separation (arcsec)')
-# ax.set_xlim([0,120])
-# plt.show()
-
-matched_list = [matched_list[l] for l in range(len(matched_list)) if matched_list[l][6] <= 60.0]
-print("Matched clusters (within 1 arcmin): ", len(matched_list))
-
-print("Applying mask flags.")
-cluster_matched_flagged = mask_flag(matched_list, 'Data/mask_notes.txt')
-# manual_mask = [cluster_matched_flagged[i] for i in range(len(cluster_matched_flagged))
-#                if cluster_matched_flagged[i][7] == 2]
-# print("Clusters needing manual attention: ", len(manual_mask))
-
-print("Matching catalogs.")
-match_time_start = time()
-cat_matched_list = catalog_match(cluster_matched_flagged, Bleem, ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'DM500'],
-                                 master_ra_col='RA', master_dec_col='DEC')
-match_time_end = time()
-print("Time taken calculating separtations: ", match_time_end - match_time_start, " s")
-
-print("Generating coverage level masks.")
-cov_list = coverage_mask(cat_matched_list, ch1_min_cov=4, ch2_min_cov=4)
-
-print("Creating object masks.")
-mask_cat = object_mask(cov_list, 'Data/Regions/')
-
-# Temporary Snippet
-final_catalogs(mask_cat, ['SPT_ID', 'ALPHA_J2000', 'DELTA_J2000', 'rad_dist', 'REDSHIFT', 'REDSHIFT_UNC', 'M500',
-                          'DM500', 'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I2_MAG_APER4', 'I2_MAGERR_APER4'])
-
-
-end_time = time()
-print("Pipeline finished.")
-print("Total runtime: ", end_time - start_time, " s.")
