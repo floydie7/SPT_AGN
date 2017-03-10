@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to SPT_AGN_Pipeline's documentation!
+Welcome to SPT AGN Pipeline's documentation!
 ============================================
 
 .. toctree::
@@ -19,3 +19,5 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+.. automodule:: Pipeline_functions
+   :members:
