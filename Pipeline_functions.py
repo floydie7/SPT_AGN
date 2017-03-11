@@ -346,10 +346,14 @@ def object_mask(cluster_info, reg_file_dir):
                         # Generate the mask shape.
                         shape = Path(verts).transformed(rot)
 
+                    # If there's a blank line pass over it.
+                    # elif len(mask) == 0:
+                    #     pass
+
                     # Return error if mask shape isn't known.
                     else:
                         raise KeyError('Mask shape is unknown, please check the region file of cluster:',
-                                       reg_files[j])
+                                       reg_files[j], mask)
 
                     # Check if the pixel values are within the shape we defined earlier.
                     # If true, set the pixel value to 0.

@@ -4,6 +4,7 @@ Author: Benjamin Floyd
 This script executes the pipeline consisting of functions from Pipeline_functions.py.
 """
 
+from __future__ import print_function
 from time import time
 from Pipeline_functions import *
 
@@ -11,7 +12,7 @@ from Pipeline_functions import *
 # Run the pipeline.
 start_time = time()
 print("Beginning Pipeline")
-cluster_list = file_pairing('Data/test/', 'Data/Images/')
+cluster_list = file_pairing('Data/Catalogs/', 'Data/Images/')
 print("File pairing complete, Clusters in directory: ", len(cluster_list))
 
 Bleem = Table(fits.getdata('Data/2500d_cluster_sample_fiducial_cosmology.fits'))
@@ -42,6 +43,8 @@ for cluster in cluster_list:
     print("Preforming selection cuts")
     cluster = object_selection(cluster, 'I2_MAG_APER4', cat_ra='ALPHA_J2000', cat_dec='DELTA_J2000',
                                sex_flag_cut=4, snr_cut=5.0, mag_cut=18.0, ch1_ch2_color_cut=0.7)
+
+    print("Objects selected:", len(cluster[9]))
 
     print("Matching catalogs.")
     match_time_start = time()
