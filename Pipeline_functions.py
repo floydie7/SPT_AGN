@@ -61,24 +61,24 @@ def file_pairing(cat_dir, img_dir):
     return [x for x in clusters if len(x) == 5]
 
 
-def catalog_image_match(cluster_info, catalog, cat_ra_col='ra', cat_dec_col='dec'):
+def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC'):
     """
     Matches the center coordinate of a fits image to a catalog of objects then returns an array containing the paths to
     the files that have a match in the catalog.
 
-    :param cluster_info:
+    :param cluster_list:
         An array of lists containing the paths to the clusters' files.
     :param catalog:
         The catalog we wish to check our images against.
     :param cat_ra_col:
-        RA column name in catalog. Defaults to 'ra'.
+        RA column name in catalog. Defaults to 'RA'.
     :param cat_dec_col:
-        Dec column name in catalog. Defaults to 'dec'.
-    :type cluster_info: list
+        Dec column name in catalog. Defaults to 'DEC'.
+    :type cluster_list: list
     :type catalog: Astropy table object
     :type cat_ra_col: str
     :type cat_dec_col: str
-    :return cluster_info:
+    :return cluster_list:
         An array in the same format as the input cluster_info for the matched clusters with the addition of the catalog
         id value for the cluster and the separation between the image coordinate and the catalog coordinate.\n
         0: SExtractor catalog path name.\n
@@ -94,36 +94,37 @@ def catalog_image_match(cluster_info, catalog, cat_ra_col='ra', cat_dec_col='dec
     # Create astropy skycoord object from the catalog columns.
     cat_coords = SkyCoord(catalog[cat_ra_col], catalog[cat_dec_col], unit=u.degree)
 
-    # Array element names
-    irac_ch1_sci = cluster_info[1]
+    for i in range(len(cluster_list)):
+        # Array element names
+        irac_ch1_sci = cluster_list[i][1]
 
-    # Get the RA and Dec of the center pixel in the image.
-    img_ra = fits.getval(irac_ch1_sci, 'CRVAL1')
-    img_dec = fits.getval(irac_ch1_sci, 'CRVAL2')
+        # Get the RA and Dec of the center pixel in the image.
+        img_ra = fits.getval(irac_ch1_sci, 'CRVAL1')
+        img_dec = fits.getval(irac_ch1_sci, 'CRVAL2')
 
-    # Create astropy skycoord object for the center pixel of the image.
-    img_coord = SkyCoord(img_ra, img_dec, unit=u.degree)
+        # Create astropy skycoord object for the center pixel of the image.
+        img_coord = SkyCoord(img_ra, img_dec, unit=u.degree)
 
-    # Preform the catalog matching.
-    idx, d2d, d3d = img_coord.match_to_catalog_sky(cat_coords)
+        # Preform the catalog matching.
+        idx, d2d, d3d = img_coord.match_to_catalog_sky(cat_coords)
 
-    # Add the (nearest) catalog id and separation (in arcsec) to the output array.
-    cluster_info.extend([idx, d2d.arcsec.item()])
+        # Add the (nearest) catalog id and separation (in arcsec) to the output array.
+        cluster_list[i].extend([idx, d2d.arcsec.item()])
 
-    return cluster_info
+    return cluster_list
 
 
-def mask_flag(cluster_info, mask_file):
+def mask_flag(cluster_list, mask_file):
     """
     Appends the masking flag to the catalog list array.
 
-    :param cluster_info:
+    :param cluster_list:
         An array of lists containing the paths to the clusters' files.
     :param mask_file:
         An external text file with at least two tab delimited columns. The first must be the path name of the SExtractor
         catalog, the second should be an integer [0, 1, 2, 3] indicating the degree of severity of masking issues in the
         field.
-    :type cluster_info: list
+    :type cluster_list: list
     :type mask_file: str
     :return cluster_info:
         An array in the same format as the input cluster_info for the matched clusters with the addition of the catalog
@@ -146,21 +147,22 @@ def mask_flag(cluster_info, mask_file):
     # Open the masking notes file
     with open(mask_file) as mask:
         mask_lines = mask.readlines()
+
         # Pair the clusters in the list with those in the masking notes file.
+        for i in range(len(cluster_list)):
+            # Array element names
+            sex_cat_path = cluster_list[i][0]
 
-        # Array element names
-        sex_cat_path = cluster_info[0]
+            # Go through the masking notes file and match the flag value with the correct cluster.
+            # The cluster catalog name will be stored in mask_notes[0], the flag will be in mask_notes[1], there will be
+            # notes stored in mask_notes[2] but we'll ignore those since all clusters that need object masking will have
+            # ds9 region files with the objects specified there.
+            for j in range(len(mask_lines)):
+                mask_notes = mask_lines[j].strip("\n").split("\t")
+                if sex_cat_path.endswith(mask_notes[0][-23:]):
+                    cluster_list[i].append(int(mask_notes[1]))
 
-        # Go through the masking notes file and match the flag value with the correct cluster.
-        # The cluster catalog name will be stored in mask_notes[0], the flag will be in mask_notes[1], there will be
-        # notes stored in mask_notes[2] but we'll ignore those since all clusters that need object masking will have
-        # ds9 region files with the objects specified there.
-        for j in range(len(mask_lines)):
-            mask_notes = mask_lines[j].strip("\n").split("\t")
-            if sex_cat_path.endswith(mask_notes[0][-23:]):
-                cluster_info.append(int(mask_notes[1]))
-
-    return cluster_info
+    return cluster_list
 
 
 def coverage_mask(cluster_info, ch1_min_cov, ch2_min_cov):
@@ -425,7 +427,7 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
     catalog = ascii.read(sex_cat_path)
 
     # Preform SExtractor Flag cut
-    catalog = catalog[np.where(catalog['FLAG'] < sex_flag_cut)]
+    catalog = catalog[np.where(catalog['FLAGS'] < sex_flag_cut)]
 
     # Calculate SNR in both bands (4" apertures)
     catalog['SNR_ch1'] = catalog['I1_FLUX_APER4'] / catalog['I1_FLUXERR_APER4']

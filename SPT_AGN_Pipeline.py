@@ -11,13 +11,13 @@ from Pipeline_functions import *
 # Run the pipeline.
 start_time = time()
 print("Beginning Pipeline")
-clusters = file_pairing('Data/test/', 'Data/Images/')
-print("File pairing complete, Clusters in directory: ", len(clusters))
+cluster_list = file_pairing('Data/test/', 'Data/Images/')
+print("File pairing complete, Clusters in directory: ", len(cluster_list))
 
 Bleem = Table(fits.getdata('Data/2500d_cluster_sample_fiducial_cosmology.fits'))
 
 print("Matching Images against Bleem Catalog.")
-matched_list = catalog_image_match(Bleem, clusters, cat_ra_col='RA', cat_dec_col='DEC')
+matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC')
 
 # fig, ax = plt.subplots()
 # ax.hist([matched_list[i][6] for i in range(len(matched_list))], bins=1e4)
@@ -29,25 +29,31 @@ matched_list = [matched_list[l] for l in range(len(matched_list)) if matched_lis
 print("Matched clusters (within 1 arcmin): ", len(matched_list))
 
 print("Applying mask flags.")
-cluster_matched_flagged = mask_flag(matched_list, 'Data/mask_notes.txt')
+cluster_list = mask_flag(matched_list, 'Data/mask_notes.txt')
 
-print("Matching catalogs.")
-match_time_start = time()
-cat_matched_list = catalog_match(cluster_matched_flagged, Bleem, ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'DM500'],
-                                 master_ra_col='RA', master_dec_col='DEC')
-match_time_end = time()
-print("Time taken calculating separtations: ", match_time_end - match_time_start, " s")
+print("Beginning cluster level operations.")
+for cluster in cluster_list:
+    print("Generating coverage level mask.")
+    cluster = coverage_mask(cluster, ch1_min_cov=4, ch2_min_cov=4)
 
-print("Generating coverage level masks.")
-cov_list = coverage_mask(cat_matched_list, ch1_min_cov=4, ch2_min_cov=4)
+    print("Creating object mask.")
+    cluster = object_mask(cluster, 'Data/Regions/')
 
-print("Creating object masks.")
-mask_cat = object_mask(cov_list, 'Data/Regions/')
+    print("Preforming selection cuts")
+    cluster = object_selection(cluster, 'I2_MAG_APER4', cat_ra='ALPHA_J2000', cat_dec='DELTA_J2000',
+                               sex_flag_cut=4, snr_cut=5.0, mag_cut=18.0, ch1_ch2_color_cut=0.7)
 
-# Temporary Snippet
-final_catalogs(mask_cat, ['SPT_ID', 'ALPHA_J2000', 'DELTA_J2000', 'rad_dist', 'REDSHIFT', 'REDSHIFT_UNC', 'M500',
-                          'DM500', 'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I2_MAG_APER4', 'I2_MAGERR_APER4'])
+    print("Matching catalogs.")
+    match_time_start = time()
+    cluster = catalog_match(cluster, Bleem, ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'DM500'],
+                                     sex_ra_col='ALPHA_J2000', sex_dec_col='DELTA_J2000',
+                                     master_ra_col='RA', master_dec_col='DEC')
+    match_time_end = time()
+    print("Time taken calculating separations: ", match_time_end - match_time_start, " s")
 
+    print("Writing final catalog.")
+    final_catalogs(cluster, ['SPT_ID', 'ALPHA_J2000', 'DELTA_J2000', 'rad_dist', 'REDSHIFT', 'REDSHIFT_UNC', 'M500',
+                              'DM500', 'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I2_MAG_APER4', 'I2_MAGERR_APER4'])
 
 end_time = time()
 print("Pipeline finished.")
