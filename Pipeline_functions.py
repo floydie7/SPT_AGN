@@ -5,16 +5,18 @@ This script is designed to automate the process of selecting the AGN in the SPT 
 masks needed for determining the feasible area for calculating a surface density.
 """
 from __future__ import print_function
-import numpy as np
+
 import warnings  # For suppressing the astropy warnings that pop up when reading headers.
-from os import listdir, system, chmod
-from astropy.io import fits, ascii
-from astropy.wcs import WCS  # For converting RA/DEC coords in catalog to pixel coords for coverage map.
-from astropy.table import Table, Column
-from astropy.coordinates import SkyCoord
-from astropy import units as u
-from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from itertools import islice
+from os import listdir, system, chmod
+
+import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+from astropy.io import fits, ascii
+from astropy.table import Table
+from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
+from astropy.wcs import WCS
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 
@@ -276,7 +278,7 @@ def object_mask(cluster_info, reg_file_dir):
         # Get the pixel scale as well for single value conversions.
         try:
             pix_scale = fits.getval(pixel_map_path, 'PXSCAL2')
-        except KeyError:    # Just in case the file doesn't have 'PXSCAL2'
+        except KeyError:  # Just in case the file doesn't have 'PXSCAL2'
             try:
                 pix_scale = fits.getval(pixel_map_path, 'CDELT2') * 3600
             except KeyError:  # If both cases fail report the cluster and the problem
@@ -294,7 +296,7 @@ def object_mask(cluster_info, reg_file_dir):
 
                 # Open the regions file and get the lines containing the shapes.
                 with open(reg_file_dir + reg_files[j]) as lines:
-                    for line in islice(lines, 3):
+                    for _ in islice(lines, 3):
                         pass
                     objs = list(lines)
 
@@ -584,7 +586,7 @@ def visualizer(cluster_list):
 
     :param cluster_list:
         An array of lists containing the paths to the clusters' files.
-    :type cluster_list: array
+    :type cluster_list: list
     """
     script = open('ds9viz', mode='w')
     script.write('#!/bin/tcsh\n')
@@ -598,6 +600,3 @@ def visualizer(cluster_list):
 
     chmod('ds9viz', 0o755)
     system('./ds9viz')
-
-
-
