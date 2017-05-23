@@ -572,7 +572,7 @@ def final_catalogs(cluster_info, catalog_cols):
     :param catalog_cols:
         List of column names in the SExtractor catalog that we wish to include in the final version of the catalog.
     :type cluster_info: list
-    :type catalog_cols: list of strings
+    :type catalog_cols: list of str
     """
 
     # Array element names
@@ -594,15 +594,15 @@ def visualizer(cluster_list):
         An array of lists containing the paths to the clusters' files.
     :type cluster_list: list
     """
-    script = open('ds9viz', mode='w')
-    script.write('#!/bin/tcsh\n')
-    script.write('ds9 -single ')
-    for i in range(len(cluster_list)):
-        script.write(cluster_list[i][1])
-        script.write(' ')
-        script.write(cluster_list[i][3])
-        script.write(' ')
-    script.close()
+
+    with open('ds9viz', mode='w') as script:
+        script.write('#!/bin/tcsh\n')
+        script.write('ds9 -single ')
+        for i in range(len(cluster_list)):
+            script.write(cluster_list[i][1])
+            script.write(' ')
+            script.write(cluster_list[i][3])
+            script.write(' ')
 
     chmod('ds9viz', 0o755)
     system('./ds9viz')
