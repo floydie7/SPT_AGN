@@ -1,6 +1,7 @@
 """
-Pipeline_functions.py\n
-Author: Benjamin Floyd\n
+.. Pipeline_functions.py
+.. Author: Benjamin Floyd
+
 This script is designed to automate the process of selecting the AGN in the SPT clusters and generating the proper
 masks needed for determining the feasible area for calculating a surface density.
 """
@@ -35,12 +36,13 @@ def file_pairing(cat_dir, img_dir):
         Path to directory with image files.
     :type cat_dir: str
     :type img_dir: str
-    :return clusters: An array consisting of lists containing the cluster's filenames.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.
+    :return clusters: 
+        An array consisting of lists containing the cluster's filenames.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
     :rtype: list
     """
 
@@ -80,14 +82,14 @@ def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC
     :type cat_dec_col: str
     :return cluster_list:
         An array in the same format as the input cluster_info for the matched clusters with the addition of the catalog
-        id value for the cluster and the separation between the image coordinate and the catalog coordinate.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.\n
-        5: Index in catalog corresponding to the match.\n
-        6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+        id value for the cluster and the separation between the image coordinate and the catalog coordinate.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Index in catalog corresponding to the match.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
     :rtype: list
     """
 
@@ -128,19 +130,19 @@ def mask_flag(cluster_list, mask_file):
     :type mask_file: str
     :return cluster_info:
         An array in the same format as the input cluster_info for the matched clusters with the addition of the catalog
-        id value for the cluster and the separation between the image coordinate and the catalog coordinate.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.\n
-        5: Catalog ID.\n
-        6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.\n
-        7: Masking Flag.\n
-            0: No additional masking required,\n
-            1: Object masking needed, have regions file,\n
-            2: Further attention needed,\n
-            3: Remove cluster from sample (these should not show up).
+        id value for the cluster and the separation between the image coordinate and the catalog coordinate.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Catalog ID.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            * 7: Masking Flag.
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample (these should not show up).
     :rtype: list
     """
 
@@ -178,22 +180,22 @@ def coverage_mask(cluster_info, ch1_min_cov, ch2_min_cov):
     :type cluster_info: list
     :type ch1_min_cov: float
     :type ch2_min_cov: float
-    :return cluster_info: Array.
+    :return cluster_info: 
         An array in the same format as the input cluster_info for the matched clusters with the addition of the catalog
-        id value for the cluster and the separation between the image coordinate and the catalog coordinate.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.\n
-        5: Catalog ID.\n
-        6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.\n
-        7: Masking Flag.\n
-            0: No additional masking required,\n
-            1: Object masking needed, have regions file,\n
-            2: Further attention needed,\n
-            3: Remove cluster from sample.\n
-        8: Coverage good/bad pixel map path name.
+        id value for the cluster and the separation between the image coordinate and the catalog coordinate.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Catalog ID.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            * 7: Masking Flag.
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample.
+            * 8: Coverage good/bad pixel map path name.
     :rtype: list
     """
 
@@ -243,23 +245,26 @@ def object_mask(cluster_info, reg_file_dir):
     :type reg_file_dir: str
     :return cluster_info:
         An array in the same format as the input cluster_info for the matched clusters with the addition of the catalog
-        id value for the cluster and the separation between the image coordinate and the catalog coordinate.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.\n
-        5: Catalog ID.\n
-        6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.\n
-        7: Masking Flag.\n
-            0: No additional masking required,\n
-            1: Object masking needed, have regions file,\n
-            2: Further attention needed,\n
-            3: Remove cluster from sample.\n
-        8: Coverage good/bad pixel map path name.
+        id value for the cluster and the separation between the image coordinate and the catalog coordinate.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Catalog ID.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            * 7: Masking Flag.
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample.
+            * 8: Coverage good/bad pixel map path name.
     :rtype: list
-    :raises KeyError: If the pixel mask file is missing a pixel scale value in its header.
-    :raises KeyError: If the object masking shape is unknown.
+    :raises:
+        :KeyError: 
+            If the pixel mask file is missing a pixel scale value in its header.
+        :KeyError: 
+            If the object masking shape is unknown.
     """
 
     # Region file directory files
@@ -405,21 +410,21 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
     :type ch1_ch2_color_cut: float
     :return cluster_info: Array.
         An array in the same format as the input cluster_info for the matched clusters with the addition of the
-        SExtractor catalog that is read in and had selection cuts preformed on it.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.\n
-        5: Catalog ID.\n
-        6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.\n
-        7: Masking Flag.\n
-            0: No additional masking required,\n
-            1: Object masking needed, have regions file,\n
-            2: Further attention needed,\n
-            3: Remove cluster from sample.\n
-        8: Coverage good/bad pixel map path name.\n
-        9: SExtractor catalog.
+        SExtractor catalog that is read in and had selection cuts preformed on it.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Catalog ID.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            * 7: Masking Flag.
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample.
+            * 8: Coverage good/bad pixel map path name.
+            * 9: SExtractor catalog.
     :rtype: list
     """
 
@@ -513,21 +518,21 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     :type master_dec_col: str
     :return cluster_info:
         An array in the same format as input cluster_info for the matched clusters with the addition of the catalog
-        id value for the cluster and the separation between the image coordinate and the catalog coordinate.\n
-        0: SExtractor catalog path name.\n
-        1: IRAC Ch1 science image path name.\n
-        2: IRAC Ch1 coverage map path name.\n
-        3: IRAC Ch2 science map path name.\n
-        4: IRAC Ch2 coverage map path name.\n
-        5: Catalog ID.\n
-        6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.\n
-        7: Masking Flag.\n
-            0: No additional masking required,\n
-            1: Object masking needed, have regions file,\n
-            2: Further attention needed,\n
-            3: Remove cluster from sample.\n
-        8: Coverage good/bad pixel map path name.\n
-        9: SExtractor catalog.
+        id value for the cluster and the separation between the image coordinate and the catalog coordinate.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Catalog ID.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            * 7: Masking Flag.
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample.
+            * 8: Coverage good/bad pixel map path name.
+            * 9: SExtractor catalog.
     :rtype: list
     """
 
@@ -572,7 +577,6 @@ def final_catalogs(cluster_info, catalog_cols):
         List of column names in the SExtractor catalog that we wish to include in the final version of the catalog.
     :type cluster_info: list
     :type catalog_cols: list of strings
-    :return:
     """
 
     # Array element names
