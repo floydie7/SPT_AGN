@@ -294,7 +294,7 @@ def object_mask(cluster_info, reg_file_dir):
                 raise
 
         # Read in the coverage mask data and header.
-        coverage, head = fits.getdata(pixel_map_path, header=True, ignore_missing_end=True)
+        coverage, head = fits.getdata(pixel_map_path, header=True, ignore_missing_end=True, memmap=False)
 
         for j in range(len(reg_files)):
 
@@ -350,10 +350,6 @@ def object_mask(cluster_info, reg_file_dir):
 
                         # Generate the mask shape.
                         shape = Path(verts).transformed(rot)
-
-                    # If there's a blank line pass over it.
-                    # elif len(mask) == 0:
-                    #     pass
 
                     # Return error if mask shape isn't known.
                     else:
