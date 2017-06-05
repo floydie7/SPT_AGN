@@ -5,7 +5,7 @@
 This script is designed to automate the process of selecting the AGN in the SPT clusters and generating the proper
 masks needed for determining the feasible area for calculating a surface density.
 """
-from __future__ import print_function
+from __future__ import print_function, division
 
 import warnings  # For suppressing the astropy warnings that pop up when reading headers.
 from itertools import islice
@@ -20,6 +20,7 @@ from astropy.utils.exceptions import AstropyWarning  # For suppressing the astro
 from astropy.wcs import WCS
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
+from scipy.interpolate import interp1d
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -220,8 +221,8 @@ def coverage_mask(cluster_info, ch1_min_cov, ch2_min_cov):
                 combined_cov[j][k] = 1
 
     # Write out the coverage mask.
-    mask_pathname = 'Data/Masks/' + sex_cat_path[-23:-7] + '_cov_mask' + str(ch1_min_cov) \
-                    + '_' + str(ch2_min_cov) + '.fits'
+    mask_pathname = 'Data/Masks/{cluster_id}_cov_mask{ch1_cov}_{ch2_cov}.fits'\
+        .format(cluster_id=sex_cat_path[-23:-7], ch1_cov=ch1_min_cov, ch2_cov=ch2_min_cov)
     combined_cov_hdu = fits.PrimaryHDU(combined_cov, header=head)
     combined_cov_hdu.writeto(mask_pathname, overwrite=True)
 
@@ -289,8 +290,8 @@ def object_mask(cluster_info, reg_file_dir):
             try:
                 pix_scale = fits.getval(pixel_map_path, 'CDELT2') * 3600
             except KeyError:  # If both cases fail report the cluster and the problem
-                print("Header is missing both 'PXSCAL2' and 'CDELT2'. Please check the header of: ",
-                      pixel_map_path)
+                print("Header is missing both 'PXSCAL2' and 'CDELT2'. Please check the header of: {file}"
+                      .format(file=pixel_map_path))
                 raise
 
         # Read in the coverage mask data and header.
@@ -353,8 +354,8 @@ def object_mask(cluster_info, reg_file_dir):
 
                     # Return error if mask shape isn't known.
                     else:
-                        raise KeyError('Mask shape is unknown, please check the region file of cluster:',
-                                       reg_files[j], mask)
+                        raise KeyError('Mask shape is unknown, please check the region file of cluster: {region} {mask}'
+                                       .format(region=reg_files[j], mask=mask))
 
                     # Check if the pixel values are within the shape we defined earlier.
                     # If true, set the pixel value to 0.
@@ -563,6 +564,67 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     return cluster_info
 
 
+def completeness_value(cluster_info, mag, completeness_dict):
+    """
+    Takes the completeness curve values for the cluster, interpolates a function between the discrete values, then
+    queries the specified magnitude of the selected objects in the SExtractor catalog and adds two columns: The
+    completeness value of that object at its magnitude and the completeness correction value (1/[completeness value]).
+
+    :param cluster_info:
+        An array of lists containing the paths to the clusters' files.
+    :param mag:
+        Specifies which IRAC magnitude corresponds to the magnitude used to generate the completeness curve values.
+    :param completeness_dict:
+        A dictionary containing completeness curve values of a specific magnitude for all clusters in the sample.
+    :type cluster_info: list
+    :type mag: str
+    :type completeness_dict: dict
+    :return cluster_info:
+        An array in the same format as input cluster_info from catalog_match() with the addition of two columns for the
+        completeness values of the objects in the SExtractor catalog.
+            * 0: SExtractor catalog path name.
+            * 1: IRAC Ch1 science image path name.
+            * 2: IRAC Ch1 coverage map path name.
+            * 3: IRAC Ch2 science map path name.
+            * 4: IRAC Ch2 coverage map path name.
+            * 5: Catalog ID.
+            * 6: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            * 7: Masking Flag.
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample.
+            * 8: Coverage good/bad pixel map path name.
+            * 9: SExtractor catalog.
+    :rtype: list
+    """
+
+    # Array element names
+    cluster_id = cluster_info[0][-23:-7]
+    sex_catalog = cluster_info[9]
+
+    # Select the correct entry in the dictionary corresponding to our cluster.
+    completeness_data = completeness_dict[cluster_id]
+
+    # Also grab the magnitude bins used to create the completeness data
+    mag_bins = completeness_data['magnitude_bins']
+
+    # Interpolate the completeness data into a functional form using linear interpolation
+    completeness_funct = interp1d(mag_bins, completeness_data, kind='linear')
+
+    # For the objects' magnitude specified by `mag` query the completeness function to find the completeness value.
+    completeness_values = completeness_funct(sex_catalog[mag])
+
+    # The completeness correction values are defined as 1/[completeness value]
+    completeness_corrections = 1 / completeness_values
+
+    # Add the completeness values and corrections to the SExtractor catalog.
+    sex_catalog['completeness_value'] = completeness_values
+    sex_catalog['completeness_correction'] = completeness_corrections
+
+    return cluster_info
+
+
 def final_catalogs(cluster_info, catalog_cols):
     """
     Writes the final catalogs to disk.
@@ -581,7 +643,7 @@ def final_catalogs(cluster_info, catalog_cols):
 
     final_cat = sex_catalog[catalog_cols]
 
-    final_cat_path = 'Data/Output/' + sex_cat_path[-23:-7] + '_AGN.cat'
+    final_cat_path = 'Data/Output/{cluster_id}_AGN.cat'.format(cluster_id=sex_cat_path[-23:-7])
 
     ascii.write(final_cat, final_cat_path)
 
