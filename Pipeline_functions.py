@@ -8,14 +8,14 @@ masks needed for determining the feasible area for calculating a surface density
 from __future__ import print_function, division
 
 import warnings  # For suppressing the astropy warnings that pop up when reading headers.
-from itertools import islice
+from itertools import ifilter
 from os import listdir, system, chmod
 
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import fits, ascii
-from astropy.table import Table
+from astropy.table import Table, unique
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
 from matplotlib.path import Path
@@ -77,7 +77,7 @@ def file_pairing(cat_dir, img_dir):
     return [x for x in clusters if len(x) == 5]
 
 
-def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC'):
+def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC', max_sep=1.0):
     """
     Matches the center coordinate of a fits image to a catalog of objects then returns an array containing the paths to
     the files that have a match in the catalog.
@@ -90,6 +90,9 @@ def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC
         RA column name in catalog. Defaults to 'RA'.
     :param cat_dec_col:
         Dec column name in catalog. Defaults to 'DEC'.
+    :param max_sep:
+        Maximum separation (in arcminutes) allowed between the image center coordinate and the Bleem cluster center
+        coordinate. Defaults to 1.0 arcminute.
     :type cluster_list: list
     :type catalog: Astropy table object
     :type cat_ra_col: str
@@ -105,6 +108,7 @@ def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
     :rtype: list
     """
 
@@ -126,7 +130,31 @@ def catalog_image_match(cluster_list, catalog, cat_ra_col='RA', cat_dec_col='DEC
         idx, sep, _ = img_coord.match_to_catalog_sky(cat_coords)
 
         # Add the (nearest) catalog id and separation (in arcsec) to the output array.
-        cluster.update({'Bleem_idx': idx, 'center_sep': sep.arcsec.item()})
+        cluster.update({'Bleem_idx': idx, 'center_sep': sep.arcmin.item(), 'SPT_ID': catalog[idx]['SPT_ID']})
+
+    # Reject any match with a separation larger than 1 arcminute.
+    cluster_list = [cluster for cluster in cluster_list if cluster['center_sep'] <= max_sep]
+
+    # If there are any duplicate matches in the sample remaining we need to remove the match that is the poorer
+    # match. We will only keep the closest matches.
+    # First set up a table of the index of the cluster dictionaries in cluster_list, the recorded Bleem index, and
+    # the recorded separation.
+    match_info = Table(names=['list_idx', 'Bleem_idx', 'center_sep'], dtype=['i8', 'i8', 'f8'])
+    for i in range(len(cluster_list)):
+        match_info.add_row([i, cluster_list[i]['Bleem_idx'], cluster_list[i]['center_sep']])
+
+    # Sort the table by the Bleem index.
+    match_info.sort(['Bleem_idx', 'center_sep'])
+
+    # Use Astropy's unique function to remove the duplicate rows. Because the table rows will be subsorted by the
+    # separation column we only need to keep the first incidence of the Bleem index as our best match.
+    match_info = unique(match_info, keys='Bleem_idx', keep='first')
+
+    # Resort the table by the list index (not sure if this is necessary).
+    match_info.sort('list_idx')
+
+    # Generate the output list using the remaining indices in the table.
+    cluster_list = [cluster_list[i] for i in match_info['list_idx']]
 
     return cluster_list
 
@@ -154,6 +182,7 @@ def mask_flag(cluster_list, mask_file):
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
             :mask_flag: Masking Flag with one of the following values.
 
                 * 0: No additional masking required,
@@ -170,12 +199,12 @@ def mask_flag(cluster_list, mask_file):
     # Pair the clusters in the list with those in the masking notes file.
     for cluster in cluster_list:
         # Array element names
-        sex_cat_path = cluster['sex_cat_path']
+        cutout_id = cluster['SPT_ID']
 
         # Go through the masking notes file and match the flag value with the correct cluster.
         for row in mask_notes:
-            if sex_cat_path.endswith(row['catalog'][-23:]):
-                cluster.update({'mask_flag': int(row['flag'])})
+            if cutout_id in row['catalog']:
+                cluster.update({'mask_flag': row['flag']})
 
     return cluster_list
 
@@ -204,6 +233,7 @@ def coverage_mask(cluster_info, ch1_min_cov, ch2_min_cov):
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
             :mask_flag: Masking Flag with one of the following values.
 
                 * 0: No additional masking required,
@@ -216,7 +246,7 @@ def coverage_mask(cluster_info, ch1_min_cov, ch2_min_cov):
     """
 
     # Array element names
-    sex_cat_path = cluster_info['sex_cat_path']
+    spt_id = cluster_info['SPT_ID']
     irac_ch1_cov_path = cluster_info['ch1_cov_path']
     irac_ch2_cov_path = cluster_info['ch2_cov_path']
 
@@ -237,7 +267,7 @@ def coverage_mask(cluster_info, ch1_min_cov, ch2_min_cov):
 
     # Write out the coverage mask.
     mask_pathname = 'Data/Masks/{cluster_id}_cov_mask{ch1_cov}_{ch2_cov}.fits'\
-        .format(cluster_id=sex_cat_path[-23:-7], ch1_cov=ch1_min_cov, ch2_cov=ch2_min_cov)
+        .format(cluster_id=spt_id, ch1_cov=ch1_min_cov, ch2_cov=ch2_min_cov)
     combined_cov_hdu = fits.PrimaryHDU(combined_cov, header=head)
     combined_cov_hdu.writeto(mask_pathname, overwrite=True)
 
@@ -270,6 +300,7 @@ def object_mask(cluster_info, reg_file_dir):
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
             :mask_flag: Masking Flag with one of the following values.
 
                 * 0: No additional masking required,
@@ -286,11 +317,15 @@ def object_mask(cluster_info, reg_file_dir):
             If the object masking shape is unknown.
     """
 
+    # Add a trailing '/' to the directory paths if not present.
+    if not reg_file_dir.endswith('/'):
+        reg_file_dir = reg_file_dir + '/'
+
     # Region file directory files
     reg_files = [f for f in listdir(reg_file_dir) if not f.startswith('.')]
 
     # Array element names
-    sex_cat_path = cluster_info['sex_cat_path']
+    spt_id = cluster_info['SPT_ID']
     flag = cluster_info['mask_flag']
     pixel_map_path = cluster_info['cov_mask_path']
 
@@ -318,17 +353,16 @@ def object_mask(cluster_info, reg_file_dir):
         for j in range(len(reg_files)):
 
             # Find the correct regions file corresponding to the cluster.
-            if reg_files[j].startswith(sex_cat_path[-23:-7]):
+            if spt_id in reg_files[j]:
 
                 # Open the regions file and get the lines containing the shapes.
-                with open(reg_file_dir + reg_files[j]) as lines:
-                    for _ in islice(lines, 3):
-                        pass
-                    objs = list(lines)
+                with open(reg_file_dir + reg_files[j]) as region:
+                    objs = []
+                    for line in ifilter(lambda _: _.startswith('circle') or _.startswith('box'), region):
+                        objs.append(line.strip())
 
                 # For each shape extract the defining parameters.
-                for item in objs:
-                    mask = item.strip()
+                for mask in objs:
 
                     # For circle shapes we need the center coordinate and the radius.
                     if mask.startswith('circle'):
@@ -389,8 +423,7 @@ def object_mask(cluster_info, reg_file_dir):
     return cluster_info
 
 
-def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
-                     sex_flag_cut=4, snr_cut=5.0, mag_cut=18.0, ch1_ch2_color_cut=0.7):
+def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC', sex_flag_cut=4, mag_cut=18., ch1_ch2_color_cut=0.7):
     """
     Reads in the SExtractor catalogs and performs all necessary cuts to select the AGN in the cluster. First, a cut is
     made on the SExtractor flag, the SNR is calculated, a flat magnitude cut is made to keep the completeness correction
@@ -407,8 +440,6 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
         Catalog Dec column name label. Defaults to 'DEC'.
     :param sex_flag_cut:
         SExtractor flag value to cut on. Values less than the entered value are accepted. Defaults to < 4.
-    :param snr_cut:
-        Signal to Noise Ratio value to cut on. Values greater than the entered value are accepted. Defaults to > 5.
     :param mag_cut:
         Flat magnitude value in IRAC band specified by the 'mag' parameter. Values less than the entered value are
         accepted. This should be chosen so that the completeness correction is kept small. Defaults to < 18.0.
@@ -420,7 +451,6 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
     :type cat_ra: str
     :type cat_dec: str
     :type sex_flag_cut: int
-    :type snr_cut: float
     :type mag_cut: float
     :type ch1_ch2_color_cut: float
     :return cluster_info:
@@ -435,6 +465,7 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
             :mask_flag: Masking Flag with one of the following values.
 
                 * 0: No additional masking required,
@@ -456,14 +487,6 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC',
 
     # Preform SExtractor Flag cut
     catalog = catalog[np.where(catalog['FLAGS'] < sex_flag_cut)]
-
-    # Calculate SNR in both bands (4" apertures)
-    # catalog['SNR_ch1'] = catalog['I1_FLUX_APER4'] / catalog['I1_FLUXERR_APER4']
-    # catalog['SNR_ch2'] = catalog['I2_FLUX_APER4'] / catalog['I2_FLUXERR_APER4']
-
-    # Preform SNR cut
-    # catalog = catalog[np.where(catalog['SNR_ch1'] >= snr_cut)]
-    # catalog = catalog[np.where(catalog['SNR_ch2'] >= snr_cut)]
 
     # Preform Magnitude cut
     catalog = catalog[np.where(catalog[mag] <= mag_cut)]
@@ -548,6 +571,7 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
             :mask_flag: Masking Flag with one of the following values.
 
                 * 0: No additional masking required,
@@ -561,14 +585,15 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     """
 
     # Array element names
-    catalog_id = cluster_info['Bleem_idx']
+    catalog_idx = cluster_info['Bleem_idx']
     sex_catalog = cluster_info['catalog']
+    spt_id = cluster_info['SPT_ID']
 
     # We already matched our SExtractor catalogs to the master catalog so we only need to pull the correct row.
     # The master catalog index is stored in cluster_info['Bleem_idx'].
     # Create astropy skycoord object from the catalog columns.
-    cat_coords = SkyCoord(master_catalog[master_ra_col][catalog_id],
-                          master_catalog[master_dec_col][catalog_id], unit=u.degree)
+    cat_coords = SkyCoord(master_catalog[master_ra_col][catalog_idx],
+                          master_catalog[master_dec_col][catalog_idx], unit=u.degree)
 
     # List to hold the separations
     separation = []
@@ -579,14 +604,91 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     # angle approximation.
     for j in range(len(sex_catalog)):
         sexcat_coords = SkyCoord(sex_catalog[sex_ra_col][j], sex_catalog[sex_dec_col][j], unit=u.degree)
-        separation.append(sexcat_coords.separation(cat_coords).arcsec)
+        separation.append(sexcat_coords.separation(cat_coords).arcmin)
+
+    # Replace the existing SPT_ID in the SExtractor catalog with the official one from Bleem+15.
+    # First change the data type of the column to str16 so the ID can fit in the column
+    sex_catalog['SPT_ID'] = sex_catalog['SPT_ID'].astype('S16')
+
+    # Then replace the column values with the one we have stored in the dictionary.
+    sex_catalog['SPT_ID'] = spt_id
 
     # For all requested columns from the master catalog add the value to all columns in the SExtractor catalog.
     for col_name in catalog_cols:
-        sex_catalog[col_name] = master_catalog[col_name][catalog_id]
+        sex_catalog[col_name] = master_catalog[col_name][catalog_idx]
 
     # Store all the separations in as a column in the catalog.
-    sex_catalog['rad_dist'] = separation
+    sex_catalog['RADIAL_DIST'] = separation
+
+    return cluster_info
+
+
+def image_area(cluster_info, units='arcmin'):
+    """
+    Uses the pixel mask of the image and calculates the total area of all good pixels then add this value to the catalog
+    as a column.
+
+    :param cluster_info:
+        A dictionary containing the paths to the clusters' files and other information about the cluster.
+    :param units:
+        The units we wish the area to be in. Defaults to `arcmin`.
+    :type cluster_info: dict
+    :type units: str
+    :return cluster_info:
+        A dictionary for the cluster with the path names to the files, the index value in the master catalog for the
+        cluster, the separation between the image coordinate and the catalog coordinate, the masking flag from the
+        external masking catalog, the path name of the coverage pixel mask, and the SExtractor catalog (loaded into
+        memory) with the following keynames.
+            :sex_cat_path: SExtractor catalog path name.
+            :ch1_sci_path: IRAC Ch1 science image path name.
+            :ch1_cov_path: IRAC Ch1 coverage map path name.
+            :ch2_sci_path: IRAC Ch2 science map path name.
+            :ch2_cov_path: IRAC Ch2 coverage map path name.
+            :Bleem_idx: Index in catalog corresponding to the match.
+            :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
+            :mask_flag: Masking Flag with one of the following values.
+
+                * 0: No additional masking required,
+                * 1: Object masking needed, have regions file,
+                * 2: Further attention needed,
+                * 3: Remove cluster from sample (these should not show up).
+
+            :cov_mask_path: Coverage good/bad pixel map path name.
+            :catalog: SExtractor catalog.
+    :rtype: dict
+    """
+
+    # Dictionary element names.
+    catalog = cluster_info['catalog']
+    pixel_mask_path = cluster_info['cov_mask_path']
+
+    # Read in the pixel mask.
+    pixel_mask = fits.getdata(pixel_mask_path)
+
+    # The pixel mask has values of only 0 (bad) or 1 (good) so a simple sum of all the values will give us the total
+    # number of good pixels in the mask.
+    good_pixels = pixel_mask.flatten().sum()
+
+    # Get the pixel scale.
+    try:
+        pix_scale = fits.getval(pixel_mask_path, 'PXSCAL2') * u.arcsec
+    except KeyError:  # Just in case the file doesn't have 'PXSCAL2'
+        try:
+            pix_scale = fits.getval(pixel_mask_path, 'CDELT2') * u.deg
+        except KeyError:  # If both cases fail report the cluster and the problem
+            print("Header is missing both 'PXSCAL2' and 'CDELT2'. Please check the header of: {file}"
+                  .format(file=pixel_mask_path))
+            raise
+
+    # Convert the pixel scale to whatever units were requested.
+    pix_scale = pix_scale.to(u.Unit(units))
+
+    # Now simply convert our number of pixels into a sky area using the pixel scale.
+    total_area = good_pixels * pix_scale.value * pix_scale.value
+
+    # Add the area to the catalog as a column
+    catalog['IMAGE_AREA'] = total_area
 
     return cluster_info
 
@@ -618,6 +720,7 @@ def completeness_value(cluster_info, mag, completeness_dict):
             :ch2_cov_path: IRAC Ch2 coverage map path name.
             :Bleem_idx: Index in catalog corresponding to the match.
             :center_sep: Separation (in arcsec) between catalog RA/Dec and image center pixel RA/Dec.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
             :mask_flag: Masking Flag with one of the following values.
 
                 * 0: No additional masking required,
@@ -631,14 +734,14 @@ def completeness_value(cluster_info, mag, completeness_dict):
     """
 
     # Array element names
-    cluster_id = cluster_info['sex_cat_path'][-23:-7]
+    spt_id = cluster_info['SPT_ID']
     sex_catalog = cluster_info['catalog']
 
     # Select the correct entry in the dictionary corresponding to our cluster.
-    completeness_data = completeness_dict[cluster_id]
+    completeness_data = [value for key, value in completeness_dict.items() if spt_id in key][0]
 
     # Also grab the magnitude bins used to create the completeness data
-    mag_bins = completeness_data['magnitude_bins']
+    mag_bins = completeness_dict['magnitude_bins'][:-1]
 
     # Interpolate the completeness data into a functional form using linear interpolation
     completeness_funct = interp1d(mag_bins, completeness_data, kind='linear')
@@ -661,7 +764,12 @@ def final_catalogs(cluster_info, catalog_cols):
     Writes the final catalogs to disk.
 
     :param cluster_info:
-        A dictionary containing the paths to the clusters' files and other information about the cluster.
+        A dictionary for the cluster with the path names to the files, the index value in the master catalog for the
+        cluster, the separation between the image coordinate and the catalog coordinate, the masking flag from the
+        external masking catalog, the path name of the coverage pixel mask, and the SExtractor catalog (loaded into
+        memory) with the following required keynames.
+            :SPT_ID: String containing the official Bleem SPT ID for the cluster.
+            :catalog: SExtractor catalog.
     :param catalog_cols:
         List of column names in the SExtractor catalog that we wish to include in the final version of the catalog.
     :type cluster_info: dict
@@ -669,12 +777,12 @@ def final_catalogs(cluster_info, catalog_cols):
     """
 
     # Array element names
-    sex_cat_path = cluster_info['sex_cat_path']
+    spt_id = cluster_info['SPT_ID']
     sex_catalog = cluster_info['catalog']
 
     final_cat = sex_catalog[catalog_cols]
 
-    final_cat_path = 'Data/Output/{cluster_id}_AGN.cat'.format(cluster_id=sex_catalog['SPT_ID'][0])
+    final_cat_path = 'Data/Output/{cluster_id}_AGN.cat'.format(cluster_id=spt_id)
 
     ascii.write(final_cat, final_cat_path)
 
@@ -691,10 +799,10 @@ def visualizer(cluster_list):
     with open('ds9viz', mode='w') as script:
         script.write('#!/bin/tcsh\n')
         script.write('ds9 -single ')
-        for i in range(len(cluster_list)):
-            script.write(cluster_list[i][1])
+        for cluster in cluster_list:
+            script.write(cluster['ch1_sci_path'])
             script.write(' ')
-            script.write(cluster_list[i][3])
+            script.write(cluster['ch2_sci_path'])
             script.write(' ')
 
     chmod('ds9viz', 0o755)

@@ -16,7 +16,7 @@ Bleem = Table(fits.getdata('Data/2500d_cluster_sample_fiducial_cosmology.fits'))
 # Clean the table of the rows without mass data. These are unconfirmed cluster candidates.
 Bleem = Bleem[np.where(Bleem['M500'] != 0.0)]
 
-# completeness_dictionary = np.load('...')  # Dictionary of completeness curve values for all clusters
+# completeness_dictionary = np.load('...').item()  # Dictionary of completeness curve values for all clusters
 # TODO Determine the path name to the completeness data
 
 # Run the pipeline.
@@ -26,9 +26,8 @@ cluster_list = file_pairing('Data/Catalogs/', 'Data/Images/')
 print("File pairing complete, Clusters in directory: {num_clusters}".format(num_clusters=len(cluster_list)))
 
 print("Matching Images against Bleem Catalog.")
-matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC')
+matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC', max_sep=1.0)
 
-matched_list = [cluster for cluster in matched_list if cluster['center_sep'] <= 60.0]
 print("Matched clusters (within 1 arcmin): {num_clusters}".format(num_clusters=len(matched_list)))
 
 print("Applying mask flags.")
@@ -56,6 +55,9 @@ for cluster in cluster_list:
     match_time_end = time()
     print("Time taken calculating separations: {match_time} s".format(match_time=match_time_end - match_time_start))
 
+    print("Calculating the total (good) area of the cutout image.")
+    cluster = image_area(cluster, units='arcmin')
+
     # print("Computing completeness values for selected objects.")
     # cluster = completeness_value(cluster, 'I2_MAG_APER4', completeness_dictionary)
 
@@ -66,3 +68,5 @@ for cluster in cluster_list:
 end_time = time()
 print("Pipeline finished.")
 print("Total runtime: {total_time} s".format(total_time=end_time - start_time))
+
+object_selection()
