@@ -8,7 +8,6 @@ masks needed for determining the feasible area for calculating a surface density
 from __future__ import print_function, division
 
 import warnings  # For suppressing the astropy warnings that pop up when reading headers.
-from itertools import ifilter
 from os import listdir, system, chmod
 
 import numpy as np
@@ -18,6 +17,7 @@ from astropy.io import fits, ascii
 from astropy.table import Table, unique
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
+from itertools import ifilter
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from scipy.interpolate import interp1d
@@ -194,16 +194,16 @@ def mask_flag(cluster_list, mask_file):
     """
 
     # Open the masking notes file
-    mask_notes = ascii.read(mask_file, names=['catalog', 'flag'])
+    mask_notes = ascii.read(mask_file, names=['cluster_id', 'flag'])
 
     # Pair the clusters in the list with those in the masking notes file.
     for cluster in cluster_list:
         # Array element names
-        cutout_id = cluster['SPT_ID']
+        sex_cat_path = cluster['sex_cat_path']
 
         # Go through the masking notes file and match the flag value with the correct cluster.
         for row in mask_notes:
-            if cutout_id in row['catalog']:
+            if sex_cat_path[-23:-7] in row['cluster_id']:
                 cluster.update({'mask_flag': row['flag']})
 
     return cluster_list
@@ -493,7 +493,7 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC', sex_flag_cut
 
     # Preform saturation cuts using limits from Eisenhardt et al. 2004
     catalog = catalog[np.where(catalog['I1_MAG_APER4'] > 10.0)]  # [3.6] saturation limit
-    catalog = catalog[np.where(catalog['I2_MAG_APER4'] > 9.8)]   # [4.5] saturation limit
+    catalog = catalog[np.where(catalog['I2_MAG_APER4'] > 10.45)]   # [4.5] saturation limit (originally 9.8)
 
     # Calculate the IRAC Ch1 - Ch2 color (4" apertures) and preform the color cut
     catalog = catalog[np.where(catalog['I1_MAG_APER4'] - catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut)]
@@ -602,9 +602,10 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     # cluster-centered coordinate.
     # Note: Astropy .separation() calculates the great-circle distance via the Vincenty formula *not* the small
     # angle approximation.
-    for j in range(len(sex_catalog)):
-        sexcat_coords = SkyCoord(sex_catalog[sex_ra_col][j], sex_catalog[sex_dec_col][j], unit=u.degree)
-        separation.append(sexcat_coords.separation(cat_coords).arcmin)
+    sexcat_coords = SkyCoord(sex_catalog[sex_ra_col], sex_catalog[sex_dec_col], unit=u.degree)
+
+    # Calculate and store all the separations in as a column in the catalog.
+    sex_catalog['RADIAL_DIST'] = sexcat_coords.separation(cat_coords).arcmin # TODO might be best to convert to Mpc here
 
     # Replace the existing SPT_ID in the SExtractor catalog with the official one from Bleem+15.
     # First change the data type of the column to str16 so the ID can fit in the column
@@ -616,9 +617,6 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     # For all requested columns from the master catalog add the value to all columns in the SExtractor catalog.
     for col_name in catalog_cols:
         sex_catalog[col_name] = master_catalog[col_name][catalog_idx]
-
-    # Store all the separations in as a column in the catalog.
-    sex_catalog['RADIAL_DIST'] = separation
 
     return cluster_info
 
@@ -734,11 +732,11 @@ def completeness_value(cluster_info, mag, completeness_dict):
     """
 
     # Array element names
-    spt_id = cluster_info['SPT_ID']
+    sex_cat_path = cluster_info['sex_cat_path']
     sex_catalog = cluster_info['catalog']
 
     # Select the correct entry in the dictionary corresponding to our cluster.
-    completeness_data = [value for key, value in completeness_dict.items() if spt_id in key][0]
+    completeness_data = [value for key, value in completeness_dict.items() if sex_cat_path[-23:-7] in key][0]
 
     # Also grab the magnitude bins used to create the completeness data
     mag_bins = completeness_dict['magnitude_bins'][:-1]
