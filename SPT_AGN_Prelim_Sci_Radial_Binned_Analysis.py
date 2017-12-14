@@ -15,7 +15,6 @@ import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, vstack
-from astropy.utils import NumpyRNGContext
 from astropy.wcs import WCS
 from itertools import product
 from scipy.spatial.distance import cdist
@@ -171,39 +170,39 @@ def make_z_rad_bin_histogram(z_bin, rad_bins):
             cluster_rad_hist, _ = np.histogram(cluster['RADIAL_DIST_Mpc'],
                                                weights=cluster['completeness_correction'],
                                                bins=cluster_rad_bin)
-            print('Observed AGN counts: {}'.format(cluster_rad_hist))
+            # print('Observed AGN counts: {}'.format(cluster_rad_hist))
 
             # Calculate the area of each annulus in arcmin^2 using only the good pixels from the cluster pixel map.
             cluster_bin_area_arcmin2 = annulus_pixel_area(cluster['SPT_ID'][0], cluster_rad_bin_arcmin)
-            print('Annuli area (arcmin2): {}'.format(cluster_bin_area_arcmin2))
+            # print('Annuli area (arcmin2): {}'.format(cluster_bin_area_arcmin2))
 
             # Using the SDWFS field surface density and the area of the annuli, calculate the expected AGN counts in the
             # radial bins.
             field_rad_counts = cluster_bin_area_arcmin2 * field_surf_den
-            print('SDWFS expected counts: {}'.format(field_rad_counts))
+            # print('SDWFS expected counts: {}'.format(field_rad_counts))
 
             # Calculate the Poisson errors for both the observed cluster counts and the field expected counts.
             cluster_poisson_err = small_poisson(cluster_rad_hist, S=1)
             field_poisson_err = small_poisson(field_rad_counts, S=1)
-            print('cluster errors: {cl}\nfield errors: {fl}'.format(cl=cluster_poisson_err, fl=field_poisson_err))
+            # print('cluster errors: {cl}\nfield errors: {fl}'.format(cl=cluster_poisson_err, fl=field_poisson_err))
 
             # Subtract the field expectation from the observed cluster counts.
             cluster_field_counts = cluster_rad_hist - field_rad_counts
-            print('Field-subtracted AGN counts: {}'.format(cluster_field_counts))
+            # print('Field-subtracted AGN counts: {}'.format(cluster_field_counts))
 
             # Propagate the Poisson errors of both the cluster and field counts to the excess counts.
             cluster_field_counts_upper_err = np.sqrt(cluster_poisson_err[0]**2 + field_poisson_err[0]**2)
             cluster_field_counts_lower_err = np.sqrt(cluster_poisson_err[1] ** 2 + field_poisson_err[1] ** 2)
-            print('Field subtracted errors\nupper: {up}\nlower: {lo}'.format(up=cluster_field_counts_upper_err, lo=cluster_field_counts_lower_err))
+            # print('Field subtracted errors\nupper: {up}\nlower: {lo}'.format(up=cluster_field_counts_upper_err, lo=cluster_field_counts_lower_err))
 
             # Calculate the AGN excess surface density for each radial bin.
             cluster_field_rad_surf_den = cluster_field_counts / cluster_bin_area_arcmin2
-            print('field subtracted surface densities: {}'.format(cluster_field_rad_surf_den))
+            # print('field subtracted surface densities: {}'.format(cluster_field_rad_surf_den))
 
             # Convert the errors to surface densities.
             cluster_field_surf_den_upper_err = cluster_field_counts_upper_err / cluster_bin_area_arcmin2
             cluster_field_surf_den_lower_err = cluster_field_counts_lower_err / cluster_bin_area_arcmin2
-            print('surface density errors\nupper: {up}\nlower: {lo}'.format(up=cluster_field_surf_den_upper_err, lo=cluster_field_surf_den_lower_err))
+            # print('surface density errors\nupper: {up}\nlower: {lo}'.format(up=cluster_field_surf_den_upper_err, lo=cluster_field_surf_den_lower_err))
 
             # Using the cluster's redshift convert the angular surface density into physical units.
             cluster_rad_surf_den = cluster_field_rad_surf_den / (cosmo.kpc_proper_per_arcmin(cluster['REDSHIFT'][0])
@@ -229,49 +228,57 @@ def make_z_rad_bin_histogram(z_bin, rad_bins):
     # divided by 0 area which gives a NaN for that cluster's surface density bin.
     z_rad_surf_den = np.nanmean(total_rad_surf_den, axis=0)
 
-    # For the errors, we will preform a bootstrap resampling at the AGN level for the surface densities.
-    z_rad_boot_array = np.array(
-        [z_bin['RADIAL_DIST_Mpc'], z_bin['completeness_correction'], z_bin['r500'], z_bin['REDSHIFT'],
-         z_bin['SPT_ID']]).T
-    with NumpyRNGContext(1):
-        z_rad_bootresult = spt_bootstrap(z_rad_boot_array, 100)
-
-    # Make the histograms for each resampling.
-    z_rad_boot_surf_den = []
-    for z_rad_boot_samp in z_rad_bootresult:
-        # Set up a table for the bootstrapped sample.
-        z_rad_boot_table = Table(z_rad_boot_samp,
-                                 names=['RADIAL_DIST_Mpc', 'completeness_correction', 'r500', 'REDSHIFT', 'SPT_ID'],
-                                 dtype=('f8', 'f8', 'f8', 'f8', 'S32'))
-
-        # Compute the radial surface densities for the sample.
-        z_rad_boot_hist, _ = radial_surf_den(z_rad_boot_table, rad_bins)
-
-        # Find the average surface density for the sample using `nanmean` to ignore NaN values.
-        z_rad_boot_hist_mean = np.nanmean(z_rad_boot_hist, axis=0)
-        z_rad_boot_surf_den.append(z_rad_boot_hist_mean)
-
-    # Compute the standard deviation of the bootstrapped surface densities in the radial bins.
-    z_rad_boot_err = np.std(z_rad_boot_surf_den, axis=0)
+    # # For the errors, we will preform a bootstrap resampling at the AGN level for the surface densities.
+    # z_rad_boot_array = np.array(
+    #     [z_bin['RADIAL_DIST_Mpc'], z_bin['completeness_correction'], z_bin['r500'], z_bin['REDSHIFT'],
+    #      z_bin['SPT_ID']]).T
+    # with NumpyRNGContext(1):
+    #     z_rad_bootresult = spt_bootstrap(z_rad_boot_array, 100)
+    #
+    # # Make the histograms for each resampling.
+    # z_rad_boot_surf_den = []
+    # for z_rad_boot_samp in z_rad_bootresult:
+    #     # Set up a table for the bootstrapped sample.
+    #     z_rad_boot_table = Table(z_rad_boot_samp,
+    #                              names=['RADIAL_DIST_Mpc', 'completeness_correction', 'r500', 'REDSHIFT', 'SPT_ID'],
+    #                              dtype=('f8', 'f8', 'f8', 'f8', 'S32'))
+    #
+    #     # Compute the radial surface densities for the sample.
+    #     z_rad_boot_hist, _ = radial_surf_den(z_rad_boot_table, rad_bins)
+    #
+    #     # Find the average surface density for the sample using `nanmean` to ignore NaN values.
+    #     z_rad_boot_hist_mean = np.nanmean(z_rad_boot_hist, axis=0)
+    #     z_rad_boot_surf_den.append(z_rad_boot_hist_mean)
+    #
+    # # Compute the standard deviation of the bootstrapped surface densities in the radial bins.
+    # z_rad_boot_err = np.std(z_rad_boot_surf_den, axis=0)
 
     # Extract the upper and lower Poisson errors for each cluster.
     cluster_field_poisson_upper_err = np.array([error[0] for error in cluster_field_poisson_err])
     cluster_field_poisson_lower_err = np.array([error[1] for error in cluster_field_poisson_err])
 
+    # The errors may have non-finite values due to divisions by zero. However, we never want to include these values in
+    # our calculations. Therefore, let us identify all non-finite values and send them to a single value e.g., NaN which
+    # we can process using the numpy nan* functions.
+    poisson_upper_err_filtered = np.where(np.isfinite(total_rad_surf_den), cluster_field_poisson_upper_err, np.nan)
+    poisson_lower_err_filtered = np.where(np.isfinite(total_rad_surf_den), cluster_field_poisson_lower_err, np.nan)
+
     # We want the errors to be conservative so we will calculate the Poisson error in each bin and average over the
     # number of clusters. If the Poisson error is larger than the bootstrapped error for that bin, we replace with the
     # Poisson error.
-    z_rad_poisson_upper_err = (np.sqrt(np.nansum(np.array(cluster_field_poisson_upper_err)**2, axis=0))
-                               / np.count_nonzero(~np.isnan(total_rad_surf_den), axis=0))
-    z_rad_poisson_lower_err = (np.sqrt(np.nansum(np.array(cluster_field_poisson_lower_err)**2, axis=0))
-                               / np.count_nonzero(~np.isnan(total_rad_surf_den), axis=0))
-    print('Combined radial bin errors\nupper: {up}\nlower: {lo}'.format(up=z_rad_poisson_upper_err, lo=z_rad_poisson_lower_err))
+
+    # Combine the errors in quadrature within each radial bin and divide by the number of clusters contributing to the
+    # radial bin.
+    z_rad_poisson_upper_err = (np.sqrt(np.nansum(poisson_upper_err_filtered**2, axis=0))
+                               / np.count_nonzero(np.isfinite(total_rad_surf_den), axis=0))
+    z_rad_poisson_lower_err = (np.sqrt(np.nansum(poisson_lower_err_filtered**2, axis=0))
+                               / np.count_nonzero(np.isfinite(total_rad_surf_den), axis=0))
 
     # Return the errors, using the larger of the two errors for each bin.
     # z_rad_surf_den_err = np.fmax(z_rad_boot_err, z_rad_poisson_err)
     z_rad_surf_den_err = [z_rad_poisson_upper_err, z_rad_poisson_lower_err]
 
-    return z_rad_surf_den, z_rad_surf_den_err, total_rad_surf_den
+    return z_rad_surf_den, z_rad_surf_den_err
 
 
 # Read in all the catalogs
@@ -306,10 +313,10 @@ high_z_bin = full_AGN_cat[np.where(full_AGN_cat['REDSHIFT'] > 1.0)]
 
 # Generate the histogram heights for the AGN surface density per cluster binned by radius.
 # low_z_rad_surf_den, low_z_rad_err, low_z_total = make_z_rad_bin_histogram(low_z_bin, rad_bin_r_r500)
-mid_low_z_rad_surf_den, mid_low_z_rad_err, mid_low_z_total = make_z_rad_bin_histogram(mid_low_z_bin, rad_bin_r_r500)
-# mid_mid_z_rad_surf_den, mid_mid_z_rad_err, mid_mid_z_total = make_z_rad_bin_histogram(mid_mid_z_bin, rad_bin_r_r500)
-# mid_high_z_rad_surf_den, mid_high_z_rad_err, mid_high_z_total = make_z_rad_bin_histogram(mid_high_z_bin, rad_bin_r_r500)
-# high_z_rad_surf_den, high_z_rad_err, high_z_total = make_z_rad_bin_histogram(high_z_bin, rad_bin_r_r500)
+mid_low_z_rad_surf_den, mid_low_z_rad_err = make_z_rad_bin_histogram(mid_low_z_bin, rad_bin_r_r500)
+mid_mid_z_rad_surf_den, mid_mid_z_rad_err = make_z_rad_bin_histogram(mid_mid_z_bin, rad_bin_r_r500)
+mid_high_z_rad_surf_den, mid_high_z_rad_err = make_z_rad_bin_histogram(mid_high_z_bin, rad_bin_r_r500)
+high_z_rad_surf_den, high_z_rad_err = make_z_rad_bin_histogram(high_z_bin, rad_bin_r_r500)
 
 # Print the counts from each z bin.
 print("low z bin: {low} \nmid low z bin: {mid_l} \nmid mid z bin: {mid_m} \nmid high z bin: {mid_h} \nhigh z bin: {high}"
@@ -317,73 +324,18 @@ print("low z bin: {low} \nmid low z bin: {mid_l} \nmid mid z bin: {mid_m} \nmid 
               high=high_z_rad_surf_den))
 print("low z error: {low} \nmid low z error: {mid_l} \nmid mid z error: {mid_m} \nmid high z error: {mid_h} \nhigh z error: {high}"
       .format(low='', mid_l=mid_low_z_rad_err, mid_m=mid_mid_z_rad_err, mid_h=mid_high_z_rad_err, high=high_z_rad_err))
-raise SystemExit
+
 # Center the bins
 rad_bin_cent = rad_bin_r_r500[:-1] + np.diff(rad_bin_r_r500) / 2.
 
-# Make the radial distance plot
-fig, ax = plt.subplots()
-ax.xaxis.set_minor_locator(AutoMinorLocator(5))
-# ax.errorbar(rad_bin_cent, low_z_rad_surf_den, yerr=low_z_rad_err, fmt='x', c='C0', label='$z \leq 0.5$')
-ax.errorbar(rad_bin_cent, mid_low_z_rad_surf_den, yerr=mid_low_z_rad_err[::-1], fmt='o', c='C0', label='$0.5 < z \leq 0.65$')
-ax.errorbar(rad_bin_cent, mid_mid_z_rad_surf_den, yerr=mid_mid_z_rad_err[::-1], fmt='o', c='C1', label='$0.65 < z \leq 0.75$')
-ax.errorbar(rad_bin_cent, mid_high_z_rad_surf_den, yerr=mid_high_z_rad_err[::-1], fmt='o', c='C2', label='$0.75 < z \leq 1.0$')
-ax.errorbar(rad_bin_cent, high_z_rad_surf_den, yerr=high_z_rad_err, fmt='o', c='C3', label='$z > 1.0$')
-ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-# ax.axhspan(ymax=field_surf_den.value + field_surf_den_err.value, ymin=field_surf_den.value - field_surf_den_err.value,
-#            color='0.5', alpha=0.2)
-ax.set(title='239 SPT Clusters', xlabel='r/r$_{500}$', ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]',
-       xlim=[0, 2.5], ylim=[-3, 2])
-ax.legend()
-fig.savefig('Data/Plots/SPT_AGN_Radial_Distance_Sci_Plot.pdf', format='pdf')
-
-# Make individual radial plots for each redshift bin.
-# Calculate the mean redshifts for each bin.
-mid_low_mean_z = mid_low_z_bin['REDSHIFT'].mean()
-mid_mid_mean_z = mid_mid_z_bin['REDSHIFT'].mean()
-mid_high_mean_z = mid_high_z_bin['REDSHIFT'].mean()
-high_mean_z = mid_low_z_bin['REDSHIFT'].mean()
-
-# Scale the field error to the mean redshifts
-mid_low_field_err = field_surf_den_err.value * (cosmo.kpc_proper_per_arcmin(mid_low_mean_z).to(u.Mpc / u.arcmin))**2
-mid_mid_field_err = field_surf_den_err.value * (cosmo.kpc_proper_per_arcmin(mid_mid_mean_z).to(u.Mpc / u.arcmin))**2
-mid_high_field_err = field_surf_den_err.value * (cosmo.kpc_proper_per_arcmin(mid_high_mean_z).to(u.Mpc / u.arcmin))**2
-high_field_err = field_surf_den_err.value * (cosmo.kpc_proper_per_arcmin(high_mean_z).to(u.Mpc / u.arcmin))**2
+np.save('Data/Radial_bin_data', {'radial_bins': rad_bin_cent,
+         'mid_low_z_rad_surf_den': mid_low_z_rad_surf_den,
+         'mid_low_z_rad_err': mid_low_z_rad_err,
+         'mid_mid_z_rad_surf_den': mid_mid_z_rad_surf_den,
+         'mid_mid_z_rad_err': mid_mid_z_rad_err,
+         'mid_high_z_rad_surf_den': mid_high_z_rad_surf_den,
+         'mid_high_z_rad_err': mid_high_z_rad_err,
+         'high_z_rad_surf_den': high_z_rad_surf_den,
+         'high_z_rad_err': high_z_rad_err})
 
 
-fig = plt.figure(figsize=(11, 8.5), tight_layout=False)
-fig.suptitle('Overdensity of SPT AGN', va='center')
-fig.text(0.5, 0.04, 'r/r$_{500}$', ha='center', va='top')
-ax = fig.add_subplot(221)
-ax.tick_params(bottom='off', labelbottom='off')
-
-
-ax = fig.add_subplot(221, sharey=ax, sharex=ax)
-ax.errorbar(rad_bin_cent, mid_low_z_rad_surf_den, yerr=mid_low_z_rad_err[::-1], fmt='o', c='C0', label='$0.5 < z \leq 0.65$')
-ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.axhspan(ymax=mid_low_field_err.value, ymin=0.0-mid_low_field_err.value, color='0.5', alpha=0.2)
-ax.set(ylim=[-3, 2], ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]')
-ax.legend()
-
-ax = fig.add_subplot(222, sharey=ax, sharex=ax)
-ax.errorbar(rad_bin_cent, mid_mid_z_rad_surf_den, yerr=mid_mid_z_rad_err[::-1], fmt='o', c='C1', label='$0.65 < z \leq 0.75$')
-ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.axhspan(ymax=mid_mid_field_err.value, ymin=0.0-mid_mid_field_err.value, color='0.5', alpha=0.2)
-ax.set(ylim=[-3, 2])
-ax.legend()
-
-ax = fig.add_subplot(223, sharey=ax, sharex=ax)
-ax.errorbar(rad_bin_cent, mid_high_z_rad_surf_den, yerr=mid_high_z_rad_err[::-1], fmt='o', c='C2', label='$0.75 < z \leq 1.0$')
-ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.axhspan(ymax=mid_high_field_err.value, ymin=0.0-mid_high_field_err.value, color='0.5', alpha=0.2)
-ax.set(ylim=[-3, 2], ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]')
-ax.legend()
-
-ax = fig.add_subplot(224, sharey=ax, sharex=ax)
-ax.errorbar(rad_bin_cent, high_z_rad_surf_den, yerr=high_z_rad_err[::-1], fmt='o', c='C3', label='$z > 1.0$')
-ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.axhspan(ymax=high_field_err.value, ymin=0.0-high_field_err.value, color='0.5', alpha=0.2)
-ax.set(ylim=[-3, 2])
-ax.legend()
-
-fig.savefig('Data/Plots/SPT_AGN_Radial_Distance_Sci_Plot_Field_Errors.pdf', format='pdf')

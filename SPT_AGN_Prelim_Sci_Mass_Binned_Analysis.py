@@ -117,7 +117,22 @@ def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area 
 
         return area_arcmin2
 
+    def mass_surf_den(_z_bin, _mass_bins, _radius):
+        # Group the catalog by cluster
+        z_bin_grouped = _z_bin.group_by('SPT_ID')
+
+        total_mass_surf_den = []
+        cluster_field_mass_surf_den_err = []
+        for cluster in z_bin_grouped.groups:
+            print('Cluster: {}'.format(cluster['SPT_ID'][0]))
+
+            # Convert the fractional radius location into a physical distance
+
+
     radial_mass_bins = np.array([0.5, 1.0, 1.5, 2.0])
+
+
+    cluster_areas = annulus_pixel_area()
 
     # Make the histogram binned on mass.
     z_mass_surf_den, _ = np.histogram(z_bin['M500'],
