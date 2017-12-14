@@ -66,6 +66,40 @@ def spt_bootstrap(data, bootnum=100, samples=None, bootfunc=None):
 
     return boot
 
+def small_poisson(n, S=1):
+    """
+    Calculates the upper and lower Poisson confidence limits for extremely low counts i.e., n << 50. These equations are
+    outlined in [Gehrels1986]_.
+
+    .._[Gehrels1986] http://adsabs.harvard.edu/abs/1986ApJ...303..336G
+
+    :param n: The number of Poisson counts.
+    :type n: float, array-like
+    :param S: The S-sigma Gaussian levels. Defaults to `S=1` sigma.
+    :type S: int
+    :return: The upper and lower errors corresponding to the confidence levels.
+    :rtype: tuple
+    """
+
+    # Parameters for the lower limit equation. These are for the 1, 2, and 3-sigma levels.
+    beta = [0.0, 0.06, 0.222]
+    gamma = [0.0, -2.19, -1.88]
+
+    # Upper confidence level using equation 9 in Gehrels 1986.
+    lambda_u = (n + 1.) * (1. - 1. / (9. * (n + 1.)) + S / (3. * np.sqrt(n + 1.)))**3
+
+    # Lower confidence level using equation 14 in Gehrels 1986.
+    lambda_l = n * (1. - 1. / (9. * n) - S / (3. * np.sqrt(n)) + beta[S - 1] * n**gamma[S - 1])**3
+
+    # To clear the lower limit array of any possible NaNs from n = 0 incidences.
+    np.nan_to_num(lambda_l, copy=False)
+
+    # Calculate the upper and lower errors from the confidence values.
+    upper_err = lambda_u - n
+    lower_err = n - lambda_l
+
+    return upper_err, lower_err
+
 
 def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area to the IMAGE_AREA value.
 
@@ -127,17 +161,72 @@ def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area 
             print('Cluster: {}'.format(cluster['SPT_ID'][0]))
 
             # Convert the fractional radius location into a physical distance
+            cluster_radius_mpc = _radius * cluster['r500'][0] * u.Mpc
+
+            # Convert the physical radius to an on-sky radius.
+            cluster_radius_arcmin = (cluster_radius_mpc
+                                     / cosmo.kpc_proper_per_arcmin(cluster['REDSHIFT'][0]).to(u.Mpc / u.arcmin))
+
+            # Calculate the area inclosed by the radius in arcmin2.
+            cluster_area = annulus_pixel_area(cluster['SPT_ID'][0], cluster_radius_arcmin)
+
+            # Select only the AGN within the radius.
+            cluster_agn = cluster[np.where(cluster['RADIAL_DIST'] <= cluster_radius_arcmin)]
+
+            # Also, using the SDWFS surface density, calculate the expected field AGN counts in the selected area.
+            field_agn = field_surf_den * cluster_area
+
+            # Create the histogram, binned by log-mass, weighted by the completeness value.
+            cluster_mass_hist, _ = np.histogram(cluster_agn['logM500'],
+                                                bins=_mass_bins,
+                                                weights=cluster_agn['completeness_correction'])
+
+            # Calculate the Poisson errors for each mass bin. Also calculate the Poisson error for the field expectation
+            cluster_poisson_err = small_poisson(cluster_mass_hist, S=1)
+            field_poisson_err = small_poisson(field_agn, S=1)
+
+            # Subtract the field expecation from the cluster counts.
+            cluster_field_counts = cluster_mass_hist - field_agn
+
+            # Propagate the cluster and field errors together.
+            cluster_field_counts_upper_err = np.sqrt(cluster_poisson_err[0]**2 + field_poisson_err[0]**2)
+            cluster_field_counts_lower_err = np.sqrt(cluster_poisson_err[0]**2 + field_poisson_err[0]**2)
+
+            # Calculate the surface density for each mass bin
+            cluster_field_surf_den = cluster_field_counts / cluster_area
+
+            # Convert the errors to surface densities
+            cluster_field_surf_den_upper_err = cluster_field_counts_upper_err / cluster_area
+            cluster_field_surf_den_lower_err = cluster_field_counts_lower_err / cluster_area
+
+            # Using the cluster's redshift, convert the surface densities from sky units to physical units.
+            cluster_field_surf_den_mpc = cluster_field_surf_den / (cosmo.kpc_proper_per_arcmin(cluster['REDSHIFT'][0])
+                                                                   .to(u.Mpc / u.arcmin))**2
+
+            # Also convert the errors to physical units.
+            cluster_field_surf_den_upper_err_mpc = (cluster_field_surf_den_upper_err
+                                                    / (cosmo.kpc_proper_per_arcmin(cluster['REDSHIFT'][0])
+                                                       .to(u.Mpc / u.arcmin))**2)
+            cluster_field_surf_den_lower_err_mpc = (cluster_field_surf_den_lower_err
+                                                    / (cosmo.kpc_proper_per_arcmin(cluster['REDSHIFT'][0])
+                                                       .to(u.Mpc / u.arcmin)) ** 2)
+            cluster_field_surf_den_err = (cluster_field_surf_den_upper_err_mpc, cluster_field_surf_den_lower_err_mpc)
+
+            total_mass_surf_den.append(cluster_field_surf_den_mpc)
+            cluster_field_mass_surf_den_err.append(cluster_field_surf_den_err)
+            return total_mass_surf_den, cluster_field_mass_surf_den_err
 
 
+    # To explore how different radius choices affect the mass-surface density relation we will calculate the histogram
+    # at multiple radii.
     radial_mass_bins = np.array([0.5, 1.0, 1.5, 2.0])
 
+    radial_mass_surf_den = []
+    radial_mass_surf_den_err = []
+    for radius in radial_mass_bins:
+        cluster_mass_surf_den, cluster_mass_surf_den_err = mass_surf_den(z_bin, mass_bins, radius)
 
-    cluster_areas = annulus_pixel_area()
-
-    # Make the histogram binned on mass.
-    z_mass_surf_den, _ = np.histogram(z_bin['M500'],
-                                      weights=z_bin['completeness_correction'],
-                                      bins=mass_bins)
+        radial_mass_surf_den.append(cluster_mass_surf_den)
 
     # For the errors we will preform a bootstrap resampling at the individual AGN level before the histogram is made.
     z_mass_boot_array = np.array([z_bin['M500'], z_bin['completeness_correction'], cluster_area]).T
@@ -173,6 +262,9 @@ for cat in AGN_cats:
     cat['M500'].unit = u.Msun
     cat['r500'] = (3 * cat['M500'] /
                    (4 * np.pi * 500 * cosmo.critical_density(cat['REDSHIFT']).to(u.Msun / u.Mpc ** 3)))**(1/3)
+
+    # Calculate the log(M500)
+    cat['logM500'] = np.log10(cat['M500'])
 
 
 # Combine all the catalogs into a single table.
