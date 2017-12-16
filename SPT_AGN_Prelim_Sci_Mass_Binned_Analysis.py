@@ -14,9 +14,7 @@ import matplotlib
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
-from astropy.stats import bootstrap
 from astropy.table import Table, vstack
-from astropy.utils import NumpyRNGContext
 from astropy.wcs import WCS
 from itertools import product
 from scipy.spatial.distance import cdist
@@ -66,6 +64,7 @@ def spt_bootstrap(data, bootnum=100, samples=None, bootfunc=None):
 
     return boot
 
+
 def small_poisson(n, S=1):
     """
     Calculates the upper and lower Poisson confidence limits for extremely low counts i.e., n << 50. These equations are
@@ -101,7 +100,7 @@ def small_poisson(n, S=1):
     return upper_err, lower_err
 
 
-def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area to the IMAGE_AREA value.
+def make_z_mass_bin_histogram(z_bin, mass_bins, radius):  # TODO change from 2r500 area to the IMAGE_AREA value.
 
     def annulus_pixel_area(spt_id, _rad_bins):
         # Using the Bleem SPT ID read in the correct mask image.
@@ -139,8 +138,7 @@ def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area 
         image_distances = cdist(image_coordinates, np.array([[cluster_x[0], cluster_y[0]]])).flatten()
 
         # Select the coordinates in the annuli
-        annuli_coords = [image_coordinates[np.where(image_distances <= rad_bins_pix.value[i])]
-                         for i in range(len(rad_bins_pix))]
+        annuli_coords = [image_coordinates[np.where(image_distances <= rad_bins_pix.value)]]
 
         # For each annuli query the values of the pixels matching the coordinates found above and count the number of
         # good pixels (those with a value of `1`).
@@ -171,7 +169,7 @@ def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area 
             cluster_area = annulus_pixel_area(cluster['SPT_ID'][0], cluster_radius_arcmin)
 
             # Select only the AGN within the radius.
-            cluster_agn = cluster[np.where(cluster['RADIAL_DIST'] <= cluster_radius_arcmin)]
+            cluster_agn = cluster[np.where(cluster['RADIAL_DIST'] <= cluster_radius_arcmin.value)]
 
             # Also, using the SDWFS surface density, calculate the expected field AGN counts in the selected area.
             field_agn = field_surf_den * cluster_area
@@ -214,38 +212,34 @@ def make_z_mass_bin_histogram(z_bin, mass_bins):  # TODO change from 2r500 area 
 
             total_mass_surf_den.append(cluster_field_surf_den_mpc)
             cluster_field_mass_surf_den_err.append(cluster_field_surf_den_err)
-            return total_mass_surf_den, cluster_field_mass_surf_den_err
 
+        return total_mass_surf_den, cluster_field_mass_surf_den_err
 
-    # To explore how different radius choices affect the mass-surface density relation we will calculate the histogram
-    # at multiple radii.
-    radial_mass_bins = np.array([0.5, 1.0, 1.5, 2.0])
+    # Calculate the surface densities.
+    cluster_mass_surf_den, cluster_mass_surf_den_err = mass_surf_den(z_bin, mass_bins, radius)
 
-    radial_mass_surf_den = []
-    radial_mass_surf_den_err = []
-    for radius in radial_mass_bins:
-        cluster_mass_surf_den, cluster_mass_surf_den_err = mass_surf_den(z_bin, mass_bins, radius)
+    # Compute the average AGN surface density per cluster. As in the radial analysis script we will use the
+    # `nanmean` function to avoid issues with any NaN values in the sample.
+    z_mass_surf_den = np.nanmean(cluster_mass_surf_den, axis=0)
 
-        radial_mass_surf_den.append(cluster_mass_surf_den)
+    # Extract the upper and lower Poisson errors for each cluster.
+    cluster_surf_den_upper_err = np.array([error[0] for error in cluster_mass_surf_den_err])
+    cluster_surf_den_lower_err = np.array([error[1] for error in cluster_mass_surf_den_err])
 
-    # For the errors we will preform a bootstrap resampling at the individual AGN level before the histogram is made.
-    z_mass_boot_array = np.array([z_bin['M500'], z_bin['completeness_correction'], cluster_area]).T
-    with NumpyRNGContext(1):
-        z_mass_bootresult = bootstrap(z_mass_boot_array, 1000)
+    # The errors may have non-finite (inf, neginf, NaN) values due to divisions by zero. However, we never want to
+    # include these values in our calculations. Therefore, let us identify all non-finite values and send them to a
+    # single value e.g., NaN which we can process with the numpy nan* functions.
+    poisson_upper_err_filtered = np.where(np.isfinite(cluster_mass_surf_den), cluster_surf_den_upper_err, np.nan)
+    poisson_lower_err_filtered = np.where(np.isfinite(cluster_mass_surf_den), cluster_surf_den_lower_err, np.nan)
 
-    # Make the histograms for each resampling
-    z_mass_boot_surf_den = []
-    for z_mass_boot_samp in z_mass_bootresult:
-        z_mass_boot_table = Table(z_mass_boot_samp, names=['M500', 'completeness_correction', 'cluster_area'])
+    # Combine all errors in quadrature within each mass bin and divide by the number of clusters contributing to the
+    # mass bin.
+    z_mass_surf_den_upper_err = (np.sqrt(np.nansum(poisson_upper_err_filtered**2, axis=0))
+                                 / np.count_nonzero(np.isfinite(cluster_mass_surf_den), axis=0))
+    z_mass_surf_den_lower_err = (np.sqrt(np.nansum(poisson_lower_err_filtered ** 2, axis=0))
+                                 / np.count_nonzero(np.isfinite(cluster_mass_surf_den), axis=0))
 
-        z_mass_boot_hist, _ = np.histogram(z_mass_boot_table['M500'],
-                                           weights=(z_mass_boot_table['completeness_correction'] /
-                                                    z_mass_boot_table['cluster_area']),
-                                           bins=mass_bins)
-        z_mass_boot_surf_den.append(z_mass_boot_hist)
-
-    # Compute the standard deviation of surface densities for the bootstrapped histograms
-    z_mass_surf_den_err = np.std(z_mass_boot_surf_den, axis=0)
+    z_mass_surf_den_err = [z_mass_surf_den_upper_err, z_mass_surf_den_lower_err]
 
     return z_mass_surf_den, z_mass_surf_den_err
 
@@ -271,7 +265,7 @@ for cat in AGN_cats:
 full_AGN_cat = vstack(AGN_cats)
 
 # Set up mass bins
-mass_bins = np.arange(2e14, 1.3e15, 0.5e14)
+mass_bins = np.array([14.3, 14.4, 14.5, 14.75, 15.1])
 
 # Set our redshift bins
 low_z_bin = full_AGN_cat[np.where(full_AGN_cat['REDSHIFT'] <= 0.5)]
@@ -280,6 +274,34 @@ mid_mid_z_bin = full_AGN_cat[np.where((full_AGN_cat['REDSHIFT'] > 0.65) & (full_
 mid_high_z_bin = full_AGN_cat[np.where((full_AGN_cat['REDSHIFT'] > 0.75) & (full_AGN_cat['REDSHIFT'] <= 1.0))]
 high_z_bin = full_AGN_cat[np.where(full_AGN_cat['REDSHIFT'] > 1.0)]
 
+# To explore how different radius choices affect the mass-surface density relation we will calculate the histogram
+# at multiple radii.
+radial_mass_bins = np.array([0.5, 1.0, 1.5, 2.0])
+
+for radius in radial_mass_bins:
+    # Generate the histograms and errors for the AGN surface density per cluster binned by halo mass.
+    mid_low_z_mass_surf_den, mid_low_z_mass_surf_den_err = make_z_mass_bin_histogram(mid_low_z_bin, mass_bins, radius)
+    print('mid low')
+    mid_mid_z_mass_surf_den, mid_mid_z_mass_surf_den_err = make_z_mass_bin_histogram(mid_mid_z_bin, mass_bins, radius)
+    print('mid mid')
+    mid_high_z_mass_surf_den, mid_high_z_mass_surf_den_err = make_z_mass_bin_histogram(mid_high_z_bin, mass_bins, radius)
+    print('mid high')
+    high_z_mass_surf_den, high_z_mass_surf_den_err = make_z_mass_bin_histogram(high_z_bin, mass_bins, radius)
+    print('high')
+
+    # Center the bins
+    mass_bin_cent = mass_bins[:-1] + np.diff(mass_bins) / 2.
+
+    np.save('Data/Mass_{rad}r500_bin_data'.format(rad=radius),
+            {'mass_bin_cent': mass_bin_cent,
+             'mid_low_z_mass_surf_den': mid_low_z_mass_surf_den,
+             'mid_low_z_mass_surf_den_err': mid_low_z_mass_surf_den_err,
+             'mid_mid_z_mass_surf_den': mid_mid_z_mass_surf_den,
+             'mid_mid_z_mass_surf_den_err': mid_mid_z_mass_surf_den_err,
+             'mid_high_z_mass_surf_den': mid_high_z_mass_surf_den,
+             'mid_high_z_mass_surf_den_err': mid_high_z_mass_surf_den_err,
+             'high_z_mass_surf_den': high_z_mass_surf_den,
+             'high_z_mass_surf_den_err': high_z_mass_surf_den_err})
 
 
 # # Generate the histogram heights for the AGN surface density per cluster binned by mass.
