@@ -100,7 +100,7 @@ def small_poisson(n, S=1):
     return upper_err, lower_err
 
 
-def make_z_mass_bin_histogram(z_bin, mass_bins, radius):  # TODO change from 2r500 area to the IMAGE_AREA value.
+def make_z_mass_bin_histogram(z_bin, mass_bins, radius):
 
     def annulus_pixel_area(spt_id, _rad_bins):
         # Using the Bleem SPT ID read in the correct mask image.
@@ -167,17 +167,20 @@ def make_z_mass_bin_histogram(z_bin, mass_bins, radius):  # TODO change from 2r5
 
             # Calculate the area inclosed by the radius in arcmin2.
             cluster_area = annulus_pixel_area(cluster['SPT_ID'][0], cluster_radius_arcmin)
+            print('area: {}'.format(cluster_area))
 
             # Select only the AGN within the radius.
             cluster_agn = cluster[np.where(cluster['RADIAL_DIST'] <= cluster_radius_arcmin.value)]
 
             # Also, using the SDWFS surface density, calculate the expected field AGN counts in the selected area.
             field_agn = field_surf_den * cluster_area
+            print('expected field agn in area: {}'.format(field_agn))
 
             # Create the histogram, binned by log-mass, weighted by the completeness value.
             cluster_mass_hist, _ = np.histogram(cluster_agn['logM500'],
                                                 bins=_mass_bins,
                                                 weights=cluster_agn['completeness_correction'])
+            print('observed agn in area: {}'.format(cluster_mass_hist))
 
             # Calculate the Poisson errors for each mass bin. Also calculate the Poisson error for the field expectation
             cluster_poisson_err = small_poisson(cluster_mass_hist, S=1)
@@ -185,6 +188,7 @@ def make_z_mass_bin_histogram(z_bin, mass_bins, radius):  # TODO change from 2r5
 
             # Subtract the field expecation from the cluster counts.
             cluster_field_counts = cluster_mass_hist - field_agn
+            print('field subtracted agn: {}'.format(cluster_field_counts))
 
             # Propagate the cluster and field errors together.
             cluster_field_counts_upper_err = np.sqrt(cluster_poisson_err[0]**2 + field_poisson_err[0]**2)
