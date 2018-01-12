@@ -10,14 +10,14 @@ from __future__ import print_function, division
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
 # Read in the results file
-results = np.load('Data/Radial_bin_data.npy').item()
+results = np.load('Data/Radial_bin_data_cumulative.npy').item()
 
 # Extract all the values from the file.
 rad_bin_cent = results['radial_bins']
@@ -29,9 +29,12 @@ mid_high_z_rad_surf_den = results['mid_high_z_rad_surf_den']
 mid_high_z_rad_err = results['mid_high_z_rad_err']
 high_z_rad_surf_den = results['high_z_rad_surf_den']
 high_z_rad_err = results['high_z_rad_err']
+all_z_rad_surf_den = results['all_z_rad_surf_den']
+all_z_rad_err = results['all_z_rad_err']
 
 # Make the radial distance plot
 fig, ax = plt.subplots()
+ax.xaxis.set_major_locator(MultipleLocator(0.5))
 ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 ax.yaxis.set_minor_locator(AutoMinorLocator(5))
 ax.errorbar(rad_bin_cent-0.09, mid_low_z_rad_surf_den, yerr=mid_low_z_rad_err[::-1], fmt='o', c='C0',
@@ -41,9 +44,10 @@ ax.errorbar(rad_bin_cent-0.03, mid_mid_z_rad_surf_den, yerr=mid_mid_z_rad_err[::
 ax.errorbar(rad_bin_cent+0.03, mid_high_z_rad_surf_den, yerr=mid_high_z_rad_err[::-1], fmt='o', c='C2',
             label='$0.75 < z \leq 1.0$')
 ax.errorbar(rad_bin_cent+0.09, high_z_rad_surf_den, yerr=high_z_rad_err[::-1], fmt='o', c='C3', label='$z > 1.0$')
+ax.errorbar(rad_bin_cent, all_z_rad_surf_den, yerr=all_z_rad_err[::-1], fmt='o', c='C4', label='All redshifts')
 ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.set(title='239 SPT Clusters', xlabel='r/r$_{500}$', ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]',
-       xlim=[0, 2.5], ylim=[-3, 2])
+ax.set(title='SPT Cluster AGN for All Masses', xlabel='r/r$_{500}$', ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]',
+       xlim=[0, 1.5], ylim=[-3, 2])
 ax.legend()
 fig.savefig('Data/Plots/SPT_AGN_Radial_Distance_Sci_Plot.pdf', format='pdf')
 
