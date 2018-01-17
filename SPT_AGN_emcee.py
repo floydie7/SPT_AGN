@@ -182,9 +182,15 @@ def lnprior(param):
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    eta_lnprior = -0.5 * np.sum((eta - h_eta)**2 / h_eta_err**2)
-    beta_lnprior = -0.5 * np.sum((beta - h_beta)**2 / h_beta_err**2)
-    zeta_lnprior = -0.5 * np.sum((zeta - h_zeta)**2 / h_zeta_err**2)
+    if -10. <= eta <= 10. and -10. <= beta <= 10. and -10. <= zeta <= 10.:
+        eta_lnprior = -0.5 * np.sum((eta - h_eta)**2 / h_eta_err**2)
+        beta_lnprior = -0.5 * np.sum((beta - h_beta)**2 / h_beta_err**2)
+        zeta_lnprior = -0.5 * np.sum((zeta - h_zeta)**2 / h_zeta_err**2)
+    else:
+        eta_lnprior = -np.inf
+        beta_lnprior = -np.inf
+        zeta_lnprior = -np.inf
+
     C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
