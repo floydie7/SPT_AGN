@@ -127,16 +127,16 @@ def observed_surf_den(catalog):
 
     surf_den_table = vstack(total_surf_den)
 
-    # Find the mean surface density over the entire sample
-    surf_den_mean = np.mean(np.array(surf_den_table['surf_den'])) / u.arcmin**2
+    # Find the mean surface density over the entire sample accounting for the 2 dropped clusters.
+    surf_den_mean = np.sum(np.array(surf_den_table['surf_den'])) / (len(surf_den_table) + 2.) / u.arcmin**2
 
     # Separate the upper and lower errors for each cluster.
     upper_err = np.array([error[0] for error in total_surf_den_err])
     lower_err = np.array([error[1] for error in total_surf_den_err])
 
     # Combine all the errors in quadrature and divide by the total number of clusters in the sample.
-    upper_surf_den_err = np.sqrt(np.sum(upper_err**2, axis=0)) / len(surf_den_table) / u.arcmin**2
-    lower_surf_den_err = np.sqrt(np.sum(lower_err**2, axis=0)) / len(surf_den_table) / u.arcmin**2
+    upper_surf_den_err = np.sqrt(np.sum(upper_err**2, axis=0)) / (len(surf_den_table) + 2.) / u.arcmin**2
+    lower_surf_den_err = np.sqrt(np.sum(lower_err**2, axis=0)) / (len(surf_den_table) + 2.) / u.arcmin**2
 
     # Combine the upper and lower errors to give a variance.
     surf_den_var = upper_surf_den_err * lower_surf_den_err
@@ -149,8 +149,8 @@ def lnlike(param, catalog, surf_den_mean, surf_den_var):
     # Extract our parameters
     eta, beta, zeta, C = param
 
-    # Get the total number of clusters in the sample
-    N_cl = len(catalog.group_by('SPT_ID').groups.keys)
+    # Get the total number of clusters in the sample and add 2 to account for the dropped clusters.
+    N_cl = len(catalog.group_by('SPT_ID').groups.keys) + 2.
 
     # Convert our catalog into a QTable so units are handled correctly.
     qcatalog = QTable(catalog)
@@ -159,7 +159,7 @@ def lnlike(param, catalog, surf_den_mean, surf_den_var):
     model = 1./N_cl * np.sum((1. / qcatalog['aper_area'])
                              * (1 + qcatalog['REDSHIFT'])**eta
                              * (qcatalog['RADIAL_DIST_Mpc'] / qcatalog['r500'])**beta
-                             * (qcatalog['M500'] / (1e15 * u.Msun))**zeta + (C / u.arcmin**2))
+                             * (qcatalog['M500'] / (1e15 * u.Msun))**zeta) + (C / u.arcmin**2)
 
     # Return the log-likelihood function
     return -0.5 * np.sum((surf_den_mean - model)**2 / surf_den_var)
@@ -248,10 +248,10 @@ print(surf_den_obs, surf_den_obs_var)
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
-nwalkers = 100
+nwalkers = 64
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 10000
+nsteps = 1000
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[0., 0., 0., 0.371], std=[1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
@@ -285,12 +285,21 @@ ax4.set(ylabel=r'$C$', xlabel='Steps')
 fig.savefig('Data/MCMC/Param_chains.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
-burnin = nsteps/3.
-samples = sampler.chain[:, burnin, :].reshape((-1, ndim))
+burnin = nsteps//3
+samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
 # Produce the corner plot
-fig = corner.corner(samples, labels=[r'$\eta$', r'$\beta$', r'$\zeta$', r'$C$'], truths=[0.0, 0.0, 0.0, 0.371])
+fig = corner.corner(samples, labels=[r'$\eta$', r'$\beta$', r'$\zeta$', r'$C$'], truths=[0.0, 0.0, 0.0, 0.371],
+                    quantiles=[0.16, 0.5, 0.84], show_titles=True)
 fig.savefig('Data/MCMC/Corner_plot.pdf', format='pdf')
 
+eta_mcmc, beta_mcmc, zeta_mcmc, C_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+                                             zip(*np.percentile(samples, [16, 50, 84], axis=0)))
+print("""MCMC Results:
+eta = {eta[0]:.2f} +{eta[1]:.3f} -{eta[2]:.3f}
+beta = {beta[0]:.2f} +{beta[1]:.3f} -{beta[2]:.3f}
+zeta = {zeta[0]:.2f} +{zeta[1]:.3f} -{zeta[2]:.3f}
+C = {C[0]:.2f} +{C[1]:.3f} -{C[2]:.3f}""".format(eta=eta_mcmc, beta=beta_mcmc, zeta=zeta_mcmc, C=C_mcmc))
+
 print('Mean acceptance fraction: {}'.format(np.mean(sampler.acceptance_fraction)))
-print('Autocorrelation time: {}'.format(sampler.get_autocorr_time()))
+# print('Integrates autocorrelation time: {}'.format(sampler.get_autocorr_time()))
