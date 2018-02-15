@@ -8,12 +8,20 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
+import os
+import sys
+from multiprocessing import Pool, cpu_count
+
 import astropy.units as u
+import corner
+import emcee
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
-import scipy.optimize as op
 from astropy.table import Table, vstack, QTable, join
+from matplotlib.ticker import MaxNLocator
 from small_poisson import small_poisson
+from time import time
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -145,8 +153,10 @@ def lnpost(param, catalog, x):
     return lp + lnlike(param, catalog, x)
 
 
-# Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_subcatalog00.cat', format='ascii')
+# Read in the mock subcatalog
+subcat_fname = sys.argv[1]
+mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/' + subcat_fname,
+                          format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 # Calculate the "observed" surface density and variance
@@ -157,13 +167,6 @@ eta_true = 1.2
 beta_true = -1.5
 zeta_true = -1.0
 
-# Find the maximum likelihood. As the priors used here are all uniform, this should be the same as the posterior
-nlnlike = lambda *args: -lnlike(*args)
-result = op.minimize(nlnlike, x0=[eta_true, zeta_true, beta_true],
-                     args=(mock_catalog, obs_cluster_surf_den))  #, bounds=[(-3,3),(-3,3),(-3,3)]
-print(result)
-raise SystemExit
-
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 3
@@ -173,17 +176,27 @@ nwalkers = 64
 nsteps = 500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-# pos0 = emcee.utils.sample_ball(p0=[eta_true, beta_true, zeta_true], std=[1e-2, 1e-2, 1e-2], size=nwalkers)
 pos0 = emcee.utils.sample_ball(p0=[eta_true, zeta_true, beta_true], std=[1e-2, 1e-2, 1e-2], size=nwalkers)
 
-# Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, obs_cluster_surf_den), threads=4)
+# Set up multiprocessing pool
+# get number of cpus available to job
+try:
+    ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"].split('(')[0])
+except KeyError:
+    ncpus = cpu_count()
 
-# Run the sampler.
-start_sampler_time = time()
-sampler.run_mcmc(pos0, nsteps)
-print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/emcee_run_w{nwalkers}_s{nsteps}'.format(nwalkers=nwalkers, nsteps=nsteps), sampler.chain)
+with Pool(processes=ncpus) as pool:
+    # Initialize the sampler
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, obs_cluster_surf_den), pool=pool)
+
+    # Run the sampler.
+    start_sampler_time = time()
+    sampler.run_mcmc(pos0, nsteps)
+    print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
+
+# Save the chain in case plotting goes poorly.
+np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/emcee_run_w{nwalkers}_s{nsteps}_sc{subcat}'
+        .format(nwalkers=nwalkers, nsteps=nsteps, subcat=subcat_fname[-6:-4]), sampler.chain)
 
 # Plot the chains
 fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True)
@@ -193,12 +206,12 @@ ax1.yaxis.set_major_locator(MaxNLocator(5))
 ax1.set(ylabel=r'$\eta$', title='MCMC Chains')
 
 ax2.plot(sampler.chain[:, :, 1].T, color='k', alpha=0.4)
-ax2.axhline(beta_true, color='b')
+ax2.axhline(zeta_true, color='b')
 ax2.yaxis.set_major_locator(MaxNLocator(5))
 ax2.set(ylabel=r'$\zeta$')
 
 ax3.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
-ax3.axhline(zeta_true, color='b')
+ax3.axhline(beta_true, color='b')
 ax3.yaxis.set_major_locator(MaxNLocator(5))
 ax3.set(ylabel=r'$\beta$')
 
@@ -206,7 +219,7 @@ ax3.set(ylabel=r'$\beta$')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_mock_catalog.pdf', format='pdf')
+fig.savefig('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Param_chains_mock_catalog.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
@@ -215,7 +228,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 # Produce the corner plot
 fig = corner.corner(samples, labels=[r'$\eta$', r'$\zeta$', r'$\beta$'], truths=[eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_mock_catalog.pdf', format='pdf')
+fig.savefig('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Corner_plot_mock_catalog.pdf', format='pdf')
 
 eta_mcmc, zeta_mcmc, beta_mcmc= map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                      zip(*np.percentile(samples, [16, 50, 84], axis=0)))

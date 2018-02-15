@@ -10,6 +10,9 @@ from __future__ import print_function, division
 import numpy as np
 from astropy.table import Table, Column
 
+# Set our random seed
+np.random.seed(3543)
+
 # Read in Bleem catalog
 Bleem = Table.read('Data/2500d_cluster_sample_fiducial_cosmology.fits')
 Bleem = Bleem[np.where(Bleem['M500'] != 0.0)]
@@ -63,4 +66,13 @@ for i in range(len(mock_candidates)):
 print('Number of objects in Mock catalog: {}'.format(len(mock_catalog)))
 
 # Write the mock catalog to disk
-mock_catalog.write('Data/MCMC/mock_AGN_catalog.cat', format='ascii')
+mock_catalog.write('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_catalog.cat', format='ascii', overwrite=True)
+
+# Split the catalog into sub-groups of ~1500 AGN to mimic our real data sample.
+for i in np.arange(1500, len(mock_catalog), 1500):
+    sub_cat = mock_catalog[i-1500:i]
+
+    print('Number of objects in subcatalog {j}: {n}'.format(j=i // 1500 - 1, n=len(sub_cat)))
+
+    sub_cat.write('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_subcatalog{j}.cat'.format(j=i // 1500 - 1),
+                  format='ascii', overwrite=True)
