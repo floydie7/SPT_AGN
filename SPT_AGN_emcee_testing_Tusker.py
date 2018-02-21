@@ -117,8 +117,8 @@ def lnprior(param):
     # Set our hyperparameters
     h_eta = 0.
     h_eta_err = np.inf
-    h_beta = 0.
-    h_beta_err = np.inf
+    h_beta = -1.5
+    h_beta_err = 10.
     h_zeta = 0.
     h_zeta_err = np.inf
     h_C = 0.371
@@ -127,7 +127,7 @@ def lnprior(param):
     # Define all priors to be gaussian
     if -3. <= eta <= 3. and -3. <= zeta <= 3. and -3 <= beta <= 3:
         eta_lnprior = 0.0
-        beta_lnprior = 0.0
+        beta_lnprior = -0.5 * (beta - h_beta) / h_beta_err**2
         zeta_lnprior = 0.0
     else:
         eta_lnprior = -np.inf
@@ -185,50 +185,51 @@ try:
 except KeyError:
     ncpus = cpu_count()
 
-with Pool(processes=ncpus) as pool:
-    # Initialize the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, obs_cluster_surf_den), pool=pool)
+# with Pool(processes=ncpus) as pool:
+pool = Pool(processes=ncpus)
+# Initialize the sampler
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, obs_cluster_surf_den), pool=pool)
 
-    # Run the sampler.
-    start_sampler_time = time()
-    sampler.run_mcmc(pos0, nsteps)
-    print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
+# Run the sampler.
+start_sampler_time = time()
+sampler.run_mcmc(pos0, nsteps)
+print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Save the chain in case plotting goes poorly.
 np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/emcee_run_w{nwalkers}_s{nsteps}_sc{subcat}'
         .format(nwalkers=nwalkers, nsteps=nsteps, subcat=subcat_fname[-6:-4]), sampler.chain)
 
-# Plot the chains
-fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True)
-ax1.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
-ax1.axhline(eta_true, color='b')
-ax1.yaxis.set_major_locator(MaxNLocator(5))
-ax1.set(ylabel=r'$\eta$', title='MCMC Chains')
-
-ax2.plot(sampler.chain[:, :, 1].T, color='k', alpha=0.4)
-ax2.axhline(zeta_true, color='b')
-ax2.yaxis.set_major_locator(MaxNLocator(5))
-ax2.set(ylabel=r'$\zeta$')
-
-ax3.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
-ax3.axhline(beta_true, color='b')
-ax3.yaxis.set_major_locator(MaxNLocator(5))
-ax3.set(ylabel=r'$\beta$')
-
-# ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
-# ax4.yaxis.set_major_locator(MaxNLocator(5))
-# ax4.set(ylabel=r'$C$', xlabel='Steps')
-
-fig.savefig('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Param_chains_mock_catalog.pdf', format='pdf')
+# # Plot the chains
+# fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True)
+# ax1.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
+# ax1.axhline(eta_true, color='b')
+# ax1.yaxis.set_major_locator(MaxNLocator(5))
+# ax1.set(ylabel=r'$\eta$', title='MCMC Chains')
+#
+# ax2.plot(sampler.chain[:, :, 1].T, color='k', alpha=0.4)
+# ax2.axhline(zeta_true, color='b')
+# ax2.yaxis.set_major_locator(MaxNLocator(5))
+# ax2.set(ylabel=r'$\zeta$')
+#
+# ax3.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
+# ax3.axhline(beta_true, color='b')
+# ax3.yaxis.set_major_locator(MaxNLocator(5))
+# ax3.set(ylabel=r'$\beta$')
+#
+# # ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
+# # ax4.yaxis.set_major_locator(MaxNLocator(5))
+# # ax4.set(ylabel=r'$C$', xlabel='Steps')
+#
+# fig.savefig('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Param_chains_mock_catalog.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
 samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
-# Produce the corner plot
-fig = corner.corner(samples, labels=[r'$\eta$', r'$\zeta$', r'$\beta$'], truths=[eta_true, zeta_true, beta_true],
-                    quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Corner_plot_mock_catalog.pdf', format='pdf')
+# # Produce the corner plot
+# fig = corner.corner(samples, labels=[r'$\eta$', r'$\zeta$', r'$\beta$'], truths=[eta_true, zeta_true, beta_true],
+#                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
+# fig.savefig('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Corner_plot_mock_catalog.pdf', format='pdf')
 
 eta_mcmc, zeta_mcmc, beta_mcmc= map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                      zip(*np.percentile(samples, [16, 50, 84], axis=0)))
