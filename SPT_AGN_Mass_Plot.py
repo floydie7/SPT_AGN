@@ -17,9 +17,9 @@ matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
 # Read in the results files
-results05 = np.load('Data/Mass_0.5r500_bin_data.npy').item()
-results10 = np.load('Data/Mass_1.0r500_bin_data.npy').item()
-results15 = np.load('Data/Mass_1.5r500_bin_data.npy').item()
+results05 = np.load('Data/Binned_Analysis/Mass_0.5r500_bin_data.npy', encoding='latin1').item()
+results10 = np.load('Data/Binned_Analysis/Mass_1.0r500_bin_data.npy', encoding='latin1').item()
+results15 = np.load('Data/Binned_Analysis/Mass_1.5r500_bin_data.npy', encoding='latin1').item()
 # results20 = np.load('Data/Mass_2.0r500_bin_data.npy').item()
 
 # Extract all values from the files
@@ -90,7 +90,7 @@ ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
 ax.set(title='SPT Cluster AGN within $0.5 r_{500}$', xlabel='$\log M_{500} (M_\odot)$',
        ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]', ylim=[-2, 3])
 ax.legend()
-fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_05r500.pdf', format='pdf')
+#fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_05r500.pdf', format='pdf')
 
 fig, ax = plt.subplots()
 ax.xaxis.set_minor_locator(AutoMinorLocator(2))
@@ -107,7 +107,7 @@ ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
 ax.set(title='SPT Cluster AGN within $1.0 r_{500}$', xlabel='$\log M_{500} (M_\odot)$',
        ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]', ylim=[-2, 3])
 ax.legend()
-fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_10r500.pdf', format='pdf')
+#fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_10r500.pdf', format='pdf')
 
 fig, ax = plt.subplots()
 ax.xaxis.set_minor_locator(AutoMinorLocator(2))
@@ -124,7 +124,7 @@ ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
 ax.set(title='SPT Cluster AGN within $1.5 r_{500}$', xlabel='$\log M_{500} (M_\odot)$',
        ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]', ylim=[-2, 3])
 ax.legend()
-fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_15r500.pdf', format='pdf')
+#fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_15r500.pdf', format='pdf')
 
 # fig, ax = plt.subplots()
 # ax.xaxis.set_minor_locator(AutoMinorLocator(2))
@@ -153,4 +153,4 @@ ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
 ax.set(title='SPT Clusters at all Redshifts', xlabel='$\log M_{500} [M_\odot]$',
        ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]', ylim=[-2, 3])
 ax.legend()
-fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_all_redshifts.pdf', format='pdf')
+#fig.savefig('Data/Plots/SPT_AGN_Mass_Sci_Plot_all_redshifts.pdf', format='pdf')
