@@ -13,13 +13,10 @@ import sys
 from multiprocessing import Pool, cpu_count
 
 import astropy.units as u
-import corner
 import emcee
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table, vstack, QTable, join
-from matplotlib.ticker import MaxNLocator
 from small_poisson import small_poisson
 from time import time
 
@@ -118,7 +115,7 @@ def lnprior(param):
     h_eta = 0.
     h_eta_err = np.inf
     h_beta = -1.5
-    h_beta_err = 10.
+    h_beta_err = 3.
     h_zeta = 0.
     h_zeta_err = np.inf
     h_C = 0.371
