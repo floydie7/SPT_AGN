@@ -8,11 +8,16 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
+from time import time
+
 import astropy.units as u
+import corner
+import emcee
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
-import scipy.optimize as op
 from astropy.table import Table, vstack, QTable, join
+from matplotlib.ticker import MaxNLocator
 from small_poisson import small_poisson
 
 # Set matplotlib parameters
@@ -83,6 +88,7 @@ def lnlike(param, catalog, obs_surf_den_table):
                                     * ((cluster['M500'][0] * cluster['M500'].unit) / (1e15 * u.Msun))**zeta
                                     * np.sum((cluster['r_r500_radial'])**beta))
 
+
         # Store the model values in a table.
         cluster_dict = {'SPT_ID': [cluster['SPT_ID'][0]], 'model_values': [model_value]}
         model_tables.append(Table(cluster_dict))
@@ -94,8 +100,9 @@ def lnlike(param, catalog, obs_surf_den_table):
     joint_table = join(obs_surf_den_table, model_table, keys='SPT_ID')
 
     # Our likelihood is then the chi-squared likelihood.
-    total_lnlike = -0.5 * np.sum((joint_table['obs_surf_den'] - joint_table['model_values'])**2
-                                 / joint_table['obs_surf_den_var'])
+    # total_lnlike = -0.5 * np.sum((joint_table['obs_surf_den'] - joint_table['model_values'])**2
+    #                              / joint_table['obs_surf_den_var'])
+    total_lnlike = np.log(np.array(joint_table['model_values']))
 
     return total_lnlike
 
@@ -146,7 +153,7 @@ def lnpost(param, catalog, x):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_subcatalog00.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_catalog.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 # Calculate the "observed" surface density and variance
@@ -157,12 +164,12 @@ eta_true = 1.2
 beta_true = -1.5
 zeta_true = -1.0
 
-# Find the maximum likelihood. As the priors used here are all uniform, this should be the same as the posterior
-nlnlike = lambda *args: -lnlike(*args)
-result = op.minimize(nlnlike, x0=[eta_true, zeta_true, beta_true],
-                     args=(mock_catalog, obs_cluster_surf_den))  #, bounds=[(-3,3),(-3,3),(-3,3)]
-print(result)
-raise SystemExit
+# # Find the maximum likelihood. As the priors used here are all uniform, this should be the same as the posterior
+# nlnlike = lambda *args: -2.*lnlike(*args)
+# result = op.minimize(nlnlike, x0=[0., 0., 0.],
+#                      args=(mock_catalog, obs_cluster_surf_den))  #, bounds=[(-3,3),(-3,3),(-3,3)]
+# print(result)
+# raise SystemExit
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -173,8 +180,7 @@ nwalkers = 64
 nsteps = 500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-# pos0 = emcee.utils.sample_ball(p0=[eta_true, beta_true, zeta_true], std=[1e-2, 1e-2, 1e-2], size=nwalkers)
-pos0 = emcee.utils.sample_ball(p0=[eta_true, zeta_true, beta_true], std=[1e-2, 1e-2, 1e-2], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[eta_true, beta_true, zeta_true], std=[1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
 sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, obs_cluster_surf_den), threads=4)
@@ -193,12 +199,12 @@ ax1.yaxis.set_major_locator(MaxNLocator(5))
 ax1.set(ylabel=r'$\eta$', title='MCMC Chains')
 
 ax2.plot(sampler.chain[:, :, 1].T, color='k', alpha=0.4)
-ax2.axhline(beta_true, color='b')
+ax2.axhline(zeta_true, color='b')
 ax2.yaxis.set_major_locator(MaxNLocator(5))
 ax2.set(ylabel=r'$\zeta$')
 
 ax3.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
-ax3.axhline(zeta_true, color='b')
+ax3.axhline(beta_true, color='b')
 ax3.yaxis.set_major_locator(MaxNLocator(5))
 ax3.set(ylabel=r'$\beta$')
 

@@ -27,9 +27,9 @@ nwalkers = 64
 nsteps = 500
 
 # Load in the chains
-files = os.listdir('Data/MCMC/Mock_Catalog/Chains/Gauss_beta_Prior')
+files = os.listdir('Data/MCMC/Mock_Catalog/Chains/Gauss_beta_sig10_Prior')
 files.sort()
-chain = [np.load('Data/MCMC/Mock_Catalog/Chains/Gauss_beta_Prior/'+f) for f in files]
+chain = [np.load('Data/MCMC/Mock_Catalog/Chains/Gauss_beta_sig10_Prior/'+f) for f in files]
 
 for i in range(len(chain)):
    # Plot the chains
