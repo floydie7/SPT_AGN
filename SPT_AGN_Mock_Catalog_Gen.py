@@ -75,10 +75,11 @@ plt.tight_layout()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Candidates_Distributions.pdf', format='pdf')
 
 # Set parameter values
-eta_true = 1.2
-beta_true = -1.5
-zeta_true = -1.0
-C_true = 0.371
+theta_true = 5.   # Average AGN per cluster
+eta_true = 1.2    # Redshift slope
+beta_true = -1.5  # Radial slope
+zeta_true = -1.0  # Mass slope
+C_true = 0.371    # Background AGN surface density
 
 # Need the number of clusters in the sample
 N_cl = len(mock_candidates.group_by('SPT_ID').groups.keys)
@@ -88,7 +89,7 @@ N_cl = len(mock_candidates.group_by('SPT_ID').groups.keys)
 # for cluster in mock_candidates.group_by('SPT_ID').groups:
 
 # Run the candidates through the model with the values above
-N_model = np.array((1 + mock_candidates['REDSHIFT'])**eta_true
+N_model = np.array(theta_true * (1 + mock_candidates['REDSHIFT'])**eta_true
                    * (mock_candidates['r_r500_radial'])**beta_true
                    * (mock_candidates['M500'] / 1e15)**zeta_true)
 
@@ -100,10 +101,10 @@ N_model_normed = N_model / np.max(N_model)
 mock_catalog = Table(names=['SPT_ID', 'REDSHIFT', 'M500', 'r_r500_radial'], dtype=['S16', 'f8', 'f8', 'f8'])
 for i in range(len(mock_candidates)):
     # Draw random number
-    theta = np.random.uniform(0, 1)
+    alpha = np.random.uniform(0, 1)
 
     # Check if the candidate should be added to the catalog
-    if theta < N_model_normed[i]:
+    if alpha < N_model_normed[i]:
         mock_catalog.add_row(mock_candidates[i])
 
 print('Number of objects in Mock catalog: {}'.format(len(mock_catalog)))
