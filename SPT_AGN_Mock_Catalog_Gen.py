@@ -75,7 +75,7 @@ plt.tight_layout()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Candidates_Distributions.pdf', format='pdf')
 
 # Set parameter values
-theta_true = 5.   # Average AGN per cluster
+# theta_true = 5.   # Average AGN per cluster
 eta_true = 1.2    # Redshift slope
 beta_true = -1.5  # Radial slope
 zeta_true = -1.0  # Mass slope
@@ -89,7 +89,7 @@ N_cl = len(mock_candidates.group_by('SPT_ID').groups.keys)
 # for cluster in mock_candidates.group_by('SPT_ID').groups:
 
 # Run the candidates through the model with the values above
-N_model = np.array(theta_true * (1 + mock_candidates['REDSHIFT'])**eta_true
+N_model = np.array((1 + mock_candidates['REDSHIFT'])**eta_true
                    * (mock_candidates['r_r500_radial'])**beta_true
                    * (mock_candidates['M500'] / 1e15)**zeta_true)
 
