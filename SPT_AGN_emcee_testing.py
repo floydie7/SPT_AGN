@@ -16,7 +16,7 @@ import emcee
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.table import Table, vstack, join
+from astropy.table import Table, vstack
 from matplotlib.ticker import MaxNLocator
 from small_poisson import small_poisson
 
@@ -63,9 +63,11 @@ def observed_surf_den(catalog):
 
 
 # Set our log-likelihood
-def lnlike(param, catalog, obs_surf_den_table):
+def lnlike(param, catalog, obs_surf_den_table=None):
     # Extract our parameters
-    eta, zeta, beta0, betaz, betam = param
+    eta, zeta, beta = param
+
+    catalog_cp = Table(catalog, copy=True)
 
     # beta = -1.57404539
 
@@ -79,31 +81,36 @@ def lnlike(param, catalog, obs_surf_den_table):
 
     # For each cluster determine the model value and assign it to the correct observational value
     model_tables = []
-    for cluster in catalog_grp.groups:
+    # for cluster in catalog_grp.groups:
+    for agn in catalog_cp:
         # Find the number of AGN in the cluster. This will be the sum of the completeness values in a real data set.
-        n_agn = len(cluster)
+        # n_agn = len(cluster)
 
-        beta = beta0 + betaz * (1 + cluster['REDSHIFT']) \
-               + betam * ((cluster['M500'][0] * cluster['M500'].unit) / (1e15 * u.Msun))
+        # beta = beta0 + betaz * (1 + cluster['REDSHIFT']) \
+        #        + betam * ((cluster['M500'][0] * cluster['M500'].unit) / (1e15 * u.Msun))
 
         # Calculate the model value for the cluster
-        model_value = 1. / n_agn * ((1 + cluster['REDSHIFT'][0])**eta
-                                    * ((cluster['M500'][0] * cluster['M500'].unit) / (1e15 * u.Msun))**zeta
-                                    * np.sum((cluster['r_r500_radial'])**beta))
+        model_value =  ((1 + agn['REDSHIFT'])**eta
+                                    * ((agn['M500'] * u.Msun) / (1e15 * u.Msun))**zeta
+                                    * ((agn['r_r500_radial'])**beta))
 
         # Store the model values in a table.
-        cluster_dict = {'SPT_ID': [cluster['SPT_ID'][0]], 'model_values': [model_value]}
+        cluster_dict = {'SPT_ID': [agn['SPT_ID']], 'model_values': [model_value]}
         model_tables.append(Table(cluster_dict))
 
     # Combine all the model tables into a single table.
     model_table = vstack(model_tables)
 
     # Join the observed and model tables together based on the SPT_ID keys
-    joint_table = join(obs_surf_den_table, model_table, keys='SPT_ID')
+    # joint_table = join(catalog, model_table, keys='SPT_ID')
+    catalog_cp.add_column(model_table['model_values'])
+    joint_table = catalog_cp
 
     # Our likelihood is then the chi-squared likelihood.
-    total_lnlike = -0.5 * np.sum((joint_table['obs_surf_den'] - joint_table['model_values'])**2
-                                 / joint_table['obs_surf_den_var'])
+    # total_lnlike = -0.5 * np.sum((joint_table['obs_surf_den'] - joint_table['model_values'])**2
+    #                              / joint_table['obs_surf_den_var'])
+    total_lnlike = -0.5 * np.sum((joint_table['model'] - joint_table['model_values']) ** 2
+                                 / joint_table['model_values'])
     # total_lnlike = np.log(np.array(joint_table['model_values']))
 
     return total_lnlike
@@ -113,7 +120,7 @@ def lnlike(param, catalog, obs_surf_den_table):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    eta, zeta, beta0, betaz, betam = param
+    eta, zeta, beta = param
 
     # # Set our hyperparameters
     # h_eta = 0.
@@ -126,25 +133,25 @@ def lnprior(param):
     # h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if -3. <= eta <= 3. and -3. <= zeta <= 3. and -3 <= beta0 <= 3 and -3 <= betaz <= 3 and -3 <= betam <= 3:
+    if -3. <= eta <= 3. and -3. <= zeta <= 3. and -3 <= beta <= 3:
         # theta_lnprior = 0.0
         eta_lnprior = 0.0
-        beta0_lnprior = 0.0
+        beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        betaz_lnprior = 0.0
-        betam_lnprior = 0.0
+        # betaz_lnprior = 0.0
+        # betam_lnprior = 0.0
     else:
         # theta_lnprior = -np.inf
         eta_lnprior = -np.inf
-        beta0_lnprior = -np.inf
+        beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
-        betaz_lnprior = -np.inf
-        betam_lnprior = -np.inf
+        # betaz_lnprior = -np.inf
+        # betam_lnprior = -np.inf
 
     # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = eta_lnprior + zeta_lnprior + beta0_lnprior + betam_lnprior + betaz_lnprior  #+ C_lnprior
+    total_lnprior = eta_lnprior + zeta_lnprior + beta_lnprior  #+ C_lnprior
 
     return total_lnprior
 
@@ -165,7 +172,7 @@ mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_subcatalog00
 mock_catalog['M500'].unit = u.Msun
 
 # Calculate the "observed" surface density and variance
-obs_cluster_surf_den = observed_surf_den(mock_catalog)
+# obs_cluster_surf_den = observed_surf_den(mock_catalog)
 
 # For diagnostic purposes, set the values of the parameters.
 theta_true = 5.
@@ -182,18 +189,18 @@ zeta_true = -1.0
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
+ndim = 3
 nwalkers = 100
 
 # Also, set the number of steps to run the sampler for.
 nsteps = 500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[eta_true, zeta_true, beta_true, 0.0, 0.0],
+pos0 = emcee.utils.sample_ball(p0=[eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, obs_cluster_surf_den), threads=4)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, None), threads=4)
 
 # Run the sampler.
 start_sampler_time = time()
@@ -203,7 +210,7 @@ np.save('Data/MCMC/Mock_Catalog/emcee_run_w{nwalkers}_s{nsteps}_sc00'.format(nwa
         sampler.chain)
 
 # Plot the chains
-fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(nrows=5, ncols=1, sharex=True)
+fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True)
 # ax0.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
 # ax0.axhline(theta_true, color='b')
 # ax0.yaxis.set_major_locator(MaxNLocator(5))
@@ -220,19 +227,19 @@ ax2.yaxis.set_major_locator(MaxNLocator(5))
 ax2.set(ylabel=r'$\zeta$')
 
 ax3.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
-# ax3.axhline(beta_true, color='b')
+ax3.axhline(beta_true, color='b')
 ax3.yaxis.set_major_locator(MaxNLocator(5))
 ax3.set(ylabel=r'$\beta_0$')
 
-ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
-# ax3.axhline(beta_true, color='b')
-ax4.yaxis.set_major_locator(MaxNLocator(5))
-ax4.set(ylabel=r'$\beta_z$')
-
-ax5.plot(sampler.chain[:, :, 4].T, color='k', alpha=0.4)
-# ax3.axhline(beta_true, color='b')
-ax5.yaxis.set_major_locator(MaxNLocator(5))
-ax5.set(ylabel=r'$\beta_m$')
+# ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
+# # ax3.axhline(beta_true, color='b')
+# ax4.yaxis.set_major_locator(MaxNLocator(5))
+# ax4.set(ylabel=r'$\beta_z$')
+#
+# ax5.plot(sampler.chain[:, :, 4].T, color='k', alpha=0.4)
+# # ax3.axhline(beta_true, color='b')
+# ax5.yaxis.set_major_locator(MaxNLocator(5))
+# ax5.set(ylabel=r'$\beta_m$')
 
 # ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
@@ -245,20 +252,18 @@ burnin = nsteps//3
 samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
 # Produce the corner plot
-fig = corner.corner(samples, labels=[r'$\eta$', r'$\zeta$', r'$\beta_0$', r'$\beta_z$', r'$\beta_m$'],
-                    truths=[eta_true, zeta_true, beta_true, None, None],
+fig = corner.corner(samples, labels=[r'$\eta$', r'$\zeta$', r'$\beta$'],
+                    truths=[eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_mock_catalog_sc00.pdf', format='pdf')
 
-theta_mcmc, eta_mcmc, zeta_mcmc, beta0_mcmc, betaz_mcmc, betam_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))
 print("""MCMC Results:
 eta = {eta[0]:.2f} +{eta[1]:.3f} -{eta[2]:.3f} (truth: {eta_true})
 zeta = {zeta[0]:.2f} +{zeta[1]:.3f} -{zeta[2]:.3f} (truth: {zeta_true})
-beta0 = {beta0[0]:.2f} +{beta0[1]:.3f} -{beta0[2]:.3f} (truth: {beta_true})
-betaz = {betaz[0]:.2f} +{betaz[1]:.3f} -{betaz[2]:.3f} (truth: {beta_true})
-betam = {betam[0]:.2f} +{betam[1]:.3f} -{betam[2]:.3f} (truth: {beta_true})"""
-      .format(eta=eta_mcmc,  zeta=zeta_mcmc, beta0=beta0_mcmc, betaz=betaz_mcmc, betam=betam_mcmc,
+beta = {beta[0]:.2f} +{beta[1]:.3f} -{beta[2]:.3f} (truth: {beta_true})"""
+      .format(eta=eta_mcmc,  zeta=zeta_mcmc, beta=beta_mcmc,
               eta_true=eta_true,  zeta_true=zeta_true, beta_true=beta_true))
 
 print('Mean acceptance fraction: {}'.format(np.mean(sampler.acceptance_fraction)))

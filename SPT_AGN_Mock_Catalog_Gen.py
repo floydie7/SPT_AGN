@@ -10,7 +10,7 @@ from __future__ import print_function, division
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.table import Table
+from astropy.table import Table, Column
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -93,12 +93,14 @@ N_model = np.array((1 + mock_candidates['REDSHIFT'])**eta_true
                    * (mock_candidates['r_r500_radial'])**beta_true
                    * (mock_candidates['M500'] / 1e15)**zeta_true)
 
+mock_candidates.add_column(Column(N_model, name='model'))
+
 # Normalize the model values to create probabilities
 N_model_normed = N_model / np.max(N_model)
 
 # Draw a random number between [0,1] and if the number is smaller than the probabilities from our model, we keep the
 # entry from our candidates for our mock catalog.
-mock_catalog = Table(names=['SPT_ID', 'REDSHIFT', 'M500', 'r_r500_radial'], dtype=['S16', 'f8', 'f8', 'f8'])
+mock_catalog = Table(names=['SPT_ID', 'REDSHIFT', 'M500', 'r_r500_radial', 'model'], dtype=['S16', 'f8', 'f8', 'f8', 'f8'])
 for i in range(len(mock_candidates)):
     # Draw random number
     alpha = np.random.uniform(0, 1)
