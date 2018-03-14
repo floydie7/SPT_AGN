@@ -1,4 +1,4 @@
-.mn"""
+"""
 SPT_AGN_emcee.py
 Author: Benjamin Floyd
 

@@ -19,6 +19,7 @@ import numpy as np
 from astropy.table import Table, vstack
 from matplotlib.ticker import MaxNLocator
 from small_poisson import small_poisson
+import scipy.optimize as op
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -67,51 +68,20 @@ def lnlike(param, catalog, obs_surf_den_table=None):
     # Extract our parameters
     eta, zeta, beta = param
 
-    catalog_cp = Table(catalog, copy=True)
+    # Calculate the maximum possible model value for normalization
+    max_model = lambda data: -(1+data[0])**eta * (data[1]/1e15)**zeta * (data[2])**beta
 
-    # beta = -1.57404539
+    res = op.minimize(max_model, x0=[0., 0., 0.], bounds=[(0.5, 1.7), (0.2e15, 1.8e15), (0.1, 1.5)])
 
-    # Convert our catalog into a QTable so units are handled correctly.
-    # qcatalog = QTable(catalog)
+    # Our normalization value
+    max_model_val = -res.fun
 
-    catalog_grp = catalog.group_by('SPT_ID')
+    model = max_model_val * ((1 + catalog['REDSHIFT'])**eta
+                             * (catalog['M500'] / 1e15)**zeta
+                             * catalog['r_r500_radial']**beta)
 
-    # Find the ratio of the number of AGN per cluster and invert it. This will be our normalizing factor.
-    n_agn_n_cl = len(catalog) / len(catalog_grp.groups.keys)
-
-    # For each cluster determine the model value and assign it to the correct observational value
-    model_tables = []
-    # for cluster in catalog_grp.groups:
-    for agn in catalog_cp:
-        # Find the number of AGN in the cluster. This will be the sum of the completeness values in a real data set.
-        # n_agn = len(cluster)
-
-        # beta = beta0 + betaz * (1 + cluster['REDSHIFT']) \
-        #        + betam * ((cluster['M500'][0] * cluster['M500'].unit) / (1e15 * u.Msun))
-
-        # Calculate the model value for the cluster
-        model_value =  ((1 + agn['REDSHIFT'])**eta
-                                    * ((agn['M500'] * u.Msun) / (1e15 * u.Msun))**zeta
-                                    * ((agn['r_r500_radial'])**beta))
-
-        # Store the model values in a table.
-        cluster_dict = {'SPT_ID': [agn['SPT_ID']], 'model_values': [model_value]}
-        model_tables.append(Table(cluster_dict))
-
-    # Combine all the model tables into a single table.
-    model_table = vstack(model_tables)
-
-    # Join the observed and model tables together based on the SPT_ID keys
-    # joint_table = join(catalog, model_table, keys='SPT_ID')
-    catalog_cp.add_column(model_table['model_values'])
-    joint_table = catalog_cp
-
-    # Our likelihood is then the chi-squared likelihood.
-    # total_lnlike = -0.5 * np.sum((joint_table['obs_surf_den'] - joint_table['model_values'])**2
-    #                              / joint_table['obs_surf_den_var'])
-    total_lnlike = -0.5 * np.sum((joint_table['model'] - joint_table['model_values']) ** 2
-                                 / joint_table['model_values'])
-    # total_lnlike = np.log(np.array(joint_table['model_values']))
+    # Sum over all the log-likelihoods to gain the total log-likelihood proability
+    total_lnlike = np.sum(np.log(model))
 
     return total_lnlike
 
@@ -171,21 +141,11 @@ def lnpost(param, catalog, x):
 mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/mock_AGN_subcatalog00.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
-# Calculate the "observed" surface density and variance
-# obs_cluster_surf_den = observed_surf_den(mock_catalog)
 
 # For diagnostic purposes, set the values of the parameters.
-theta_true = 5.
 eta_true = 1.2
 beta_true = -1.5
 zeta_true = -1.0
-
-# # Find the maximum likelihood. As the priors used here are all uniform, this should be the same as the posterior
-# nlnlike = lambda *args: -2.*lnlike(*args)
-# result = op.minimize(nlnlike, x0=[0., 0., 0.],
-#                      args=(mock_catalog, obs_cluster_surf_den))  #, bounds=[(-3,3),(-3,3),(-3,3)]
-# print(result)
-# raise SystemExit
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -211,15 +171,11 @@ np.save('Data/MCMC/Mock_Catalog/emcee_run_w{nwalkers}_s{nsteps}_sc00'.format(nwa
 
 # Plot the chains
 fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True)
-# ax0.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
-# ax0.axhline(theta_true, color='b')
-# ax0.yaxis.set_major_locator(MaxNLocator(5))
-# ax0.set(ylabel=r'$\theta$', title='MCMC Chains')
 
 ax1.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
 ax1.axhline(eta_true, color='b')
 ax1.yaxis.set_major_locator(MaxNLocator(5))
-ax1.set(ylabel=r'$\eta$')
+ax1.set(ylabel=r'$\eta$', title='MCMC Chains')
 
 ax2.plot(sampler.chain[:, :, 1].T, color='k', alpha=0.4)
 ax2.axhline(zeta_true, color='b')
@@ -229,21 +185,7 @@ ax2.set(ylabel=r'$\zeta$')
 ax3.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
 ax3.axhline(beta_true, color='b')
 ax3.yaxis.set_major_locator(MaxNLocator(5))
-ax3.set(ylabel=r'$\beta_0$')
-
-# ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
-# # ax3.axhline(beta_true, color='b')
-# ax4.yaxis.set_major_locator(MaxNLocator(5))
-# ax4.set(ylabel=r'$\beta_z$')
-#
-# ax5.plot(sampler.chain[:, :, 4].T, color='k', alpha=0.4)
-# # ax3.axhline(beta_true, color='b')
-# ax5.yaxis.set_major_locator(MaxNLocator(5))
-# ax5.set(ylabel=r'$\beta_m$')
-
-# ax4.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
-# ax4.yaxis.set_major_locator(MaxNLocator(5))
-# ax4.set(ylabel=r'$C$', xlabel='Steps')
+ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_mock_catalog_sc00.pdf', format='pdf')
 
