@@ -16,14 +16,31 @@ import emcee
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.optimize as op
 from astropy.table import Table, vstack
 from matplotlib.ticker import MaxNLocator
 from small_poisson import small_poisson
-import scipy.optimize as op
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
+
+
+def data_matrix_gen(catalog):
+    # Group the catalog by cluster
+    catalog_grp = catalog.group_by('SPT_ID')
+
+    # Initialize the matrix filled with zeros
+    data_mat = np.zeros((len(catalog_grp.groups.keys), len(catalog)))
+
+    # Populate the matrix
+    for i in range(len(catalog_grp.groups.keys)):
+        for j in range(len(catalog_grp.groups[i])):
+            agn_radius = catalog_grp.groups[i]['r_r500_radial'][j]
+            # Place the AGN's radial position in the appropriate row in the matrix
+            data_mat[i,j] = agn_radius
+
+    return data_mat
 
 
 def observed_surf_den(catalog):
@@ -64,24 +81,32 @@ def observed_surf_den(catalog):
 
 
 # Set our log-likelihood
-def lnlike(param, catalog, obs_surf_den_table=None):
+def lnlike(param, inp_catalog, obs_surf_den_table=None):
     # Extract our parameters
     eta, zeta, beta = param
+
+    # Make a copy of the catalog
+    catalog = inp_catalog.copy()
 
     # Calculate the maximum possible model value for normalization
     max_model = lambda data: -(1+data[0])**eta * (data[1]/1e15)**zeta * (data[2])**beta
 
-    res = op.minimize(max_model, x0=[0., 0., 0.], bounds=[(0.5, 1.7), (0.2e15, 1.8e15), (0.1, 1.5)])
+    res = op.minimize(max_model, x0=np.array([0., 0., 0.]), bounds=[(0.5, 1.7), (0.2e15, 1.8e15), (0.1, 1.5)])
 
     # Our normalization value
     max_model_val = -res.fun
 
-    model = max_model_val * ((1 + catalog['REDSHIFT'])**eta
-                             * (catalog['M500'] / 1e15)**zeta
-                             * catalog['r_r500_radial']**beta)
+    # Compute the model probabilities
+    model = 1. / max_model_val * ((1 + catalog['REDSHIFT'])**eta
+                                  * (catalog['M500'] / 1e15)**zeta
+                                  * catalog['r_r500_radial']**beta)
 
-    # Sum over all the log-likelihoods to gain the total log-likelihood proability
-    total_lnlike = np.sum(np.log(model))
+    # Add the model probabilities to the catalog
+    catalog.add_column(model, name='model_prob')
+
+    # Use a spatial possion point-process log-likelihood
+    total_lnlike = (np.sum(catalog['model_prob'] * catalog['r_r500_radial'])
+                    - np.trapz(catalog['model_prob'] * 2*np.pi * catalog['r_r500_radial']))
 
     return total_lnlike
 
@@ -93,30 +118,18 @@ def lnprior(param):
     eta, zeta, beta = param
 
     # # Set our hyperparameters
-    # h_eta = 0.
-    # h_eta_err = np.inf
-    # h_beta = 0.
-    # h_beta_err = np.inf
-    # h_zeta = 0.
-    # h_zeta_err = np.inf
     # h_C = 0.371
     # h_C_err = 0.157
 
     # Define all priors to be gaussian
     if -3. <= eta <= 3. and -3. <= zeta <= 3. and -3 <= beta <= 3:
-        # theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        # betaz_lnprior = 0.0
-        # betam_lnprior = 0.0
     else:
-        # theta_lnprior = -np.inf
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
-        # betaz_lnprior = -np.inf
-        # betam_lnprior = -np.inf
 
     # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
@@ -147,6 +160,9 @@ eta_true = 1.2
 beta_true = -1.5
 zeta_true = -1.0
 
+# nlnlike = lambda *args: -lnlike(*args)
+# mle = op.minimize(nlnlike, x0=np.array([0,0,0]), args=(mock_catalog, None))
+
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 3
@@ -166,7 +182,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, None
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/emcee_run_w{nwalkers}_s{nsteps}_sc00'.format(nwalkers=nwalkers, nsteps=nsteps),
+np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_sc00'.format(nwalkers=nwalkers, nsteps=nsteps),
         sampler.chain)
 
 # Plot the chains
