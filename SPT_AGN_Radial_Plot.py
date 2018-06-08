@@ -7,11 +7,10 @@ Creates the radial cluster AGN plot using the results calculated from `SPT_AGN_P
 
 from __future__ import print_function, division
 
-import os
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 
 os.environ['PATH'] += os.pathsep + '/Library/TeX/texbin/'
@@ -50,14 +49,14 @@ ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 ax.yaxis.set_minor_locator(AutoMinorLocator(5))
 ax.errorbar(rad_bin_cent-0.09, mid_low_z_rad_surf_den, yerr=mid_low_z_rad_err[::-1], fmt='o', c='C0',
             label='$0.5 < z \leq 0.65$')
-ax.errorbar(rad_bin_cent-0.03, mid_mid_z_rad_surf_den, yerr=mid_mid_z_rad_err[::-1], fmt='o', c='C1',
+ax.errorbar(rad_bin_cent-0.03, mid_mid_z_rad_surf_den, yerr=mid_mid_z_rad_err[::-1], fmt='^', c='C1',
             label='$0.65 < z \leq 0.75$')
-ax.errorbar(rad_bin_cent+0.03, mid_high_z_rad_surf_den, yerr=mid_high_z_rad_err[::-1], fmt='o', c='C2',
+ax.errorbar(rad_bin_cent+0.03, mid_high_z_rad_surf_den, yerr=mid_high_z_rad_err[::-1], fmt='s', c='C2',
             label='$0.75 < z \leq 1.0$')
-ax.errorbar(rad_bin_cent+0.09, high_z_rad_surf_den, yerr=high_z_rad_err[::-1], fmt='o', c='C3', label='$z > 1.0$')
-ax.errorbar(rad_bin_cent, all_z_rad_surf_den, yerr=all_z_rad_err[::-1], fmt='o', c='C4', label='All redshifts')
+ax.errorbar(rad_bin_cent+0.09, high_z_rad_surf_den, yerr=high_z_rad_err[::-1], fmt='v', c='C3', label='$z > 1.0$')
+ax.errorbar(rad_bin_cent, all_z_rad_surf_den, yerr=all_z_rad_err[::-1], fmt='D', c='C4', label='All redshifts')
 ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.set(title='SPT Cluster AGN for All Masses', xlabel='r/r$_{500}$',
+ax.set(xlabel='r/r$_{500}$',
        ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]',
        xlim=[0, 1.5], ylim=[-3, 2])
 # ax.table(cellText=rad_chisq_pte_txt, colLabels=[r'$\chi^2_\nu$', 'PTE'], loc='lower right').auto_set_column_width((0,1))
@@ -65,7 +64,7 @@ ax.legend(loc='lower left', frameon=False)
 
 matplotlib.rcParams['text.usetex'] = True
 ax.text(0.6,-2.9, rad_chisq_pte_table)
-fig.savefig('Data/Binned_Analysis/Plots/SPT_AGN_Radial_Distance_Sci_Plot_with_table.pdf', format='pdf')
+fig.savefig('Data/Binned_Analysis/Plots/SPT_AGN_Radial_Distance_Sci_Plot_with_table_paper.pdf', format='pdf')
 
 
 # # Make individual radial plots for each redshift bin.

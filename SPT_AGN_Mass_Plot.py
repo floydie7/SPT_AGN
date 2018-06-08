@@ -7,11 +7,10 @@ Creates the mass cluster AGN plot using the results calculated from `SPT_AGN_Pre
 
 from __future__ import print_function, division
 
-import os
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 from matplotlib.ticker import AutoMinorLocator
 
 os.environ['PATH'] += os.pathsep + '/Library/TeX/texbin/'
@@ -121,21 +120,21 @@ ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 ax.yaxis.set_minor_locator(AutoMinorLocator(5))
 ax.errorbar(mass_bin_cent-0.02, mid_low_surf_den_15, yerr=mid_low_surf_den_err_15[::-1], fmt='o', c='C0',
             label='$0.5 < z \leq 0.65$')
-ax.errorbar(mass_bin_cent-0.01, mid_mid_surf_den_15, yerr=mid_mid_surf_den_err_15[::-1], fmt='o', c='C1',
+ax.errorbar(mass_bin_cent-0.01, mid_mid_surf_den_15, yerr=mid_mid_surf_den_err_15[::-1], fmt='^', c='C1',
             label='$0.65 < z \leq 0.75$')
-ax.errorbar(mass_bin_cent+0.01, mid_high_surf_den_15, yerr=mid_high_surf_den_err_15[::-1], fmt='o', c='C2',
+ax.errorbar(mass_bin_cent+0.01, mid_high_surf_den_15, yerr=mid_high_surf_den_err_15[::-1], fmt='s', c='C2',
             label='$0.75 < z \leq 1.0$')
-ax.errorbar(mass_bin_cent+0.02, high_surf_den_15, yerr=high_surf_den_err_15[::-1], fmt='o', c='C3', label='$z > 1.0$')
-ax.errorbar(mass_bin_cent, all_surf_den_15, yerr=all_surf_den_err_15[::-1], fmt='o', c='C4', label='All Redshifts')
+ax.errorbar(mass_bin_cent+0.02, high_surf_den_15, yerr=high_surf_den_err_15[::-1], fmt='v', c='C3', label='$z > 1.0$')
+ax.errorbar(mass_bin_cent, all_surf_den_15, yerr=all_surf_den_err_15[::-1], fmt='D', c='C4', label='All Redshifts')
 ax.axhline(y=0.0, c='k', linestyle='--', label='SDWFS Field Density')
-ax.set(title='SPT Cluster AGN within $1.5 r_{500}$', xlabel='$\log M_{500} (M_\odot)$',
+ax.set(xlabel='$\log M_{500} (M_\odot)$',
        ylabel='$\Sigma_{\mathrm{AGN}}$ per cluster [Mpc$^{-2}$]', ylim=[-3, 3])
 ax.legend(loc='lower left', frameon=False)
 
 matplotlib.rcParams['text.usetex'] = True
 ax.text(14.6, -2.9, mass_chisq_pte_table)
-plt.show()
-# fig.savefig('Data/Binned_Analysis/Plots/SPT_AGN_Mass_Sci_Plot_15r500_with_table.pdf', format='pdf')
+# plt.show()
+fig.savefig('Data/Binned_Analysis/Plots/SPT_AGN_Mass_Sci_Plot_15r500_with_table_paper.pdf', format='pdf')
 
 # fig, ax = plt.subplots()
 # ax.xaxis.set_minor_locator(AutoMinorLocator(2))
