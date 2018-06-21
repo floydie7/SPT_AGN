@@ -16,6 +16,7 @@ import emcee
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.cosmology import FlatLambdaCDM
 from astropy.table import Table
 from matplotlib.ticker import MaxNLocator
 
@@ -23,42 +24,60 @@ from matplotlib.ticker import MaxNLocator
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
-def model_rate(z, m, r_r500, params):
+
+def model_rate(z, m, r500, r, params):
     """
     Our generating model.
 
-    :param z: Redshift
-    :param m: M_500
-    :param r_r500: r / r_500
-    :param params: Tuple of (theta, eta, zeta, beta)
-    :return:
+    :param z: Redshift of the cluster
+    :param m: M_500 mass of the cluster
+    :param r500: r500 radius of the cluster
+    :param r: A vector of radii of objects within the cluster
+    :param params: Tuple of (theta, eta, zeta, beta, background)
+    :return model: A surface density profile of objects as a function of radius
     """
 
+    # Unpack our parameters
     theta, eta, zeta, beta = params
 
+    theta = theta / u.Mpc**2
+    background = 0.371 / u.arcmin**2
+    r = r * u.Mpc
+
+    # The cluster's core radius
+    rc = 0.2 * u.Mpc
+
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    a = theta * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2 * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
-    model = a * r_r500**beta
+    # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
+    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + background
 
-    model[r_r500 > 1.5] = 0.
+    # We impose a cut off of all objects with a radius greater than 1.5r500
+    model[r / r500 > 1.5] = 0.
 
-    return model
+    return model.value
 
 
 # Set our log-likelihood
-def lnlike(param, catalog, obs_surf_den_table=None):
-    # Extract our parameters
-    theta, eta, zeta, beta = param
+def lnlike(param, catalog):
 
-    ni = model_rate(catalog['REDSHIFT'][0], catalog['M500'][0]*u.Msun, catalog['r_r500'], param)
+    catalog_grp = catalog.group_by('SPT_ID')
 
-    rall = np.linspace(0.1, 1.5, 100)
-    nall = model_rate(catalog['REDSHIFT'][0], catalog['M500'][0]*u.Msun, rall, param)
+    lnlike_list = []
+    for cluster in catalog_grp.groups:
+        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_dist'], param)
 
-    # Use a spatial possion point-process log-likelihood
-    total_lnlike = np.sum(np.log(ni * catalog['r_r500'])) - np.trapz(nall * 2*np.pi * rall, rall)
+        rall = np.linspace(0, 5, 100)
+        nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
+
+        # Use a spatial possion point-process log-likelihood
+        cluster_lnlike = np.sum(np.log(ni * cluster['radial_dist'])) - np.trapz(nall * 2*np.pi * rall, rall)
+        lnlike_list.append(cluster_lnlike)
+
+    total_lnlike = np.sum(lnlike_list)
 
     return total_lnlike
 
@@ -74,7 +93,7 @@ def lnprior(param):
     # h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 1. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.:
+    if 0. <= theta <= 3. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -88,35 +107,33 @@ def lnprior(param):
     # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior  #+ C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior #+ C_lnprior
 
     return total_lnprior
 
 
 # Define the log-posterior probability
-def lnpost(param, catalog, x):
+def lnpost(param, catalog):
     lp = lnprior(param)
 
     # Check the finiteness of the prior.
     if not np.isfinite(lp):
         return -np.inf
 
-    return lp + lnlike(param, catalog, x)
+    return lp + lnlike(param, catalog)
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 
-# For diagnostic purposes, set the values of the parameters.
-theta_true = 2e-4
-eta_true = 1.2
-beta_true = -1.5
-zeta_true = -1.0
-
-# nlnlike = lambda *args: -lnlike(*args)
-# mle = op.minimize(nlnlike, x0=np.array([0,0,0]), args=(mock_catalog, None))
+# Set parameter values
+theta_true = 0.1     # Amplitude. To get realistic AGN counts per cluster (~3) this needs to be ~(5-2) x 10^-6.
+eta_true = 1.2       # Redshift slope
+beta_true = 0.5      # Radial slope
+zeta_true = -1.0     # Mass slope
+C_true = 0.371       # Background AGN surface density
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -128,16 +145,16 @@ nsteps = 500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
-                               std=[1e-6, 1e-2, 1e-2, 1e-2], size=nwalkers)
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=(mock_catalog, None), threads=1)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=4)
 
 # Run the sampler.
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test'
+np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realistic'
         .format(nwalkers=nwalkers, nsteps=nsteps),
         sampler.chain)
 
@@ -164,7 +181,12 @@ ax3.axhline(beta_true, color='b')
 ax3.yaxis.set_major_locator(MaxNLocator(5))
 ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test.pdf', format='pdf')
+# ax4.plot(sampler.chain[:, :, 4].T, color='k', alpha=0.4)
+# ax4.axhline(beta_true, color='b')
+# ax4.yaxis.set_major_locator(MaxNLocator(5))
+# ax4.set(ylabel=r'$\C$', xlabel='Steps')
+
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
@@ -174,7 +196,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic.pdf', format='pdf')
 
 theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))
