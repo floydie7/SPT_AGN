@@ -105,7 +105,7 @@ SPT_data_m = SPT_data[np.where(SPT_data['M500'] <= 5e14)]
 
 # Set parameter values
 # theta_true = 0.25e-5    # Amplitude (?)
-theta_true = 50. / u.Mpc**2
+theta_true = 0.1 / u.Mpc**2
 eta_true = 1.2    # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
@@ -162,24 +162,24 @@ for cluster in cluster_sample:
     print('Number of points in final selection: {}'.format(len(x_final)))
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-    r_final = (np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
-               * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin))
+    r_final_arcmin = (np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin)
+    r_final = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)
 
     if r_final.size != 0:
         # Create a table of our output objects
-        AGN_list = Table([r_final], names=['radial_dist'])
+        AGN_list = Table([r_final, r_final_arcmin], names=['radial_dist', 'radial_arcmin'])
         AGN_list['SPT_ID'] = spt_id
         AGN_list['M500'] = m500_cl
         AGN_list['REDSHIFT'] = z_cl
         AGN_list['r500'] = r500_cl
 
-        AGN_cat = AGN_list['SPT_ID', 'REDSHIFT', 'M500', 'r500', 'radial_dist']
+        AGN_cat = AGN_list['SPT_ID', 'REDSHIFT', 'M500', 'r500', 'radial_dist', 'radial_arcmin']
         AGN_cats.append(AGN_cat)
 
 outAGN = vstack(AGN_cats)
 
 # outAGN.pprint(max_width=-1)
-# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
@@ -208,9 +208,9 @@ print('Mean aperture area: {} arcmin2'.format(np.mean(aper_area)))
 # # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Distributions/Final_AGN.pdf', format='pdf')
 # plt.show()
 #
-hist, bin_edges = np.histogram(outAGN['radial_dist'])
+hist, bin_edges = np.histogram(outAGN['radial_arcmin'])
 bins = (bin_edges[1:len(bin_edges)]-bin_edges[0:len(bin_edges)-1])/2. + bin_edges[0:len(bin_edges)-1]
-plt.hist(outAGN['radial_dist'])
+plt.hist(outAGN['radial_arcmin'])
 plt.show()
 
 # but normalise the area

@@ -44,7 +44,7 @@ def model_rate(z, m, r500, r, params):
 
     theta = theta / u.Mpc**2
     background = 0.371 / u.arcmin**2
-    r = r * u.Mpc
+    r = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)
 
     # The cluster's core radius
     rc = 0.2 * u.Mpc
@@ -68,7 +68,7 @@ def lnlike(param, catalog):
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
-        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_dist'], param)
+        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_arcmin'], param)
 
         rall = np.linspace(0, 5, 100)
         nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
@@ -138,10 +138,10 @@ C_true = 0.371       # Background AGN surface density
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
-nwalkers = 100
+nwalkers = 32
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 500
+nsteps = 300
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
