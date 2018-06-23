@@ -50,10 +50,10 @@ def model_rate(z, m, r500, r, params):
     rc = 0.2 * u.Mpc
 
     # Our amplitude is determined from the cluster data
-    a = theta * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2 * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) #+ background
 
     # We impose a cut off of all objects with a radius greater than 1.5r500
     model[r / r500 > 1.5] = 0.
@@ -68,7 +68,7 @@ def lnlike(param, catalog):
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
-        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_arcmin'], param)
+        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_dist'], param)
 
         rall = np.linspace(0, 5, 100)
         nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
@@ -124,7 +124,7 @@ def lnpost(param, catalog):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_theta0.1.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 
@@ -138,7 +138,7 @@ C_true = 0.371       # Background AGN surface density
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
-nwalkers = 32
+nwalkers = 64
 
 # Also, set the number of steps to run the sampler for.
 nsteps = 300
@@ -154,7 +154,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], thr
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realistic'
+np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_theta0.1_nofield'
         .format(nwalkers=nwalkers, nsteps=nsteps),
         sampler.chain)
 
@@ -186,7 +186,7 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_theta0.1_nofield.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
@@ -196,7 +196,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_theta0.1_nofield.pdf', format='pdf')
 
 theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))
