@@ -7,19 +7,19 @@ masks needed for determining the feasible area for calculating a surface density
 """
 from __future__ import print_function, division
 
-import warnings  # For suppressing the astropy warnings that pop up when reading headers.
-from os import listdir, system, chmod
+from itertools import ifilter
 
 import numpy as np
+import warnings  # For suppressing the astropy warnings that pop up when reading headers.
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import fits, ascii
 from astropy.table import Table, unique
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
-from itertools import ifilter
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
+from os import listdir, system, chmod
 from scipy.interpolate import interp1d
 
 # Suppress Astropy warnings

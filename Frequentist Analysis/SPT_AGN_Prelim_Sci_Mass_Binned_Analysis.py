@@ -8,7 +8,6 @@ This script generates the preliminary Mass trend science plots for the SPT AGN s
 from __future__ import print_function, division
 
 from itertools import product
-from os import listdir
 
 import astropy.units as u
 import matplotlib
@@ -17,6 +16,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, vstack
 from astropy.wcs import WCS
+from os import listdir
 from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters

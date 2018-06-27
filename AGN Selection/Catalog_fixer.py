@@ -4,9 +4,8 @@ Author: Benjamin Floyd
 Some of the SExtractor catalogs have a tab character which interferes with astropy reading the tables in correctly.
 """
 
-import os
-
 import numpy as np
+import os
 from astropy.io import ascii
 
 for files in os.listdir('Data/Catalogs.old/'):

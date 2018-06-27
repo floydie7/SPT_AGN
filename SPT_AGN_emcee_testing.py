@@ -50,10 +50,10 @@ def model_rate(z, m, r500, r, params):
     rc = 0.1 * u.Mpc
 
     # Our amplitude is determined from the cluster data
-    a = theta * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2 * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + background * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2
 
     # We impose a cut off of all objects with a radius greater than 1.5r500
     model[r / r500 > 1.5] = 0.
@@ -68,13 +68,13 @@ def lnlike(param, catalog):
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
-        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_arcmin'], param)
+        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_dist'], param)
 
         rall = np.linspace(0, 2.5, 100)
         nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
 
         # Use a spatial possion point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * cluster['radial_arcmin'])) - np.trapz(nall * 2*np.pi * rall, rall)
+        cluster_lnlike = np.sum(np.log(ni * cluster['radial_dist'])) - np.trapz(nall * 2*np.pi * rall, rall)
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
