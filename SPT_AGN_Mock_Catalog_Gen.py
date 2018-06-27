@@ -69,7 +69,7 @@ def model_rate(z, m, r, r500, params):
     theta, eta, zeta, beta, background = params
 
     # The cluster's core radius
-    rc = 0.2 * u.Mpc
+    rc = 0.1 * u.Mpc
 
     # Our amplitude is determined from the cluster data
     a = theta * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2 * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
@@ -84,10 +84,10 @@ def model_rate(z, m, r, r500, params):
 
 
 # Number of clusters to generate
-n_cl = 195
+n_cl = 100
 
 # Set up grid of radial positions (normalized by r500)
-r_dist = np.linspace(0, 2, 100) * u.Mpc
+r_dist = np.linspace(0, 2.5, 100) * u.Mpc
 
 # Draw mass and redshift distribution from a uniform distribution as well.
 mass_dist = np.random.uniform(0.2e15, 1.8e15, n_cl)
@@ -105,7 +105,7 @@ SPT_data_m = SPT_data[np.where(SPT_data['M500'] <= 5e14)]
 
 # Set parameter values
 # theta_true = 0.25e-5    # Amplitude (?)
-theta_true = 0.1 / u.Mpc**2
+theta_true = 50. / u.Mpc**2
 eta_true = 1.2    # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
@@ -179,7 +179,7 @@ for cluster in cluster_sample:
 outAGN = vstack(AGN_cats)
 
 # outAGN.pprint(max_width=-1)
-outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_t50_100cl.cat', format='ascii', overwrite=True)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
@@ -208,19 +208,21 @@ print('Mean aperture area: {} arcmin2'.format(np.mean(aper_area)))
 # # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Distributions/Final_AGN.pdf', format='pdf')
 # plt.show()
 #
-hist, bin_edges = np.histogram(outAGN['radial_arcmin'])
+hist, bin_edges = np.histogram(r_final)
 bins = (bin_edges[1:len(bin_edges)]-bin_edges[0:len(bin_edges)-1])/2. + bin_edges[0:len(bin_edges)-1]
-plt.hist(outAGN['radial_arcmin'])
-plt.show()
+# plt.hist(outAGN['radial_arcmin'])
+# plt.show()
 
 # but normalise the area
 area_edges = np.pi * bin_edges**2
 area = area_edges[1:len(area_edges)]-area_edges[0:len(area_edges)-1]
-# area_arcmin2 = area * u.Mpc**2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc)**2
+area_arcmin2 = area * u.Mpc**2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc)**2
 # print(area_arcmin2)
 
+err = np.sqrt(hist)/area_arcmin2.value
+
 fig, ax = plt.subplots()
-ax.scatter(bins, hist/area/n_cl, label='Filtered SPPP Points Normalized by Area')
+ax.errorbar(bins/r500_cl.value, hist/area_arcmin2.value, yerr=err, fmt='o', label='Filtered SPPP Points Normalized by Area')
 ax.plot(r_dist/r500_cl, rad_model, color="orange", label='Model Rate')
 ax.set(title='Comparison of Sampled Points to Model', xlabel=r'$r$ [Mpc]', ylabel=r'Rate [arcmin$^{-2}$]')
 ax.legend()
