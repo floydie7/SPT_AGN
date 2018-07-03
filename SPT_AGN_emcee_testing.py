@@ -27,14 +27,14 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def model_rate(z, m, r500, r, params):
+def model_rate(z, m, r500, r_r500, params):
     """
     Our generating model.
 
     :param z: Redshift of the cluster
     :param m: M_500 mass of the cluster
     :param r500: r500 radius of the cluster
-    :param r: A vector of radii of objects within the cluster
+    :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :param params: Tuple of (theta, eta, zeta, beta, background)
     :return model: A surface density profile of objects as a function of radius
     """
@@ -42,21 +42,24 @@ def model_rate(z, m, r500, r, params):
     # Unpack our parameters
     theta, eta, zeta, beta = params
 
-    theta = theta / u.Mpc**2
-    background = 0.371 / u.arcmin**2
-    r = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)
+    # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
-    # The cluster's core radius
-    rc = 0.1 * u.Mpc
+    # Convert our background surface density from angular units into units of r500^-2
+    background = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+
+    # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
+
+    # The cluster's core radius in units of r500
+    rc_r500 = 0.1 * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + background * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2
+    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
-    # We impose a cut off of all objects with a radius greater than 1.5r500
-    model[r / r500 > 1.5] = 0.
+    # We impose a cut off of all objects with a radius greater than 1.1r500
+    model[r_r500 > 1.1] = 0.
 
     return model.value
 
@@ -68,13 +71,14 @@ def lnlike(param, catalog):
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
-        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, cluster['radial_dist'], param)
+        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc,
+                        cluster['radial_r500'], param)
 
-        rall = np.linspace(0, 2.5, 100)
+        rall = np.linspace(0, 1.1, 100)  # radius in r500^-1 units
         nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
 
         # Use a spatial possion point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * cluster['radial_dist'])) - np.trapz(nall * 2*np.pi * rall, rall)
+        cluster_lnlike = np.sum(np.log(ni * cluster['radial_r500'])) - np.trapz(nall * 2*np.pi * rall, rall)
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -107,7 +111,7 @@ def lnprior(param):
     # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior #+ C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior  # + C_lnprior
 
     return total_lnprior
 
@@ -129,7 +133,7 @@ mock_catalog['M500'].unit = u.Msun
 
 
 # Set parameter values
-theta_true = 50.     # Amplitude. To get realistic AGN counts per cluster (~3) this needs to be ~(5-2) x 10^-6.
+theta_true = 50.0     # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -141,14 +145,14 @@ ndim = 4
 nwalkers = 64
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 300
+nsteps = 500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=4)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=1)
 
 # Run the sampler.
 start_sampler_time = time()

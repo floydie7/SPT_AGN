@@ -41,7 +41,7 @@ def poisson_point_process(model, dx, dy=None):
 
     # Draw from Poisson distribution to determine how many points we will place.
     p = stats.poisson(model * dx * dy).rvs()
-    print('Number of points placed: ', p)
+    # print('Number of points placed: ', p)
 
     # Drop `p` points with uniform x and y coordinates
     x = stats.uniform.rvs(0, dx, size=p)
@@ -53,41 +53,61 @@ def poisson_point_process(model, dx, dy=None):
     return coord
 
 
-def model_rate(z, m, r, r500, params):
+def model_rate(z, m, r500, r_r500, params):
     """
     Our generating model.
 
     :param z: Redshift of the cluster
     :param m: M_500 mass of the cluster
-    :param r: A vector of radii of objects within the cluster
     :param r500: r500 radius of the cluster
+    :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :param params: Tuple of (theta, eta, zeta, beta, background)
     :return model: A surface density profile of objects as a function of radius
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, background = params
+    theta, eta, zeta, beta = params
 
-    # The cluster's core radius
-    rc = 0.1 * u.Mpc
+    # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
+
+    # Convert our background surface density from angular units into units of r500^-2
+    background = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+
+    # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
+
+    # The cluster's core radius in units of r500
+    rc_r500 = 0.1 * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    print('a = {}'.format(a))
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + background * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2
+    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
-    # We impose a cut off of all objects with a radius greater than 1.5r500
-    model[r / r500 > 1.5] = 0.
+    # We impose a cut off of all objects with a radius greater than 1.1r500
+    model[r_r500 > 1.1] = 0.
 
-    return model
+    return model.value
 
 
 # Number of clusters to generate
-n_cl = 195
+n_cl = 100
+
+# Dx is set to 5 to mimic an IRAC image's width in arcmin.
+Dx = 5.  # In arcmin
+
+# Set parameter values
+theta_true = 5.0     # Amplitude.
+eta_true = 1.2       # Redshift slope
+beta_true = 1/3      # Radial slope
+zeta_true = -1.0     # Mass slope
+C_true = 0.371       # Background AGN surface density
+
+params_true = (theta_true, eta_true, zeta_true, beta_true)
 
 # Set up grid of radial positions (normalized by r500)
-r_dist = np.linspace(0, 2.5, 100) * u.Mpc
+r_dist_r500 = np.linspace(0, 2, 100)  # from 0 - 2r500
 
 # Draw mass and redshift distribution from a uniform distribution as well.
 mass_dist = np.random.uniform(0.2e15, 1.8e15, n_cl)
@@ -103,21 +123,9 @@ SPT_data['r500'] = (3 * SPT_data['M500'] /
 SPT_data_z1 = SPT_data[np.where(SPT_data['REDSHIFT'] >= 1.)]
 SPT_data_m = SPT_data[np.where(SPT_data['M500'] <= 5e14)]
 
-# Set parameter values
-# theta_true = 0.25e-5    # Amplitude (?)
-theta_true = 50. / u.Mpc**2
-eta_true = 1.2    # Redshift slope
-beta_true = 0.5  # Radial slope
-zeta_true = -1.0  # Mass slope
-C_true = 0.371 / u.arcmin**2   # Background AGN surface density
-
-params_true = (theta_true, eta_true, zeta_true, beta_true, C_true)
-
 cluster_sample = SPT_data
 
 AGN_cats = []
-max_rate_list = []
-aper_area = []
 for cluster in cluster_sample:
     spt_id = cluster['SPT_ID']
     z_cl = cluster['REDSHIFT']
@@ -125,32 +133,24 @@ for cluster in cluster_sample:
     r500_cl = cluster['r500'] * u.Mpc
     print("---\nCluster Data: z = {z:.2f}, M500 = {m:.2e}, r500 = {r:.2f}".format(z=z_cl, m=m500_cl, r=r500_cl))
 
-    area_15r500 = np.pi * (1.5 * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc))**2
-    print('Aperture Area: {}'.format(area_15r500))
-    aper_area.append(area_15r500.value)
-
     # Calculate the model values for the AGN candidates in the cluster
-    rad_model = model_rate(z_cl, m500_cl, r_dist, r500_cl, params_true)
+    rad_model = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
     max_rate = np.max(rad_model)
-    print('Max rate: {}'.format(max_rate))
-    max_rate_list.append(max_rate.value)
-
-    # Dx is set to 5 to mimic an IRAC image's width in arcmin.
-    Dx = 5. *u.arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin)
-    Dx = Dx.value
+    # print('Max rate: {}'.format(max_rate))
+    # max_rate_list.append(max_rate)
 
     # Simulate the AGN using the spatial Poisson point process.
     agn_coords = poisson_point_process(max_rate, Dx)
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
-    radii = (np.sqrt((agn_coords[0] - Dx / 2.) ** 2 + (agn_coords[1] - Dx / 2.) ** 2) * u.Mpc)
-             # * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin))
+    radii_arcmin = np.sqrt((agn_coords[0] - Dx / 2.) ** 2 + (agn_coords[1] - Dx / 2.) ** 2) * u.arcmin
+    radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
 
     # Filter the candidates through the model to establish the radial trend in the data.
-    rate_at_rad = model_rate(z_cl, m500_cl, radii, r500_cl, params_true)
+    rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
 
     # Our rejection rate is the model rate at the radius scaled by the maximum rate
     prob_reject = rate_at_rad / max_rate
@@ -160,71 +160,72 @@ for cluster in cluster_sample:
 
     x_final = agn_coords[0][np.where(prob_reject >= alpha)]
     y_final = agn_coords[1][np.where(prob_reject >= alpha)]
-    print('Number of points in final selection: {}'.format(len(x_final)))
+    # print('Number of points in final selection: {}'.format(len(x_final)))
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-    r_final = (np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.Mpc)
-    # r_final = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)
+    r_final_arcmin = np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
+    r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
 
-    if r_final.size != 0:
+    if r_final_r500.size != 0:
         # Create a table of our output objects
-        AGN_list = Table([r_final], names=['radial_dist'])
+        AGN_list = Table([r_final_arcmin, r_final_r500], names=['radial_arcmin', 'radial_r500'])
         AGN_list['SPT_ID'] = spt_id
         AGN_list['M500'] = m500_cl
         AGN_list['REDSHIFT'] = z_cl
         AGN_list['r500'] = r500_cl
 
-        AGN_cat = AGN_list['SPT_ID', 'REDSHIFT', 'M500', 'r500', 'radial_dist']
+        AGN_cat = AGN_list['SPT_ID', 'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500']
         AGN_cats.append(AGN_cat)
 
 outAGN = vstack(AGN_cats)
 
-# outAGN.pprint(max_width=-1)
-outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
-
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-print('Mean max rate : {} 1 / arcmin2'.format(np.mean(max_rate_list)))
-print('Mean aperture area: {} arcmin2'.format(np.mean(aper_area)))
 
-# fig, ax = plt.subplots()
-# ax.plot(r_dist / r500_cl, rad_model)
-# ax.set(title='Model rate', xlabel=r'$r/r_{500}$', ylabel=r'$N(r)$ [arcmin$^{-2}$]')
-# # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Distributions/Model_rate.pdf', format='pdf')
-# plt.show()
+# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
 
-# fig, ax = plt.subplots()
-# ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0/ax.get_data_ratio())
-# ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}$'.format(max_rate),
-#        xlabel=r'$x$', ylabel=r'$y$', xlim=[0, Dx], ylim=[0, Dx])
-# # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Distributions/AGN_candidates.pdf', format='pdf')
-# plt.show()
-#
-# fig, ax = plt.subplots()
-# ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0/ax.get_data_ratio())
-# # ax.set_aspect('equal', 'datalim')
-# ax.set(title='Filtered SPPP', xlabel=r'$x$', ylabel=r'$y$', xlim=[0, Dx], ylim=[0, Dx])
-# # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Mock_Distributions/Final_AGN.pdf', format='pdf')
-# plt.show()
-#
-hist, bin_edges = np.histogram(r_final.value)
-bins = (bin_edges[1:len(bin_edges)]-bin_edges[0:len(bin_edges)-1])/2. + bin_edges[0:len(bin_edges)-1]
-# plt.hist(r_final.value)
-# plt.show()
-
-# but normalise the area
-area_edges = np.pi * bin_edges**2
-area = area_edges[1:len(area_edges)]-area_edges[0:len(area_edges)-1]
-# area_arcmin2 = area * u.Mpc**2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc)**2
-# print(area_arcmin2)
-err = np.sqrt(hist)/area
-
+# Diagnostic Plots
+# Model Rate
 fig, ax = plt.subplots()
-ax.errorbar(bins/r500_cl.value, hist/area, yerr=err, fmt='o', label='Selected Object Counts Normalized by Area')
-ax.plot(r_dist/r500_cl.value, rad_model, color="orange", label='Model Rate')
-ax.set(xlabel=r'$r/r_{{500}}$ ', ylabel=r'Rate [Mpc$^{-2}$]')
+ax.plot(r_dist_r500, rad_model)
+ax.set(title='Model rate', xlabel=r'$r/r_{500}$', ylabel=r'$N(r)$ [$r_{500}^{-2}$]')
+plt.show()
+
+# AGN Candidates
+fig, ax = plt.subplots()
+ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
+ax.set_aspect(1.0)
+ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate),
+       xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+plt.show()
+
+# Selected AGN
+fig, ax = plt.subplots()
+ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
+ax.set_aspect(1.0)
+ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+plt.show()
+
+# Histogram of source counts per cluster
+hist, bin_edges = np.histogram(outAGN['radial_r500']/n_cl)
+# hist, bin_edges = np.histogram(r_final_r500)
+bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
+plt.hist(outAGN['radial_r500']/n_cl)
+# plt.hist(r_final_r500)
+plt.show()
+
+# Compute area in terms of r500^2
+area_edges = np.pi * bin_edges**2
+area = area_edges[1:len(area_edges)] - area_edges[0:len(area_edges)-1]
+
+# Use Poisson error of counts in each bin normalized by the area of the bin
+err = np.sqrt(hist/n_cl)/area
+
+# Overplot the normalized binned data with the model rate
+fig, ax = plt.subplots()
+ax.errorbar(bins, hist/area, yerr=err, fmt='o', color='C1', label='Filtered SPPP Points Normalized by Area')
+ax.plot(r_dist_r500, rad_model, color='C0', label='Model Rate')
+ax.set(title='Comparison of Sampled Points to Model',
+       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
 ax.legend()
-# fig.savefig('Data/MCMC/Mock_Catalog/Plots/binned_comparison_t50_zcl_1.01_m500_563e14.pdf', format='pdf')
 plt.show()
