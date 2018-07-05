@@ -72,6 +72,7 @@ def model_rate(z, m, r500, r_r500, params):
 
     # Convert our background surface density from angular units into units of r500^-2
     background = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    print(background)
 
     # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
 
@@ -80,7 +81,7 @@ def model_rate(z, m, r500, r_r500, params):
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
-    print('a = {}'.format(a))
+    # print('a = {}'.format(a))
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
@@ -98,9 +99,9 @@ n_cl = 100
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 5.0     # Amplitude.
+theta_true = 50.0     # Amplitude.
 eta_true = 1.2       # Redshift slope
-beta_true = 1/3      # Radial slope
+beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
@@ -139,11 +140,12 @@ for cluster in cluster_sample:
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
     max_rate = np.max(rad_model)
-    # print('Max rate: {}'.format(max_rate))
+    max_rate_arcmin2 = max_rate * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2 / r500_cl**2
+    print('Max rate: {}'.format(max_rate_arcmin2))
     # max_rate_list.append(max_rate)
 
     # Simulate the AGN using the spatial Poisson point process.
-    agn_coords = poisson_point_process(max_rate, Dx)
+    agn_coords = poisson_point_process(max_rate_arcmin2, Dx)
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
     radii_arcmin = np.sqrt((agn_coords[0] - Dx / 2.) ** 2 + (agn_coords[1] - Dx / 2.) ** 2) * u.arcmin
@@ -160,7 +162,7 @@ for cluster in cluster_sample:
 
     x_final = agn_coords[0][np.where(prob_reject >= alpha)]
     y_final = agn_coords[1][np.where(prob_reject >= alpha)]
-    # print('Number of points in final selection: {}'.format(len(x_final)))
+    print('Number of points in final selection: {}'.format(len(x_final)))
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
     r_final_arcmin = np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
@@ -186,32 +188,32 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
 
 # Diagnostic Plots
 # Model Rate
-fig, ax = plt.subplots()
-ax.plot(r_dist_r500, rad_model)
-ax.set(title='Model rate', xlabel=r'$r/r_{500}$', ylabel=r'$N(r)$ [$r_{500}^{-2}$]')
-plt.show()
+# fig, ax = plt.subplots()
+# ax.plot(r_dist_r500, rad_model)
+# ax.set(title='Model rate', xlabel=r'$r/r_{500}$', ylabel=r'$N(r)$ [$r_{500}^{-2}$]')
+# plt.show()
 
 # AGN Candidates
-fig, ax = plt.subplots()
-ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
-ax.set_aspect(1.0)
-ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate),
-       xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-plt.show()
+# fig, ax = plt.subplots()
+# ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
+# ax.set_aspect(1.0)
+# ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
+#        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+# plt.show()
 
 # Selected AGN
-fig, ax = plt.subplots()
-ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
-ax.set_aspect(1.0)
-ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-plt.show()
+# fig, ax = plt.subplots()
+# ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
+# ax.set_aspect(1.0)
+# ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+# plt.show()
 
 # Histogram of source counts per cluster
-hist, bin_edges = np.histogram(outAGN['radial_r500']/n_cl)
-# hist, bin_edges = np.histogram(r_final_r500)
+# hist, bin_edges = np.histogram(outAGN['radial_r500']/n_cl)
+hist, bin_edges = np.histogram(r_final_r500)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
-plt.hist(outAGN['radial_r500']/n_cl)
-# plt.hist(r_final_r500)
+# plt.hist(outAGN['radial_r500']/n_cl)
+plt.hist(r_final_r500)
 plt.show()
 
 # Compute area in terms of r500^2
@@ -219,7 +221,7 @@ area_edges = np.pi * bin_edges**2
 area = area_edges[1:len(area_edges)] - area_edges[0:len(area_edges)-1]
 
 # Use Poisson error of counts in each bin normalized by the area of the bin
-err = np.sqrt(hist/n_cl)/area
+err = np.sqrt(hist)/area
 
 # Overplot the normalized binned data with the model rate
 fig, ax = plt.subplots()
