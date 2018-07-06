@@ -128,7 +128,7 @@ def lnpost(param, catalog):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_t50_100cl.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 
@@ -152,13 +152,13 @@ pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=1)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=4)
 
 # Run the sampler.
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_theta50_100cl'
+np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realisic'
         .format(nwalkers=nwalkers, nsteps=nsteps),
         sampler.chain)
 
@@ -190,7 +190,7 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_theta50_100cl.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
@@ -200,7 +200,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_theta50_100cl.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic.pdf', format='pdf')
 
 theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))

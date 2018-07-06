@@ -93,13 +93,13 @@ def model_rate(z, m, r500, r_r500, params):
 
 
 # Number of clusters to generate
-n_cl = 100
+n_cl = 195
 
 # Dx is set to 5 to mimic an IRAC image's width in arcmin.
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 50.0     # Amplitude.
+theta_true = 0.9     # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -184,7 +184,7 @@ outAGN = vstack(AGN_cats)
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 
-# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic.cat', format='ascii', overwrite=True)
 
 # Diagnostic Plots
 # Model Rate
@@ -213,8 +213,8 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
 hist, bin_edges = np.histogram(r_final_r500)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
 # plt.hist(outAGN['radial_r500']/n_cl)
-plt.hist(r_final_r500)
-plt.show()
+# plt.hist(r_final_r500)
+# plt.show()
 
 # Compute area in terms of r500^2
 area_edges = np.pi * bin_edges**2
