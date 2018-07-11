@@ -123,13 +123,18 @@ def lnpost(param, catalog):
 
 # Read in the mock subcatalog
 subcat_fname = sys.argv[1]
-mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/' + subcat_fname,
+mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/theta_values/' + subcat_fname,
                           format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
+# Get our theta value from the filename
+theta_str = subcat_fname[-10:-4]
+if theta_str.startswith('a'):
+    theta_true = float(theta_str[1:])
+else:
+    theta_true = float(theta_str)
 
-# Set parameter values
-theta_true = 0.9    # Amplitude.
+# Set the rest of the parameter values
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -137,15 +142,15 @@ C_true = 0.371       # Background AGN surface density
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
-nwalkers = 100
+ndim = 4
+nwalkers = 200
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 500
+nsteps = 1500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Set up multiprocessing pool
 # get number of cpus available to job
@@ -164,8 +169,8 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], poo
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realistic_maxr11_back'
-        .format(nwalkers=nwalkers, nsteps=nsteps),
+np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_theta{theta:.3f}'
+        .format(nwalkers=nwalkers, nsteps=nsteps, theta=theta_true),
         sampler.chain)
 
 # Remove the burnin, typically 1/3 number of steps
