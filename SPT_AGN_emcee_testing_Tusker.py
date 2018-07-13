@@ -140,6 +140,8 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
+print('Parameters: theta = {t}, eta = {e}, zeta = {z}, beta = {b}'.format(t=theta_true, e=eta_true, z=zeta_true, b=beta_true))
+
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
@@ -169,7 +171,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], poo
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_theta{theta:.3f}'
+np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_theta{theta:.3f}'
         .format(nwalkers=nwalkers, nsteps=nsteps, theta=theta_true),
         sampler.chain)
 
