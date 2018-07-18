@@ -74,7 +74,7 @@ def lnlike(param, catalog):
         ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc,
                         cluster['radial_r500'], param)
 
-        rall = np.linspace(0, 1.1, 100)  # radius in r500^-1 units
+        rall = np.linspace(0, 1.3, 100)  # radius in r500^-1 units
         nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
 
         # Use a spatial possion point-process log-likelihood

@@ -40,12 +40,12 @@ def model_rate(z, m, r500, r_r500, params):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, C = params
+    theta, eta, zeta, beta = params
 
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
 
@@ -59,7 +59,7 @@ def model_rate(z, m, r500, r_r500, params):
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
     # We impose a cut off of all objects with a radius greater than 1.1r500
-    model[r_r500 > 1.1] = 0.
+    model[r_r500 > 1.3] = 0.
 
     return model.value
 
@@ -74,7 +74,7 @@ def lnlike(param, catalog):
         ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc,
                         cluster['radial_r500'], param)
 
-        rall = np.linspace(0, 1.1, 100)  # radius in r500^-1 units
+        rall = np.linspace(0, 1.3, 100)  # radius in r500^-1 units
         nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
 
         # Use a spatial possion point-process log-likelihood
@@ -90,14 +90,14 @@ def lnlike(param, catalog):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta, C = param
+    theta, eta, zeta, beta = param
 
-    # Set our hyperparameters
-    h_C = 0.371
-    h_C_err = 0.157
+    # # Set our hyperparameters
+    # h_C = 0.371
+    # h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 100. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.:
+    if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -108,10 +108,10 @@ def lnprior(param):
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
 
-    C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+    # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior #+ C_lnprior
 
     return total_lnprior
 
@@ -128,7 +128,7 @@ def lnpost(param, catalog):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/new_mock_test_realistic_maxr11.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/theta_values/mock_AGN_catalog_theta0.900.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 
@@ -141,15 +141,15 @@ C_true = 0.371       # Background AGN surface density
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
-nwalkers = 100
+ndim = 4
+nwalkers = 64
 
 # Also, set the number of steps to run the sampler for.
 nsteps = 500
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
 sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=4)
@@ -158,7 +158,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], thr
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realistic_maxr11_back'
+np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realistic_theta0.9_maxr1.3_local'
         .format(nwalkers=nwalkers, nsteps=nsteps),
         sampler.chain)
 
@@ -190,7 +190,7 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic_maxr11_back.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic_theta0.9_maxr1.3_local.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
@@ -200,7 +200,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic_maxr11_back.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic_theta0.9_maxr1.3_local.pdf', format='pdf')
 
 theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))

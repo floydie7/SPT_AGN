@@ -16,7 +16,7 @@ matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
 # For diagnostic purposes, set the values of the parameters.
-theta_true = 0.9    # Amplitude.
+theta_true = 12.    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -30,7 +30,7 @@ nsteps = 500
 # files = os.listdir('Data/MCMC/Mock_Catalog/Chains/Gauss_beta_sig10_Prior')
 # files.sort()
 # chain = [np.load('Data/MCMC/Mock_Catalog/Chains/Gauss_beta_sig10_Prior/'+f) for f in files]
-chain = np.load('/Users/btfkwd/Documents/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/emcee_run_w64_s500_new_mock_test_realisic.npy')
+chain = np.load('/Users/btfkwd/Documents/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/theta_values/emcee_run_w200_s1500_new_mock_test_theta12.000.npy')
 
 # Plot the chains
 fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, sharex=True)
@@ -60,8 +60,8 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-# plt.show()
-fig.savefig('/Users/btfkwd/Documents/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic_maxr11_fixed_theta.pdf', format='pdf')
+plt.show()
+# fig.savefig('/Users/btfkwd/Documents/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic_maxr11_fixed_theta.pdf', format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps // 2
@@ -71,8 +71,8 @@ samples = chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-# plt.show()
-fig.savefig('/Users/btfkwd/Documents/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic_maxr11_fixed_theta_burn_at_half.pdf', format='pdf')
+plt.show()
+# fig.savefig('/Users/btfkwd/Documents/SPT_AGN/Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic_maxr11_fixed_theta_burn_at_half.pdf', format='pdf')
 
 theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))
