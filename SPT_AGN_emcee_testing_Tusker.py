@@ -123,7 +123,7 @@ def lnpost(param, catalog):
 
 # Read in the mock subcatalog
 subcat_fname = sys.argv[1]
-mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/theta_values/' + subcat_fname,
+mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/Dependency_Checks/' + subcat_fname,
                           format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
