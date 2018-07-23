@@ -127,17 +127,21 @@ mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catal
                           format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
-# Get our theta value from the filename
-theta_str = subcat_fname[-10:-4]
-if theta_str.startswith('a'):
-    theta_true = float(theta_str[1:])
-else:
-    theta_true = float(theta_str)
+# Get our parameters from the file name
+param_str = ''.join((ch if ch in '0123456789.-' else ' ') for ch in subcat_fname[:-4])
 
-# Set the rest of the parameter values
-eta_true = 1.2       # Redshift slope
-beta_true = 0.5      # Radial slope
-zeta_true = -1.0     # Mass slope
+# Parameters are:
+# theta = Amplitude.
+# eta   = Redshift slope
+# zeta  = Mass slope
+# beta  = Radial slope
+theta_true, eta_true, zeta_true, beta_true = [float(i) for i in param_str.split()]
+
+# If beta is '0.33' change it to '1/3' to get the correct precision needed for that parameter.
+if beta_true == 0.33:
+    beta_true = 1/3
+
+# Our last parameter is set to be a constant
 C_true = 0.371       # Background AGN surface density
 
 print('Parameters: theta = {t}, eta = {e}, zeta = {z}, beta = {b}'.format(t=theta_true, e=eta_true, z=zeta_true, b=beta_true))
@@ -171,8 +175,9 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], poo
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_theta{theta:.3f}'
-        .format(nwalkers=nwalkers, nsteps=nsteps, theta=theta_true),
+np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/'
+        'emcee_run_w{nwalkers}_s{nsteps}_mock_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}.cat'
+        .format(nwalkers=nwalkers, nsteps=nsteps, theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true),
         sampler.chain)
 
 # Remove the burnin, typically 1/3 number of steps

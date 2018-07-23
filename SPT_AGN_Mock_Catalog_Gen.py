@@ -99,10 +99,10 @@ n_cl = 195
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 0.9     # Amplitude.
+theta_true = 0.1     # Amplitude.
 eta_true = 1.2       # Redshift slope
-beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
+beta_true = 0.5      # Radial slope
 C_true = 0.371       # Background AGN surface density
 
 # params_true = (theta_true, eta_true, zeta_true, beta_true)
@@ -186,8 +186,10 @@ outAGN = vstack(AGN_cats)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/theta_values/mock_AGN_catalog_theta{:.3f}.cat'.format(theta_true),
-#              format='ascii', overwrite=True)
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Dependency_Checks/'
+             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}.cat'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true),
+             format='ascii', overwrite=True)
 
 # Diagnostic Plots
 # Model Rate
@@ -230,8 +232,11 @@ err = np.sqrt(hist)/area
 fig, ax = plt.subplots()
 ax.errorbar(bins, hist/area, yerr=err, fmt='o', color='C1', label='Filtered SPPP Points Normalized by Area')
 ax.plot(r_dist_r500, rad_model, color='C0', label='Model Rate')
-ax.plot(r_dist_r500, model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, (2.01, 2.25, -1.29, 0.29)), color='C1', label='fit model')
+# ax.plot(r_dist_r500, model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, (2.01, 2.25, -1.29, 0.29)), color='C1', label='fit model')
 ax.set(title='Comparison of Sampled Points to Model',
        xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
 ax.legend()
 plt.show()
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Dependency Checks/'
+            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}.pdf'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true), format='pdf')
