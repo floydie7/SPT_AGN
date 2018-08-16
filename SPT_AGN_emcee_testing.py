@@ -27,13 +27,14 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def model_rate(z, m, r500, r_r500, params):
+def model_rate(z, m, r500, r_r500, maxr, params):
     """
     Our generating model.
 
     :param z: Redshift of the cluster
     :param m: M_500 mass of the cluster
     :param r500: r500 radius of the cluster
+    :param maxr: maximum radius in units of r500 to consider
     :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :param params: Tuple of (theta, eta, zeta, beta, background)
     :return model: A surface density profile of objects as a function of radius
@@ -59,23 +60,25 @@ def model_rate(z, m, r500, r_r500, params):
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
     # We impose a cut off of all objects with a radius greater than 1.1r500
-    model[r_r500 > 1.3] = 0.
+    model[r_r500 > maxr] = 0.
 
     return model.value
 
 
 # Set our log-likelihood
-def lnlike(param, catalog):
+def lnlike(param, maxr, catalog):
 
     catalog_grp = catalog.group_by('SPT_ID')
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
         ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc,
-                        cluster['radial_r500'], param)
+                        cluster['radial_r500'], maxr, param)
 
-        rall = np.linspace(0, 1.3, 100)  # radius in r500^-1 units
-        nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
+        rall = np.insert(np.logspace(np.log10(1e-4), np.log10(maxr), num=100), 0, 0)  # radius in r500^-1 units
+        nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, maxr, param)
+
+        # nfunc = lambda r: model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, r, maxr, param) * r
 
         # Use a spatial possion point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * cluster['radial_r500'])) - np.trapz(nall * 2*np.pi * rall, rall)
@@ -117,18 +120,18 @@ def lnprior(param):
 
 
 # Define the log-posterior probability
-def lnpost(param, catalog):
+def lnpost(param, maxr, catalog):
     lp = lnprior(param)
 
     # Check the finiteness of the prior.
     if not np.isfinite(lp):
         return -np.inf
 
-    return lp + lnlike(param, catalog)
+    return lp + lnlike(param, maxr, catalog)
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/theta_values/mock_AGN_catalog_theta0.900.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/mock_AGN_catalog_t0.90_e1.20_z-1.00_b0.50_maxr1.30.cat', format='ascii')
 mock_catalog['M500'].unit = u.Msun
 
 
@@ -138,6 +141,8 @@ eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
+
+max_radius = 1.3
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -152,14 +157,16 @@ pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], threads=4)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], threads=4)
 
 # Run the sampler.
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/emcee_run_w{nwalkers}_s{nsteps}_new_mock_test_realistic_theta0.9_maxr1.3_local'
-        .format(nwalkers=nwalkers, nsteps=nsteps),
+np.save('Data/MCMC/Mock_Catalog/Chains/cutoff_radius/'
+        'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new'
+        .format(nwalkers=nwalkers, nsteps=nsteps,
+                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
         sampler.chain)
 
 # Plot the chains
@@ -190,7 +197,10 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Param_chains_new_mock_test_realistic_theta0.9_maxr1.3_local.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
+            'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
+            format='pdf')
 
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
@@ -200,7 +210,10 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Corner_plot_new_mock_test_realistic_theta0.9_maxr1.3_local.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
+            'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
+            format='pdf')
 
 theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
                                                  zip(*np.percentile(samples, [16, 50, 84], axis=0)))

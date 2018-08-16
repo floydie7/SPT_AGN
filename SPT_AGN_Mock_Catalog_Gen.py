@@ -53,13 +53,14 @@ def poisson_point_process(model, dx, dy=None):
     return coord
 
 
-def model_rate(z, m, r500, r_r500, params):
+def model_rate(z, m, r500, r_r500, maxr, params):
     """
     Our generating model.
 
     :param z: Redshift of the cluster
     :param m: M_500 mass of the cluster
     :param r500: r500 radius of the cluster
+    :param maxr: maximum radius in units of r500 to consider
     :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :param params: Tuple of (theta, eta, zeta, beta, background)
     :return model: A surface density profile of objects as a function of radius
@@ -87,7 +88,7 @@ def model_rate(z, m, r500, r_r500, params):
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
     # We impose a cut off of all objects with a radius greater than 1.1r500
-    model[r_r500 > 1.3] = 0.
+    model[r_r500 > maxr] = 0.
 
     return model.value
 
@@ -99,13 +100,15 @@ n_cl = 195
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 0.1     # Amplitude.
+theta_true = 0.9     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
 beta_true = 0.5      # Radial slope
 C_true = 0.371       # Background AGN surface density
 
-# params_true = (theta_true, eta_true, zeta_true, beta_true)
+params_true = (theta_true, eta_true, zeta_true, beta_true)
+
+max_radius = 1.5
 
 # Set up grid of radial positions (normalized by r500)
 r_dist_r500 = np.linspace(0, 2, 100)  # from 0 - 2r500
@@ -126,9 +129,6 @@ SPT_data_m = SPT_data[np.where(SPT_data['M500'] <= 5e14)]
 
 cluster_sample = SPT_data
 
-# for theta_true in np.insert(np.logspace(-3, np.log10(12), num=15), 0, 0):
-params_true = (theta_true, eta_true, zeta_true, beta_true)
-
 AGN_cats = []
 for cluster in cluster_sample:
     spt_id = cluster['SPT_ID']
@@ -138,7 +138,7 @@ for cluster in cluster_sample:
     print("---\nCluster Data: z = {z:.2f}, M500 = {m:.2e}, r500 = {r:.2f}".format(z=z_cl, m=m500_cl, r=r500_cl))
 
     # Calculate the model values for the AGN candidates in the cluster
-    rad_model = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
+    rad_model = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, max_radius, params_true)
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
@@ -155,7 +155,7 @@ for cluster in cluster_sample:
     radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
 
     # Filter the candidates through the model to establish the radial trend in the data.
-    rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
+    rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, max_radius, params_true)
 
     # Our rejection rate is the model rate at the radius scaled by the maximum rate
     prob_reject = rate_at_rad / max_rate
@@ -186,9 +186,9 @@ outAGN = vstack(AGN_cats)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Dependency_Checks/'
-             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}.cat'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true),
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/'
+             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.cat'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
              format='ascii', overwrite=True)
 
 # Diagnostic Plots
@@ -214,8 +214,8 @@ outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Dependency_Checks/'
 # plt.show()
 
 # Histogram of source counts per cluster
-# hist, bin_edges = np.histogram(outAGN['radial_r500']/n_cl)
-hist, bin_edges = np.histogram(r_final_r500)
+hist, bin_edges = np.histogram(outAGN['radial_r500']/n_cl)
+# hist, bin_edges = np.histogram(r_final_r500)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
 # plt.hist(outAGN['radial_r500']/n_cl)
 # plt.hist(r_final_r500)
@@ -237,6 +237,6 @@ ax.set(title='Comparison of Sampled Points to Model',
        xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
 ax.legend()
 plt.show()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Dependency Checks/'
-            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}.pdf'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true), format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
+            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius), format='pdf')

@@ -7,8 +7,6 @@ masks needed for determining the feasible area for calculating a surface density
 """
 from __future__ import print_function, division
 
-from itertools import ifilter
-
 import numpy as np
 import warnings  # For suppressing the astropy warnings that pop up when reading headers.
 from astropy import units as u
@@ -21,6 +19,8 @@ from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from os import listdir, system, chmod
 from scipy.interpolate import interp1d
+
+# from itertools import ifilter
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -358,7 +358,7 @@ def object_mask(cluster_info, reg_file_dir):
                 # Open the regions file and get the lines containing the shapes.
                 with open(reg_file_dir + reg_files[j]) as region:
                     objs = []
-                    for line in ifilter(lambda _: _.startswith('circle') or _.startswith('box'), region):
+                    for line in filter(lambda _: _.startswith('circle') or _.startswith('box'), region):
                         objs.append(line.strip())
 
                 # For each shape extract the defining parameters.
@@ -513,7 +513,7 @@ def object_selection(cluster_info, mag, cat_ra='RA', cat_dec='DEC', sex_flag_cut
         x_pix, y_pix = w.wcs_world2pix(obj[cat_ra], obj[cat_dec], 0)
 
         # Get the pixel value in the mask for the object's pixel coordinate
-        mask_value = mask[int(round(y_pix)), int(round(x_pix))]
+        mask_value = mask[int(round(y_pix+0)), int(round(x_pix+0))]
 
         # Check if the pixel value is good and if so add that row to the final catalog
         if mask_value == 1:
@@ -782,7 +782,7 @@ def final_catalogs(cluster_info, catalog_cols):
 
     final_cat_path = 'Data/Output/{cluster_id}_AGN.cat'.format(cluster_id=spt_id)
 
-    ascii.write(final_cat, final_cat_path)
+    ascii.write(final_cat, final_cat_path, overwrite=True)
 
 
 def visualizer(cluster_list):

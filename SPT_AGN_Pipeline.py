@@ -17,7 +17,7 @@ Bleem = Table(fits.getdata('Data/2500d_cluster_sample_fiducial_cosmology.fits'))
 Bleem = Bleem[np.where(Bleem['M500'] != 0.0)]
 
 # Dictionary of completeness curve values for all clusters
-completeness_dictionary = np.load('Data/Comp_Sim/Results/SPT_I2_results_gaussian_fwhm172_corr005_mag02.npy').item()
+completeness_dictionary = np.load('Data/Comp_Sim/Results/SPT_I2_results_gaussian_fwhm202_corr011_mag02.npy', encoding='latin1').item()
 
 # Run the pipeline.
 start_time = time()
@@ -26,7 +26,7 @@ cluster_list = file_pairing('Data/Catalogs/', 'Data/Images/')
 print("File pairing complete, Clusters in directory: {num_clusters}".format(num_clusters=len(cluster_list)))
 
 print("Matching Images against Bleem Catalog.")
-matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC', max_sep=1.0)
+matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC', max_sep=6.0)
 
 print("Matched clusters (within 1 arcmin): {num_clusters}".format(num_clusters=len(matched_list)))
 
@@ -61,12 +61,12 @@ for cluster in cluster_list:
         cluster = image_area(cluster, units='arcmin')
 
         print("Computing completeness values for selected objects.")
-        cluster = completeness_value(cluster, 'I2_MAG_APER4', completeness_dictionary)
+        # cluster = completeness_value(cluster, 'I2_MAG_APER4', completeness_dictionary)
 
         print("Writing final catalog.")
         final_catalogs(cluster, ['SPT_ID', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_DIST', 'REDSHIFT', 'REDSHIFT_UNC',
                                  'M500', 'DM500', 'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I2_MAG_APER4', 'I2_MAGERR_APER4',
-                                 'completeness_value', 'completeness_correction', 'IMAGE_AREA'])
+                                 'IMAGE_AREA'])
     else:
         print('******{spt_id} has no objects satisfying our selection cuts.******'.format(spt_id=cluster['SPT_ID']))
 
