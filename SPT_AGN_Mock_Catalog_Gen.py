@@ -108,7 +108,7 @@ C_true = 0.371       # Background AGN surface density
 
 params_true = (theta_true, eta_true, zeta_true, beta_true)
 
-max_radius = 1.5
+max_radius = 1.3
 
 # Set up grid of radial positions (normalized by r500)
 r_dist_r500 = np.linspace(0, 2, 100)  # from 0 - 2r500
@@ -186,10 +186,10 @@ outAGN = vstack(AGN_cats)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/'
-             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.cat'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-             format='ascii', overwrite=True)
+# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/'
+#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.cat'
+#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
+#              format='ascii', overwrite=True)
 
 # Diagnostic Plots
 # Model Rate
@@ -199,25 +199,25 @@ outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/'
 # plt.show()
 
 # AGN Candidates
-# fig, ax = plt.subplots()
-# ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0)
-# ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
-#        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-# plt.show()
+fig, ax = plt.subplots()
+ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
+ax.set_aspect(1.0)
+ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
+       xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+plt.show()
 
 # Selected AGN
-# fig, ax = plt.subplots()
-# ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0)
-# ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-# plt.show()
+fig, ax = plt.subplots()
+ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
+ax.set_aspect(1.0)
+ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+plt.show()
 
 # Histogram of source counts per cluster
-hist, bin_edges = np.histogram(outAGN['radial_r500']/n_cl)
+hist, bin_edges = np.histogram(outAGN['radial_r500'])
 # hist, bin_edges = np.histogram(r_final_r500)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
-# plt.hist(outAGN['radial_r500']/n_cl)
+plt.hist(outAGN['radial_r500']/n_cl)
 # plt.hist(r_final_r500)
 # plt.show()
 
@@ -225,18 +225,26 @@ bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_
 area_edges = np.pi * bin_edges**2
 area = area_edges[1:len(area_edges)] - area_edges[0:len(area_edges)-1]
 
+# Scale the histogram counts by the number of clusters and the area
+rate_per_clust = hist / n_cl / area
+
 # Use Poisson error of counts in each bin normalized by the area of the bin
-err = np.sqrt(hist)/area
+err = np.sqrt(hist) / n_cl / area
+
+# A grid of radii for the model to be plotted on
+rall = np.linspace(0, 1.5, 100)
 
 # Overplot the normalized binned data with the model rate
 fig, ax = plt.subplots()
-ax.errorbar(bins, hist/area, yerr=err, fmt='o', color='C1', label='Filtered SPPP Points Normalized by Area')
-ax.plot(r_dist_r500, rad_model, color='C0', label='Model Rate')
+ax.errorbar(bins, rate_per_clust, yerr=err, fmt='o', color='C1', label='Filtered SPPP Points Normalized by Area')
+ax.plot(rall, model_rate(np.mean(outAGN['REDSHIFT']), np.mean(outAGN['M500'])*u.Msun, np.mean(outAGN['r500'])*u.Mpc,
+                                          rall, max_radius, (theta_true,eta_true,zeta_true,beta_true)),
+        color='C0', label='Model Rate')
 # ax.plot(r_dist_r500, model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, (2.01, 2.25, -1.29, 0.29)), color='C1', label='fit model')
 ax.set(title='Comparison of Sampled Points to Model',
        xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
 ax.legend()
 plt.show()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
-            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius), format='pdf')
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
+#             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius), format='pdf')
