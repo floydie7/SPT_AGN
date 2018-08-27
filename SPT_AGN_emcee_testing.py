@@ -8,6 +8,7 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
+from itertools import product
 from time import time
 
 import astropy.units as u
@@ -17,14 +18,52 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
+from astropy.io import fits
 from astropy.table import Table
+from astropy.wcs import WCS
+from custom_math import trap_weight  # Custom trapezoidal integration
 from matplotlib.ticker import MaxNLocator
+from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+
+
+def good_pixel_fraction(r, z, r500, image_name, center):
+    # Read in the mask file and the mask file's WCS
+    image, header = fits.getdata(image_name, header=True)
+    image_wcs = WCS(header)
+
+    # From the WCS get the pixel scale and the size of the image
+    pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
+    xlen = header['NAXIS1']
+    ylen = header['NAXIS2']
+
+    # Convert our center into pixel units
+    center_pix = image_wcs.wcs_world2pix(center)
+
+    # Convert our radius to pixels
+    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
+
+    # find the distances from center pixel to all other pixels
+    image_coords = np.array(list(product(range(xlen), range(ylen))))
+
+    center_coord = np.asanyarray(center_pix)
+
+    image_dists = cdist(image_coords, center_coord).reshape(image.shape)
+
+    # select all pixels that are within the annulus
+    good_pix_frac = []
+    for i in np.arange(len(r_pix) - 1):
+        pix_ring = image[np.where((image_dists > r[i]) & (image_dists <= r[i + 1]))]
+
+        # Calculate the fraction
+        good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
+
+    return good_pix_frac
 
 
 def model_rate(z, m, r500, r_r500, maxr, params):
@@ -72,16 +111,24 @@ def lnlike(param, maxr, catalog):
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
-        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc,
-                        cluster['radial_r500'], maxr, param)
+        # For convenience get the cluster information from the catalog
+        cluster_z = cluster['REDSHIFT'][0]
+        cluster_m500 = cluster['M500'][0] * u.Msun
+        cluster_r500 = cluster['r500'][0] * u.Mpc
+        cluster_mask = cluster['MASK_NAME'][0]
+        cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+
+        ni = model_rate(cluster_z, cluster_m500, cluster_r500, cluster['radial_r500'], maxr, param)
 
         rall = np.insert(np.logspace(np.log10(1e-4), np.log10(maxr), num=100), 0, 0)  # radius in r500^-1 units
-        nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, maxr, param)
+        nall = model_rate(cluster_z, cluster_m500, cluster_r500, rall, maxr, param)
 
-        # nfunc = lambda r: model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, r, maxr, param) * r
+        # Calculate the good pixel fraction of the annuli in rall
+        gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_mask, cluster_sz_cent)
 
         # Use a spatial possion point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * cluster['radial_r500'])) - np.trapz(nall * 2*np.pi * rall, rall)
+        cluster_lnlike = (np.sum(np.log(ni * cluster['radial_r500']))
+                          - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -114,7 +161,7 @@ def lnprior(param):
     # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior #+ C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior  # + C_lnprior
 
     return total_lnprior
 
@@ -131,8 +178,8 @@ def lnpost(param, maxr, catalog):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/mock_AGN_catalog_t0.90_e1.20_z-1.00_b0.50_maxr1.30.cat', format='ascii')
-mock_catalog['M500'].unit = u.Msun
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/'
+                          'mock_AGN_catalog_t0.90_e1.20_z-1.00_b0.50_maxr1.30.cat', format='ascii')
 
 
 # Set parameter values

@@ -100,7 +100,7 @@ n_cl = 195
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 0.9     # Amplitude.
+theta_true = 0.3     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
 beta_true = 0.5      # Radial slope
@@ -217,7 +217,7 @@ plt.show()
 hist, bin_edges = np.histogram(outAGN['radial_r500'])
 # hist, bin_edges = np.histogram(r_final_r500)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
-plt.hist(outAGN['radial_r500']/n_cl)
+plt.hist(outAGN['radial_r500'], weights=np.full(len(outAGN['radial_r500']), 1/n_cl))
 # plt.hist(r_final_r500)
 # plt.show()
 
@@ -232,12 +232,12 @@ rate_per_clust = hist / n_cl / area
 err = np.sqrt(hist) / n_cl / area
 
 # A grid of radii for the model to be plotted on
-rall = np.linspace(0, 1.5, 100)
+rall = np.linspace(0, 2.0, 100)
 
 # Overplot the normalized binned data with the model rate
 fig, ax = plt.subplots()
 ax.errorbar(bins, rate_per_clust, yerr=err, fmt='o', color='C1', label='Filtered SPPP Points Normalized by Area')
-ax.plot(rall, model_rate(np.mean(outAGN['REDSHIFT']), np.mean(outAGN['M500'])*u.Msun, np.mean(outAGN['r500'])*u.Mpc,
+ax.plot(rall, model_rate(np.median(outAGN['REDSHIFT']), np.median(outAGN['M500'])*u.Msun, np.median(outAGN['r500'])*u.Mpc,
                                           rall, max_radius, (theta_true,eta_true,zeta_true,beta_true)),
         color='C0', label='Model Rate')
 # ax.plot(r_dist_r500, model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, (2.01, 2.25, -1.29, 0.29)), color='C1', label='fit model')
