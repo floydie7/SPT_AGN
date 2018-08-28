@@ -605,7 +605,7 @@ def catalog_match(cluster_info, master_catalog, catalog_cols, sex_ra_col='RA', s
     sexcat_coords = SkyCoord(sex_catalog[sex_ra_col], sex_catalog[sex_dec_col], unit=u.degree)
 
     # Calculate and store all the separations in as a column in the catalog.
-    sex_catalog['RADIAL_DIST'] = sexcat_coords.separation(cat_coords).arcmin # TODO might be best to convert to Mpc here
+    sex_catalog['RADIAL_DIST'] = sexcat_coords.separation(cat_coords).arcmin
 
     # Replace the existing SPT_ID in the SExtractor catalog with the official one from Bleem+15.
     # First change the data type of the column to str16 so the ID can fit in the column
