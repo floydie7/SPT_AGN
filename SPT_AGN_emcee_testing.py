@@ -37,28 +37,38 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     image, header = fits.getdata(image_name, header=True)
     image_wcs = WCS(header)
 
-    # From the WCS get the pixel scale and the size of the image
+    # From the WCS get the pixel scale
     pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
-    xlen = header['NAXIS1']
-    ylen = header['NAXIS2']
 
     # Convert our center into pixel units
-    center_pix = image_wcs.wcs_world2pix(center)
+    center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
 
     # Convert our radius to pixels
     r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
 
+    # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
+    # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
+    # Find the width needed to pad the image to include the largest radius inside the image.
+    width = (int(np.max(r_pix) - image.shape[0] // 2), int(np.max(r_pix) - image.shape[1] // 2))
+
+    # Insure that we are adding a non-negative padding width.
+    if (width[0] <= 0) or (width[1] <= 0):
+        width = (0, 0)
+
+    large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
+
     # find the distances from center pixel to all other pixels
-    image_coords = np.array(list(product(range(xlen), range(ylen))))
+    image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
 
-    center_coord = np.asanyarray(center_pix)
+    center_coord = np.array(center_pix) + np.array(width) + 1
+    center_coord = center_coord.reshape((1, 2))
 
-    image_dists = cdist(image_coords, center_coord).reshape(image.shape)
+    image_dists = cdist(image_coords, center_coord).reshape(large_image.shape)
 
     # select all pixels that are within the annulus
     good_pix_frac = []
     for i in np.arange(len(r_pix) - 1):
-        pix_ring = image[np.where((image_dists > r[i]) & (image_dists <= r[i + 1]))]
+        pix_ring = large_image[np.where((image_dists >= r_pix[i]) & (image_dists < r_pix[i + 1]))]
 
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
@@ -120,7 +130,7 @@ def lnlike(param, maxr, catalog):
 
         ni = model_rate(cluster_z, cluster_m500, cluster_r500, cluster['radial_r500'], maxr, param)
 
-        rall = np.insert(np.logspace(np.log10(1e-4), np.log10(maxr), num=100), 0, 0)  # radius in r500^-1 units
+        rall = np.linspace(0, maxr, num=100)  # radius in r500^-1 units
         nall = model_rate(cluster_z, cluster_m500, cluster_r500, rall, maxr, param)
 
         # Calculate the good pixel fraction of the annuli in rall
@@ -178,23 +188,23 @@ def lnpost(param, maxr, catalog):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/Cutoff_Radius/'
-                          'mock_AGN_catalog_t0.90_e1.20_z-1.00_b0.50_maxr1.30.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/New_Stacking/'
+                          'mock_AGN_catalog_t0.90_e1.20_z-1.00_b0.50_maxr1.00.cat', format='ascii')
 
 
 # Set parameter values
-theta_true = 0.9    # Amplitude.
+theta_true = 0.5    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 1.3
+max_radius = 1.0
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
-nwalkers = 64
+nwalkers = 16
 
 # Also, set the number of steps to run the sampler for.
 nsteps = 500
@@ -204,13 +214,13 @@ pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], threads=4)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], threads=1)
 
 # Run the sampler.
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/cutoff_radius/'
+np.save('Data/MCMC/Mock_Catalog/Chains/New_Stacking/'
         'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new'
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
@@ -244,7 +254,7 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/New_Stacking/'
             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')
@@ -257,7 +267,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Cutoff_Radius/'
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/New_Stacking/'
             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')
