@@ -67,6 +67,7 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 
     # select all pixels that are within the annulus
     good_pix_frac = []
+    pix_area = []
     for i in np.arange(len(r_pix) - 1):
         pix_ring = large_image[np.where((image_dists >= r_pix[i]) & (image_dists < r_pix[i + 1]))]
 

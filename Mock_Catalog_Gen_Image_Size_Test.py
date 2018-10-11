@@ -1,8 +1,8 @@
 """
-SPT_AGN_Mock_Catalog_Gen.py
+Mock_Catalog_Gen_Image_Size_Test.py
 Author: Benjamin Floyd
 
-Using our Bayesian model, generates a mock catalog to use in testing the limitations of the model.
+Attempting to find the issue the mock catalog generation has at large radii.
 """
 
 from __future__ import print_function, division
@@ -20,7 +20,6 @@ from astropy.wcs import WCS
 from scipy import stats
 from scipy.spatial.distance import cdist
 from small_poisson import small_poisson
-# import scipy.optimize as op
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -155,23 +154,22 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 # Number of clusters to generate
 n_cl = 195
 
-# Dx is set to 5 to mimic an IRAC image's width in arcmin.
-Dx = 5.  # In arcmin
+# Set parameter values
+theta_true = 12     # Amplitude.
+eta_true = 1.2       # Redshift slope
+zeta_true = -1.0     # Mass slope
+beta_true = 0.5      # Radial slope
+C_true = 0.371       # Background AGN surface density
+
+params_true = (theta_true, eta_true, zeta_true, beta_true)
+
+max_radius = 2.0
+
+# Number of bins to use to plot our sampled data points
+num_bins = 20
+
+# Dx is set to the image's width in arcmin.
 for Dx in [5, 25]:
-    # Set parameter values
-    theta_true = 0.9     # Amplitude.
-    eta_true = 1.2       # Redshift slope
-    zeta_true = -1.0     # Mass slope
-    beta_true = 0.5      # Radial slope
-    C_true = 0.371       # Background AGN surface density
-
-    params_true = (theta_true, eta_true, zeta_true, beta_true)
-
-    max_radius = 2.0
-
-    # Number of bins to use to plot our sampled data points
-    num_bins = 20
-
     # For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
     # Set the pixel scale and size of the image
     pixel_scale = 0.000239631 * u.deg  # Standard pixel scale for SPT IRAC images (0.8626716 arcsec)
@@ -342,150 +340,106 @@ for Dx in [5, 25]:
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/New_Stacking/'
-#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}.cat'
-#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-#              format='ascii', overwrite=True)
-raise SystemExit
-# Diagnostic Plots
-# AGN Candidates
-# fig, ax = plt.subplots()
-# ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0)
-# ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
-#        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-# plt.show()
 
-# Selected AGN
-# fig, ax = plt.subplots()
-# ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0)
-# ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-# plt.show()
+# Stack the number counts
+Dx_5_stacked_heights = np.sum(np.array(list(Dx_5_hist_heights.values())), axis=0)
+Dx_25_stacked_heights = np.sum(np.array(list(Dx_25_hist_heights.values())), axis=0)
 
-# Average the cluster histograms
-stacked_heights = np.sum(np.array(list(hist_heights.values())), axis=0)
-stacked_areas = np.sum(np.array(list(hist_scaled_areas.values())), axis=0)
-stacked_hist = stacked_heights / stacked_areas
-stacked_raw_areas = np.nansum(np.array(list(hist_raw_areas.values())), axis=0)
+# Stack the scaled areas
+Dx_5_stacked_scaled_areas = np.sum(np.array(list(Dx_5_hist_scaled_areas.values())), axis=0)
+Dx_25_stacked_scaled_areas = np.sum(np.array(list(Dx_25_hist_scaled_areas.values())), axis=0)
 
-# Find the errors using the fractional Poisson error in the bin.
-frac_err = np.sqrt(stacked_heights) / stacked_heights
-stacked_err = (np.sqrt(stacked_heights) / stacked_heights) * stacked_hist
+# Calculate the surface densities
+Dx_5_surface_density = Dx_5_stacked_heights / Dx_5_stacked_scaled_areas
+Dx_25_surface_density = Dx_25_stacked_heights / Dx_25_stacked_scaled_areas
+
+# Calculate the fractional errors
+Dx_5_frac_err = np.sqrt(Dx_5_stacked_heights) / Dx_5_stacked_heights
+Dx_25_frac_err = np.sqrt(Dx_25_stacked_heights) / Dx_25_stacked_heights
+
+# Apply the fractional error to the number counts
+Dx_5_stacked_heights_err = Dx_5_frac_err * Dx_5_stacked_heights
+Dx_25_stacked_heights_err = Dx_25_frac_err * Dx_25_stacked_heights
+
+# Apply the fractional error to the surface density
+Dx_5_surface_density_err = Dx_5_frac_err * Dx_5_surface_density
+Dx_25_surface_density_err = Dx_25_frac_err * Dx_25_surface_density
 
 # Average the cluster models
-stacked_model = np.nanmean(list(hist_models.values()), axis=0)
+Dx_5_stacked_model = np.nanmean(list(Dx_5_hist_models.values()), axis=0)
+Dx_25_stacked_model = np.nanmean(list(Dx_25_hist_models.values()), axis=0)
 
 # Find the scatter on the models
-stacked_model_err = np.nanstd(list(hist_models.values()), axis=0)
+Dx_5_stacked_model_err = np.nanstd(list(Dx_5_hist_models.values()), axis=0)
+Dx_25_stacked_model_err = np.nanstd(list(Dx_25_hist_models.values()), axis=0)
 
-# A grid of radii for the data to be plotted on
+# Radial bins
 bin_edges = np.linspace(0, max_radius, num=num_bins+1)
-bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
-
-# Diagnostic Table
-diag_table = Table([bins, stacked_heights, stacked_raw_areas, stacked_areas, stacked_hist, frac_err, stacked_err],
-                   names=['Bin', 'Number in Bin', 'Unscaled Area of Bin', 'Area of Bin', 'Surface Density',
-                          'Fractional Error', 'Surface Density Error'])
-diag_table.pprint(max_width=-1, max_lines=-1)
-# diag_table.write('/Users/btfkwd/Desktop/'
-#                  'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-#                  '_seed{seed}_diagnostic_table.tex'
-#                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius,
-#                          nbins=num_bins, seed=rand_seed),
-#                  format='ascii.latex')
+bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges) - 1]) / 2. + bin_edges[0:len(bin_edges) - 1]
 
 # A grid of radii for the model to be plotted on
 rall = np.linspace(0, 2.0, 100)
 
-# A quick chi2 fit of the mean model to find the redshift and mass of the "cluster" it corresponds to
-# f = lambda r, z, m: model_rate(z, m*u.Msun, (3 * m*u.Msun / (4 * np.pi * 500 *
-#                                                              cosmo.critical_density(z).to(u.Msun / u.Mpc**3)))**(1/3),
-#                                r, max_radius, params_true)
-# model_z_m, model_cov = op.curve_fit(f, rall[:75], stacked_model[:75], sigma=stacked_model_err[:75],
-#                                     bounds=([0.5, 0.2e15], [1.7, 1.8e15]))
-# model_z_m_err = np.sqrt(np.diag(model_cov))
-# print('Mean model: z = {z:.2f} +/- {z_err:.2e}\tm500 = {m:.2e} +/- {m_err:.3e} Msun'
-#       .format(z=model_z_m[0], z_err=model_z_m_err[0], m=model_z_m[1], m_err=model_z_m_err[1]))
+print('Making plots.')
+# Make the plots
+fig, axarr = plt.subplots(nrows=3, ncols=2, sharex='col', figsize=[12.8, 9.6])
+# 5 arcmin surface density
+axarr[0, 0].errorbar(bins, Dx_5_surface_density, yerr=Dx_5_surface_density_err, fmt='o', color='C1',
+                     label='Mock AGN Candidate Surface Density')
+axarr[0, 0].plot(rall, Dx_5_stacked_model, color='C0', label='Model Rate')
+axarr[0, 0].fill_between(rall,
+                         y1=Dx_5_stacked_model+Dx_5_stacked_model_err,
+                         y2=Dx_5_stacked_model-Dx_5_stacked_model_err, color='C0', alpha=0.2)
+axarr[0, 0].set(title='Surface Density (5 arcmin)',
+                ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
+print('Plot 1 done.')
 
+# # 5 arcmin number count
+axarr[1, 0].bar(bins, Dx_5_stacked_heights, yerr=Dx_5_stacked_heights_err, width=0.095)
+axarr[1, 0].set(title='Number of objects on image', ylabel='Number of Objects')
+print('Plot 2 done.')
 
-# Overplot the normalized binned data with the model rate
+# 5 arcmin scaled areas
+axarr[2, 0].bar(bins, Dx_5_stacked_scaled_areas, width=0.095)
+axarr[2, 0].set(title='Scaled Area on image', ylabel=r'Area [$r_{{500}}^{{-2}}$]')
+print('Plot 3 done.')
+
+# 25 arcmin surface density
+axarr[0, 1].errorbar(bins, Dx_25_surface_density, yerr=Dx_25_surface_density_err, fmt='o', color='C1',
+                     label='Mock AGN Candidate Surface Density')
+axarr[0, 1].plot(rall, Dx_25_stacked_model, color='C0', label='Model Rate')
+axarr[0, 1].fill_between(rall,
+                         y1=Dx_25_stacked_model+Dx_5_stacked_model_err,
+                         y2=Dx_5_stacked_model-Dx_5_stacked_model_err, color='C0', alpha=0.2)
+axarr[0, 1].set(title='Surface Density (25 arcmin)')
+print('Plot 4 done.')
+
+# 25 arcmin number count
+axarr[1, 1].bar(bins, Dx_25_stacked_heights, yerr=Dx_25_stacked_heights_err, width=0.095)
+axarr[1, 1].set(title='Number of objects on image')
+print('Plot 5 done.')
+
+# 25 arcmin scaled areas
+axarr[2, 1].bar(bins, Dx_25_stacked_scaled_areas, width=0.095)
+axarr[2, 1].set(title='Scaled Area on image')
+print('Plot 6 done.')
+
+for ax in axarr.flat:
+    ax.set(xlabel=r'$r/r_{{500}}$')
+
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Comparison_Plots_5_25_arcmin.pdf', format='pdf')
+
+# Make combined plots
 fig, ax = plt.subplots()
-ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
-            label='Mock AGN Candidate Surface Density')
-ax.plot(rall, stacked_model, color='C0', label='Model Rate')
-ax.fill_between(rall, y1=stacked_model+stacked_model_err, y2=stacked_model-stacked_model_err, color='C0', alpha=0.2)
-ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
-       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
-ax.legend()
-plt.show()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Random_Seeds/'
-            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_gpf_stacked_sumN_sumA_frac_pois_err_seed{seed}.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-                    seed=rand_seed),
+ax.bar(bins, Dx_5_stacked_heights, yerr=Dx_5_stacked_heights_err, width=0.095, color='C0', label='5 arcmin')
+ax.bar(bins, Dx_25_stacked_heights, yerr=Dx_25_stacked_heights_err, width=0.095, color='C1', label='25 arcmin')
+ax.set(title='Number of objects on image', ylabel='Number of Objects', xlabel=r'$r/r_{{500}}$')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Stacked_Number_Comparison_5_25_arcmin_new.pdf',
             format='pdf')
 
-# Pull 5 random clusters to see how their data compares to their model
-cluster_ids = np.random.choice(list(hist_heights.keys()), size=5)
-for cluster_id in cluster_ids:
-    # Grab the right cluster's histogram height, scaled area, error, and model
-    cl_hist_height = hist_heights[cluster_id]
-    cl_scaled_area = hist_scaled_areas[cluster_id]
-    cl_error = np.array(hist_errors[cluster_id])
-    cl_model = hist_models[cluster_id]
-    cl_gpf = hist_gpf[cluster_id]
-    cl_raw_area = hist_raw_areas[cluster_id]
-    cl_pix_area = hist_pix_area[cluster_id]
-
-    # For identification purposes grab the cluster's redshift, mass, and r500 for the title of the plot
-    cl_z = outAGN[outAGN['SPT_ID'] == cluster_id]['REDSHIFT'][0]
-    cl_m500 = outAGN[outAGN['SPT_ID'] == cluster_id]['M500'][0]
-    cl_r500 = outAGN[outAGN['SPT_ID'] == cluster_id]['r500'][0]
-
-    # Find the largest possible distance on the image that could contain points (the corner).
-    # This should occur at an angular radius of 3.53 arcmin for a 5'x5' image.
-    max_r_arcmin = np.sqrt((Dx / 2)**2 + (Dx / 2)**2) * u.arcmin
-    max_r_Mpc = max_r_arcmin * cosmo.kpc_proper_per_arcmin(cl_z).to(u.Mpc / u.arcmin)
-    max_r_r500 = max_r_Mpc / (cl_r500 * u.Mpc)
-
-    # Now, move the "true" max radius on image to the right-most bin edge.
-    _, step = np.linspace(0, max_radius, num=num_bins+1, retstep=True)
-    ext_bin_edges = np.linspace(0, 10, num=num_bins+1+(10. - 1.5)/step)
-    max_bin_radius = ext_bin_edges[np.where((max_r_r500 <= ext_bin_edges))][0]
-
-    fig, ax = plt.subplots()
-    ax.errorbar(bins, cl_hist_height / cl_scaled_area, yerr=cl_error[::-1, ...], fmt='o', color='C1',
-                label='AGN candidates per Scaled Area')
-    ax.plot(rall, cl_model, color='C0', label='Model')
-    ax.axvline(x=max_bin_radius, linestyle='--', color='gray', label='Maximum Radius on Image')
-    ax.set(title='Comparison of Sampled Points to Model\n'
-                 r'ID: {id}  $z$ = {z:.2f}, $M_{{500}}$ = {m:.2e} $M_\odot$, $r_{{500}}$ = {r:.2f} Mpc'
-           .format(id=cluster_id, z=cl_z, m=cl_m500, r=cl_r500),
-           xlabel=r'$r/r_{{500}}$', ylabel=r'Rate [$r_{{500}}^{-2}$]', ylim=[-0.1, 40])
-    ax.legend()
-    plt.show()
-    # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Random_Seeds/'
-    #             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-    #             '_gpf_{id}.pdf'
-    #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-    #                     id=cluster_id),
-    #             format='pdf')
-
-    # Convert the pixel area arcsec2 > Mpc2 > r5002 units
-    cl_pix_area = cl_pix_area*u.arcsec**2
-    cl_pix_area_Mpc2 = cl_pix_area * (cosmo.kpc_proper_per_arcmin(cl_z).to(u.Mpc / u.arcsec))**2
-    cl_pix_area_r5002 = cl_pix_area_Mpc2 / (cl_r500*u.Mpc)**2
-
-    cluster_diag_table = Table([bins, cl_hist_height, cl_gpf, cl_raw_area, cl_scaled_area,
-                                cl_pix_area, cl_pix_area_Mpc2, cl_pix_area_r5002],
-                               names=['Bin', 'Number in Bin', 'GPF', 'Unscaled Area', 'Scaled Area',
-                                      'Pixel Area (arcsec2)', 'Pixel Area (Mpc2)', 'Pixel Area (r5002)'])
-    cluster_diag_table.pprint(max_lines=-1, max_width=-1)
-    # cluster_diag_table.write('/Users/btfkwd/Desktop/'
-    #                          'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}'
-    #                          '_nbins{nbins}_gpf_{id}_seed{seed}_diagnostic_table.tex'
-    #                          .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius,
-    #                                  nbins=num_bins, seed=rand_seed, id=cluster_id),
-    #                          format='ascii.latex')
-
+fig, ax = plt.subplots()
+ax.bar(bins, Dx_5_stacked_scaled_areas, width=0.095, color='C0', label='5 arcmin')
+ax.bar(bins, Dx_25_stacked_scaled_areas, width=0.095, color='C1', label='25 arcmin')
+ax.set(title='Scaled Area on image', ylabel=r'Area [$r_{{500}}^{{-2}}$]', xlabel=r'$r/r_{{500}}$')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/'
+            'Stacked_Scaled_Area_Comparison_5_25_arcmin_new.pdf', format='pdf')
