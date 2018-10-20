@@ -189,12 +189,12 @@ def lnpost(param, maxr, catalog):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/New_Stacking/'
-                          'mock_AGN_catalog_t0.90_e1.20_z-1.00_b0.50_maxr1.00.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr1.00_seed890.cat', format='ascii')
 
 
 # Set parameter values
-theta_true = 0.5    # Amplitude.
+theta_true = 12    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -215,20 +215,20 @@ pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], threads=1)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], threads=4)
 
 # Run the sampler.
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/New_Stacking/'
-        'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new'
+np.save('Data/MCMC/Mock_Catalog/Chains/pre-final_tests/'
+        'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}'
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
         sampler.chain)
 
 # Plot the chains
-fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, sharex=True)
+fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, sharex='col')
 
 ax0.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
 ax0.axhline(theta_true, color='b')
@@ -255,7 +255,7 @@ ax3.set(ylabel=r'$\beta$', xlabel='Steps')
 # ax4.yaxis.set_major_locator(MaxNLocator(5))
 # ax4.set(ylabel=r'$\C$', xlabel='Steps')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/New_Stacking/'
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')
@@ -268,7 +268,7 @@ samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
 fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
                     truths=[theta_true, eta_true, zeta_true, beta_true],
                     quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/New_Stacking/'
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')

@@ -20,6 +20,7 @@ from astropy.wcs import WCS
 from scipy import stats
 from scipy.spatial.distance import cdist
 from small_poisson import small_poisson
+from matplotlib.ticker import AutoMinorLocator
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -131,7 +132,7 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
 
     # The center pixel's coordinate needs to be transformed into the large image system
-    # We shifted the origin by (x_pad + 1, y_pad + 1) Todo check why the "+1"
+    # We shifted the origin by (x_pad + 1, y_pad + 1). This is the padding width plus 1 for (x, y) = (0, 0).
     center_coord = np.array(center_pix) + np.array(width) + 1
     center_coord = center_coord.reshape((1, 2))
 
@@ -142,7 +143,7 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     good_pix_frac = []
     pix_area = []
     for i in np.arange(len(r_pix) - 1):
-        pix_ring = large_image[np.where((image_dists >= r_pix[i]) & (image_dists < r_pix[i + 1]))]
+        pix_ring = large_image[np.where((r_pix[i] <= image_dists) & (image_dists < r_pix[i + 1]))]
 
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
@@ -163,7 +164,7 @@ C_true = 0.371       # Background AGN surface density
 
 params_true = (theta_true, eta_true, zeta_true, beta_true)
 
-max_radius = 2.0
+max_radius = 1.0
 
 # Number of bins to use to plot our sampled data points
 num_bins = 20
@@ -206,12 +207,15 @@ for Dx in [5, 25]:
     SPT_data['MASK_NAME'] = mask_file
 
     # We'll need the r500 radius for each cluster too.
-    SPT_data['r500'] = (3 * SPT_data['M500'] /
+    SPT_data['r500'] = (3 * SPT_data['M500'] * u.Msun/
                         (4 * np.pi * 500 * cosmo.critical_density(SPT_data['REDSHIFT']).to(u.Msun / u.Mpc**3)))**(1/3)
     # SPT_data_z = SPT_data[np.where(SPT_data['REDSHIFT'] >= 0.75)]
     # SPT_data_m = SPT_data[np.where(SPT_data['M500'] <= 5e14)]
+    r500_arcmin = SPT_data['r500'] * cosmo.arcsec_per_kpc_proper(SPT_data['REDSHIFT']).to(u.arcmin / u.Mpc)
 
-    cluster_sample = SPT_data
+    SPT_data_r500 = SPT_data[np.where(r500_arcmin <= 2.5 * u.arcmin)]
+
+    cluster_sample = SPT_data_r500
 
     if Dx == 5:
         Dx_5_hist_heights = {}
@@ -242,8 +246,8 @@ for Dx in [5, 25]:
         # Calculate the model values for the AGN candidates in the cluster
         rad_model = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, max_radius, params_true)
 
-        # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
-        # the cluster.
+        # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass
+        # of the cluster.
         max_rate = np.max(rad_model)
         max_rate_arcmin2 = max_rate * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2 / r500_cl**2
 
@@ -317,6 +321,12 @@ for Dx in [5, 25]:
             # hist[np.where(np.array(gpf) < 1.0)] = np.nan
             # scaled_area[np.where(np.array(gpf) < 1.0)] = np.nan
             # area[np.where(np.array(gpf) < 1.0)] = np.nan
+            #
+            # bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges) - 1]) / 2. + bin_edges[0:len(bin_edges) - 1]
+            # bins[np.where(np.array(gpf) < 1.0)] = np.nan
+            # max_bin_radius = np.nanmax(bins)
+
+            # model_cl[np.where(rall > max_bin_radius)] = np.nan
 
             # Store the binned data into the dictionaries
             if Dx == 5:
@@ -342,12 +352,12 @@ for Dx in [5, 25]:
           .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 
 # Stack the number counts
-Dx_5_stacked_heights = np.sum(np.array(list(Dx_5_hist_heights.values())), axis=0)
-Dx_25_stacked_heights = np.sum(np.array(list(Dx_25_hist_heights.values())), axis=0)
+Dx_5_stacked_heights = np.nansum(np.array(list(Dx_5_hist_heights.values())), axis=0)
+Dx_25_stacked_heights = np.nansum(np.array(list(Dx_25_hist_heights.values())), axis=0)
 
 # Stack the scaled areas
-Dx_5_stacked_scaled_areas = np.sum(np.array(list(Dx_5_hist_scaled_areas.values())), axis=0)
-Dx_25_stacked_scaled_areas = np.sum(np.array(list(Dx_25_hist_scaled_areas.values())), axis=0)
+Dx_5_stacked_scaled_areas = np.nansum(np.array(list(Dx_5_hist_scaled_areas.values())), axis=0)
+Dx_25_stacked_scaled_areas = np.nansum(np.array(list(Dx_25_hist_scaled_areas.values())), axis=0)
 
 # Calculate the surface densities
 Dx_5_surface_density = Dx_5_stacked_heights / Dx_5_stacked_scaled_areas
@@ -427,19 +437,52 @@ print('Plot 6 done.')
 for ax in axarr.flat:
     ax.set(xlabel=r'$r/r_{{500}}$')
 
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Comparison_Plots_5_25_arcmin.pdf', format='pdf')
-
-# Make combined plots
-fig, ax = plt.subplots()
-ax.bar(bins, Dx_5_stacked_heights, yerr=Dx_5_stacked_heights_err, width=0.095, color='C0', label='5 arcmin')
-ax.bar(bins, Dx_25_stacked_heights, yerr=Dx_25_stacked_heights_err, width=0.095, color='C1', label='25 arcmin')
-ax.set(title='Number of objects on image', ylabel='Number of Objects', xlabel=r'$r/r_{{500}}$')
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Stacked_Number_Comparison_5_25_arcmin_new.pdf',
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Comparison_Plots_5_25_arcmin_gpf_1r500_ang_size_maxr1.pdf',
             format='pdf')
 
 fig, ax = plt.subplots()
-ax.bar(bins, Dx_5_stacked_scaled_areas, width=0.095, color='C0', label='5 arcmin')
-ax.bar(bins, Dx_25_stacked_scaled_areas, width=0.095, color='C1', label='25 arcmin')
+ax.errorbar(bins, Dx_5_surface_density, yerr=Dx_5_surface_density_err, fmt='o', color='C1',
+            label='Mock AGN Candidate Surface Density')
+ax.plot(rall, Dx_5_stacked_model, color='C0', label='Model Rate')
+ax.fill_between(rall,
+                y1=Dx_5_stacked_model+Dx_5_stacked_model_err,
+                y2=Dx_5_stacked_model-Dx_5_stacked_model_err, color='C0', alpha=0.2)
+ax.set(title='Surface Density (5 arcmin)', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]', xlabel=r'$r/r_{{500}}$')
+ax.yaxis.set_minor_locator(AutoMinorLocator())
+ax.legend()
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Stacked_Surface_Density_5_arcmin_gpf_1r500_ang_size_maxr1.pdf',
+            format='pdf')
+
+fig, ax = plt.subplots()
+ax.errorbar(bins, Dx_25_surface_density, yerr=Dx_25_surface_density_err, fmt='o', color='C1',
+            label='Mock AGN Candidate Surface Density')
+ax.plot(rall, Dx_25_stacked_model, color='C0', label='Model Rate')
+ax.fill_between(rall,
+                y1=Dx_25_stacked_model+Dx_25_stacked_model_err,
+                y2=Dx_25_stacked_model-Dx_25_stacked_model_err, color='C0', alpha=0.2)
+ax.set(title='Surface Density (25 arcmin)', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]', xlabel=r'$r/r_{{500}}$')
+ax.yaxis.set_minor_locator(AutoMinorLocator())
+ax.legend()
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Stacked_Surface_Density_25_arcmin_gpf_1r500_ang_size_maxr1.pdf',
+            format='pdf')
+
+# Make combined plots
+fig, ax = plt.subplots()
+ax.bar(bins, Dx_25_stacked_heights, yerr=Dx_25_stacked_heights_err, alpha=0.4, width=0.095, color='C1',
+       ecolor='darkorange', label='25 arcmin')
+ax.bar(bins, Dx_5_stacked_heights, yerr=Dx_5_stacked_heights_err, alpha=0.4, width=0.095, color='C0',
+       ecolor='darkblue', label='5 arcmin')
+ax.set(title='Number of objects on image', ylabel='Number of Objects', xlabel=r'$r/r_{{500}}$')
+ax.yaxis.set_minor_locator(AutoMinorLocator())
+ax.legend()
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/Stacked_Number_Comparison_5_25_arcmin_gpf_1r500_ang_size_maxr1.pdf',
+            format='pdf')
+
+fig, ax = plt.subplots()
+ax.bar(bins, Dx_25_stacked_scaled_areas, width=0.095, alpha=0.4, color='C1', label='25 arcmin')
+ax.bar(bins, Dx_5_stacked_scaled_areas, width=0.095, alpha=0.4, color='C0', label='5 arcmin')
 ax.set(title='Scaled Area on image', ylabel=r'Area [$r_{{500}}^{{-2}}$]', xlabel=r'$r/r_{{500}}$')
+ax.yaxis.set_minor_locator(AutoMinorLocator())
+ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/Image_Size/'
-            'Stacked_Scaled_Area_Comparison_5_25_arcmin_new.pdf', format='pdf')
+            'Stacked_Scaled_Area_Comparison_5_25_arcmin_gpf_1r500_ang_size_maxr1.pdf', format='pdf')
