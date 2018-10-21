@@ -170,7 +170,7 @@ params_true = (theta_true, eta_true, zeta_true, beta_true)
 max_radius = 10.0
 
 # Number of bins to use to plot our sampled data points
-num_bins = 20
+num_bins = 100
 
 # For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
 # Set the pixel scale and size of the image
@@ -320,12 +320,12 @@ outAGN = vstack(AGN_cats)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}'
-#              '_maxr{maxr:.2f}_nbins{nbins}_seed{seed}.cat'
-#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-#                      seed=rand_seed),
-#              format='ascii', overwrite=True)
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}'
+             '_maxr{maxr:.2f}_nbins{nbins}_seed{seed}.cat'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
+                     seed=rand_seed),
+             format='ascii', overwrite=True)
 
 # Diagnostic Plots
 # AGN Candidates
@@ -375,7 +375,7 @@ bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_
 #                  format='ascii.latex')
 
 # A grid of radii for the model to be plotted on
-rall = np.linspace(0, 2.0, 100)
+rall = np.linspace(0, max_radius+2, 100)
 
 # A quick chi2 fit of the mean model to find the redshift and mass of the "cluster" it corresponds to
 # f = lambda r, z, m: model_rate(z, m*u.Msun, (3 * m*u.Msun / (4 * np.pi * 500 *

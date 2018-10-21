@@ -8,7 +8,8 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
-import sys
+# import sys
+from itertools import product
 from time import time
 
 import astropy.units as u
@@ -17,7 +18,11 @@ import matplotlib
 import numpy as np
 import os
 from astropy.cosmology import FlatLambdaCDM
+from astropy.io import fits
 from astropy.table import Table
+from astropy.wcs import WCS
+from custom_math import trap_weight  # Custom trapezoidal integration
+from scipy.spatial.distance import cdist
 from multiprocessing import Pool, cpu_count
 
 # Set matplotlib parameters
@@ -27,13 +32,59 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def model_rate(z, m, r500, r_r500, params):
+def good_pixel_fraction(r, z, r500, image_name, center):
+    # Read in the mask file and the mask file's WCS
+    image, header = fits.getdata(image_name, header=True)
+    image_wcs = WCS(header)
+
+    # From the WCS get the pixel scale
+    pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
+
+    # Convert our center into pixel units
+    center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
+
+    # Convert our radius to pixels
+    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
+
+    # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
+    # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
+    # Find the width needed to pad the image to include the largest radius inside the image.
+    width = (int(np.max(r_pix) - image.shape[0] // 2), int(np.max(r_pix) - image.shape[1] // 2))
+
+    # Insure that we are adding a non-negative padding width.
+    if (width[0] <= 0) or (width[1] <= 0):
+        width = (0, 0)
+
+    large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
+
+    # find the distances from center pixel to all other pixels
+    image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
+
+    center_coord = np.array(center_pix) + np.array(width) + 1
+    center_coord = center_coord.reshape((1, 2))
+
+    image_dists = cdist(image_coords, center_coord).reshape(large_image.shape)
+
+    # select all pixels that are within the annulus
+    good_pix_frac = []
+    pix_area = []
+    for i in np.arange(len(r_pix) - 1):
+        pix_ring = large_image[np.where((image_dists >= r_pix[i]) & (image_dists < r_pix[i + 1]))]
+
+        # Calculate the fraction
+        good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
+
+    return good_pix_frac
+
+
+def model_rate(z, m, r500, r_r500, maxr, params):
     """
     Our generating model.
 
     :param z: Redshift of the cluster
     :param m: M_500 mass of the cluster
     :param r500: r500 radius of the cluster
+    :param maxr: maximum radius in units of r500 to consider
     :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :param params: Tuple of (theta, eta, zeta, beta, background)
     :return model: A surface density profile of objects as a function of radius
@@ -59,26 +110,36 @@ def model_rate(z, m, r500, r_r500, params):
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
     # We impose a cut off of all objects with a radius greater than 1.1r500
-    model[r_r500 > 1.3] = 0.
+    model[r_r500 > maxr] = 0.
 
     return model.value
 
 
 # Set our log-likelihood
-def lnlike(param, catalog):
+def lnlike(param, maxr, catalog):
 
     catalog_grp = catalog.group_by('SPT_ID')
 
     lnlike_list = []
     for cluster in catalog_grp.groups:
-        ni = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc,
-                        cluster['radial_r500'], param)
+        # For convenience get the cluster information from the catalog
+        cluster_z = cluster['REDSHIFT'][0]
+        cluster_m500 = cluster['M500'][0] * u.Msun
+        cluster_r500 = cluster['r500'][0] * u.Mpc
+        cluster_mask = cluster['MASK_NAME'][0]
+        cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
 
-        rall = np.linspace(0, 1.3, 100)  # radius in r500^-1 units
-        nall = model_rate(cluster['REDSHIFT'][0], cluster['M500'][0]*u.Msun, cluster['r500'][0]*u.Mpc, rall, param)
+        ni = model_rate(cluster_z, cluster_m500, cluster_r500, cluster['radial_r500'], maxr, param)
+
+        rall = np.linspace(0, maxr, num=100)  # radius in r500^-1 units
+        nall = model_rate(cluster_z, cluster_m500, cluster_r500, rall, maxr, param)
+
+        # Calculate the good pixel fraction of the annuli in rall
+        gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_mask, cluster_sz_cent)
 
         # Use a spatial possion point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * cluster['radial_r500'])) - np.trapz(nall * 2*np.pi * rall, rall)
+        cluster_lnlike = (np.sum(np.log(ni * cluster['radial_r500']))
+                          - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -111,38 +172,48 @@ def lnprior(param):
 
 
 # Define the log-posterior probability
-def lnpost(param, catalog):
+def lnpost(param, maxr, catalog):
     lp = lnprior(param)
 
     # Check the finiteness of the prior.
     if not np.isfinite(lp):
         return -np.inf
 
-    return lp + lnlike(param, catalog)
-
+    return lp + lnlike(param, maxr, catalog)
 
 # Read in the mock subcatalog
-subcat_fname = sys.argv[1]
-mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/Dependency_Checks/' + subcat_fname,
-                          format='ascii')
-mock_catalog['M500'].unit = u.Msun
+# subcat_fname = sys.argv[1]
+# mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/Dependency_Checks/' + subcat_fname,
+#                           format='ascii')
+# mock_catalog['M500'].unit = u.Msun
+mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr10.00_seed890.cat', format='ascii')
 
-# Get our parameters from the file name
-param_str = ''.join((ch if ch in '0123456789.-' else ' ') for ch in subcat_fname[:-4])
+# # Get our parameters from the file name
+# param_str = ''.join((ch if ch in '0123456789.-' else ' ') for ch in subcat_fname[:-4])
 
 # Parameters are:
 # theta = Amplitude.
 # eta   = Redshift slope
 # zeta  = Mass slope
 # beta  = Radial slope
-theta_true, eta_true, zeta_true, beta_true = [float(i) for i in param_str.split()]
+# theta_true, eta_true, zeta_true, beta_true = [float(i) for i in param_str.split()]
 
-# If beta is '0.33' change it to '1/3' to get the correct precision needed for that parameter.
-if beta_true == 0.33:
-    beta_true = 1/3
+# # If beta is '0.33' change it to '1/3' to get the correct precision needed for that parameter.
+# if beta_true == 0.33:
+#     beta_true = 1/3
 
-# Our last parameter is set to be a constant
+# # Our last parameter is set to be a constant
+# C_true = 0.371       # Background AGN surface density
+
+# Set parameter values
+theta_true = 12    # Amplitude.
+eta_true = 1.2       # Redshift slope
+beta_true = 0.5      # Radial slope
+zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
+
+max_radius = 10.0
 
 print('Parameters: theta = {t}, eta = {e}, zeta = {z}, beta = {b}'.format(t=theta_true, e=eta_true, z=zeta_true, b=beta_true))
 
@@ -169,15 +240,16 @@ except KeyError:
 pool = Pool(processes=ncpus)
 
 # Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[mock_catalog], pool=pool)
+sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], pool=pool)
 
 # Run the sampler.
 start_sampler_time = time()
 sampler.run_mcmc(pos0, nsteps)
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/'
-        'emcee_run_w{nwalkers}_s{nsteps}_mock_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}.cat'
-        .format(nwalkers=nwalkers, nsteps=nsteps, theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true),
+np.save('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/pre-final_tests/'
+        'emcee_run_w{nwalkers}_s{nsteps}_mock_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr}'
+        .format(nwalkers=nwalkers, nsteps=nsteps, theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true,
+                maxr=max_radius),
         sampler.chain)
 
 # Remove the burnin, typically 1/3 number of steps
