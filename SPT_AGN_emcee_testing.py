@@ -8,6 +8,7 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
+import os
 from itertools import product
 from time import time
 
@@ -24,6 +25,8 @@ from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
 from matplotlib.ticker import MaxNLocator
 from scipy.spatial.distance import cdist
+from numba import jit
+from multiprocessing import Pool, cpu_count
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -32,9 +35,10 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def good_pixel_fraction(r, z, r500, image_name, center):
+# @jit(cache=True)
+def good_pixel_fraction(r, z, r500, center, cluster_id):
     # Read in the mask file and the mask file's WCS
-    image, header = fits.getdata(image_name, header=True)
+    image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
 
     # From the WCS get the pixel scale
@@ -45,6 +49,7 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 
     # Convert our radius to pixels
     r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
+    r_pix = r_pix.value
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
     # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
@@ -67,7 +72,6 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 
     # select all pixels that are within the annulus
     good_pix_frac = []
-    pix_area = []
     for i in np.arange(len(r_pix) - 1):
         pix_ring = large_image[np.where((image_dists >= r_pix[i]) & (image_dists < r_pix[i + 1]))]
 
@@ -77,21 +81,26 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     return good_pix_frac
 
 
-def model_rate(z, m, r500, r_r500, maxr, params):
+# @jit(cache=True)
+def model_rate_opted(params, cluster_id, r_r500):
     """
     Our generating model.
 
-    :param z: Redshift of the cluster
-    :param m: M_500 mass of the cluster
-    :param r500: r500 radius of the cluster
-    :param maxr: maximum radius in units of r500 to consider
-    :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :param params: Tuple of (theta, eta, zeta, beta, background)
+    :param cluster_id: SPT ID of our cluster in the catalog dictionary
+    :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
     :return model: A surface density profile of objects as a function of radius
     """
 
     # Unpack our parameters
     theta, eta, zeta, beta = params
+
+    # Extract our data from the catalog dictionary
+    z = catalog_dict[cluster_id]['redshift']
+    m = catalog_dict[cluster_id]['m500']
+    r500 = catalog_dict[cluster_id]['r500']
+    # maxr = catalog_dict[cluster_id]['max_radius']
+
 
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
@@ -110,36 +119,34 @@ def model_rate(z, m, r500, r_r500, maxr, params):
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
 
     # We impose a cut off of all objects with a radius greater than 1.1r500
-    model[r_r500 > maxr] = 0.
+    # model[r_r500 > maxr] = 0.
 
     return model.value
 
 
 # Set our log-likelihood
-def lnlike(param, maxr, catalog):
-
-    catalog_grp = catalog.group_by('SPT_ID')
+# @jit(cache=True)
+def lnlike(param):
 
     lnlike_list = []
-    for cluster in catalog_grp.groups:
-        # For convenience get the cluster information from the catalog
-        cluster_z = cluster['REDSHIFT'][0]
-        cluster_m500 = cluster['M500'][0] * u.Msun
-        cluster_r500 = cluster['r500'][0] * u.Mpc
-        cluster_mask = cluster['MASK_NAME'][0]
-        cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+    for cluster_id in catalog_dict.keys():
+        # Get the good pixel fraction for this cluster
+        gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
-        ni = model_rate(cluster_z, cluster_m500, cluster_r500, cluster['radial_r500'], maxr, param)
+        # Get the radial positions of the AGN
+        radial_r500 = catalog_dict[cluster_id]['radial_r500']
 
-        rall = np.linspace(0, maxr, num=100)  # radius in r500^-1 units
-        nall = model_rate(cluster_z, cluster_m500, cluster_r500, rall, maxr, param)
+        # Get the radial mesh for integration
+        rall = catalog_dict[cluster_id]['rall']
 
-        # Calculate the good pixel fraction of the annuli in rall
-        gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_mask, cluster_sz_cent)
+        # Compute the model rate at the locations of the AGN.
+        ni = model_rate_opted(param, cluster_id, radial_r500)
 
-        # Use a spatial possion point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * cluster['radial_r500']))
-                          - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
+        # Compute the full model along the radial direction
+        nall = model_rate_opted(param, cluster_id, rall)
+
+        # Use a spatial poisson point-process log-likelihood
+        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -149,6 +156,7 @@ def lnlike(param, maxr, catalog):
 
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
+# @jit(cache=True)
 def lnprior(param):
     # Extract our parameters
     theta, eta, zeta, beta = param
@@ -178,20 +186,25 @@ def lnprior(param):
 
 
 # Define the log-posterior probability
-def lnpost(param, maxr, catalog):
+def lnpost(param):
     lp = lnprior(param)
 
     # Check the finiteness of the prior.
     if not np.isfinite(lp):
         return -np.inf
 
-    return lp + lnlike(param, maxr, catalog)
+    return lp + lnlike(param)
 
 
 # Read in the mock catalog
 mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr1.00_seed890.cat', format='ascii')
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr10.00_seed890.cat', format='ascii')
 
+# Read in the mask files for each cluster
+mock_catalog_grp = mock_catalog.group_by('SPT_ID')
+mask_dict = {cluster_id[0]: fits.getdata(mask_file, header=True) for cluster_id, mask_file
+             in zip(mock_catalog_grp.groups.keys.as_array(),
+                    mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
 # Set parameter values
 theta_true = 12    # Amplitude.
@@ -200,33 +213,69 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 1.0
+max_radius = 4.0
+
+# Our integration mesh grid
+rall = np.linspace(0, max_radius, num=100)
+
+# Compute the good pixel fractions for each cluster and store the array in the catalog.
+catalog_dict = {}
+for cluster in mock_catalog_grp.groups:
+    cluster_id = cluster['SPT_ID'][0]
+    cluster_z = cluster['REDSHIFT'][0]
+    cluster_m500 = cluster['M500'][0] * u.Msun
+    cluster_r500 = cluster['r500'][0] * u.Mpc
+    cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+    cluster_sz_cent = cluster_sz_cent.as_void()
+    cluster_radial_r500 = cluster['radial_r500']
+
+    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
+
+    cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
+                    'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
+
+    # Store the cluster dictionary in the master catalog dictionary
+    catalog_dict[cluster_id] = cluster_dict
+
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
-nwalkers = 16
+nwalkers = 24
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 500
+nsteps = 3
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
-# Initialize the sampler
-sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, args=[max_radius, mock_catalog], threads=4)
+# Set up multiprocessing pool
+# get number of cpus available to job
+try:
+    ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"].split('(')[0])
+except KeyError:
+    ncpus = cpu_count()
 
-# Run the sampler.
-start_sampler_time = time()
-sampler.run_mcmc(pos0, nsteps)
-print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-np.save('Data/MCMC/Mock_Catalog/Chains/pre-final_tests/'
-        'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}'
+with Pool(processes=ncpus) as pool:
+    # Filename for hd5 backend
+    chain_file = 'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
-                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-        sampler.chain)
+                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius)
+    backend = emcee.backends.HDFBackend(chain_file)
+    backend.reset(nwalkers, ndim)
 
+    # Initialize the sampler
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend)
+
+    # Run the sampler.
+    start_sampler_time = time()
+    sampler.run_mcmc(pos0, nsteps, progress=True)
+    print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
+
+
+raise SystemExit
 # Plot the chains
 fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, sharex='col')
 

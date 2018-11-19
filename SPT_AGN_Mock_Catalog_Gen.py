@@ -320,21 +320,21 @@ outAGN = vstack(AGN_cats)
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}'
-             '_maxr{maxr:.2f}_nbins{nbins}_seed{seed}.cat'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-                     seed=rand_seed),
-             format='ascii', overwrite=True)
+# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}'
+#              '_maxr{maxr:.2f}_seed{seed}.cat'
+#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
+#                      seed=rand_seed),
+#              format='ascii', overwrite=True)
 
 # Diagnostic Plots
 # AGN Candidates
-# fig, ax = plt.subplots()
-# ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0)
-# ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
-#        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-# plt.show()
+fig, ax = plt.subplots()
+ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
+ax.set_aspect(1.0)
+ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
+       xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+plt.show()
 
 # Selected AGN
 # fig, ax = plt.subplots()
