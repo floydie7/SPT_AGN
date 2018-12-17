@@ -101,7 +101,6 @@ def model_rate_opted(params, cluster_id, r_r500):
     r500 = catalog_dict[cluster_id]['r500']
     # maxr = catalog_dict[cluster_id]['max_radius']
 
-
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
@@ -219,6 +218,7 @@ max_radius = 4.0
 rall = np.linspace(0, max_radius, num=100)
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
+print('Generating Good Pixel Fractions.')
 catalog_dict = {}
 for cluster in mock_catalog_grp.groups:
     cluster_id = cluster['SPT_ID'][0]
@@ -244,11 +244,16 @@ ndim = 4
 nwalkers = 24
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 3
+nsteps = 5000
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
+
+# Set up the autocorrelation and convergence variables
+index = 0
+autocorr = np.empty(nsteps)
+old_tau = np.inf  # For convergence
 
 # Set up multiprocessing pool
 # get number of cpus available to job
@@ -259,7 +264,7 @@ except KeyError:
 
 with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
-    chain_file = 'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
+    chain_file = 'Data/MCMC/Mock_Catalog/Chains/emcee3_test/' \
                  'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius)
@@ -267,70 +272,74 @@ with Pool(processes=ncpus) as pool:
     backend.reset(nwalkers, ndim)
 
     # Initialize the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, pool=pool)
 
     # Run the sampler.
+    print('Starting sampler.')
     start_sampler_time = time()
-    sampler.run_mcmc(pos0, nsteps, progress=True)
+    # Sample up to nsteps.
+    for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
+        # Only check convergence every 100 steps
+        if sampler.iteration % 100:
+            continue
+
+        # Compute the autocorrelation time so far.
+        # Using tol = 0 means we will always get an estimate even if it isn't trustworthy
+        tau = sampler.get_autocorr_time(tol=0)
+        autocorr[index] = np.mean(tau)
+        index += 1
+
+        # Check convergence
+        converged = np.all(tau * 100 < sampler.iteration)
+        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+        if converged:
+            break
+        old_tau = tau
+
     print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
+# Get the chain from the sampler
+samples = sampler.get_chain()
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
+truths = [theta_true, eta_true, zeta_true, beta_true]
 
-raise SystemExit
 # Plot the chains
-fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, sharex='col')
+fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
+for i in range(ndim):
+    ax = axes[i]
+    ax.plot(samples[:, :, i], color='k', alpha=0.3)
+    ax.axhline(truths[i], color='b')
+    ax.yaxis.set_major_locator(MaxNLocator(5))
+    ax.set(xlim=[0, len(samples)], ylabel=labels[i])
 
-ax0.plot(sampler.chain[:, :, 0].T, color='k', alpha=0.4)
-ax0.axhline(theta_true, color='b')
-ax0.yaxis.set_major_locator(MaxNLocator(5))
-ax0.set(ylabel=r'$\theta$', title='MCMC Chains')
+axes[0].set(title='MCMC Chains')
+axes[-1].set(xlabel='Steps')
 
-ax1.plot(sampler.chain[:, :, 1].T, color='k', alpha=0.4)
-ax1.axhline(eta_true, color='b')
-ax1.yaxis.set_major_locator(MaxNLocator(5))
-ax1.set(ylabel=r'$\eta$')
-
-ax2.plot(sampler.chain[:, :, 2].T, color='k', alpha=0.4)
-ax2.axhline(zeta_true, color='b')
-ax2.yaxis.set_major_locator(MaxNLocator(5))
-ax2.set(ylabel=r'$\zeta$')
-
-ax3.plot(sampler.chain[:, :, 3].T, color='k', alpha=0.4)
-ax3.axhline(beta_true, color='b')
-ax3.yaxis.set_major_locator(MaxNLocator(5))
-ax3.set(ylabel=r'$\beta$', xlabel='Steps')
-
-# ax4.plot(sampler.chain[:, :, 4].T, color='k', alpha=0.4)
-# ax4.axhline(beta_true, color='b')
-# ax4.yaxis.set_major_locator(MaxNLocator(5))
-# ax4.set(ylabel=r'$\C$', xlabel='Steps')
-
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/emcee3_tests/'
             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')
 
+
 # Remove the burnin, typically 1/3 number of steps
 burnin = nsteps//3
-samples = sampler.chain[:, burnin:, :].reshape((-1, ndim))
+flat_samples = sampler.get_chain(discard=burnin, thin=old_tau//2, flat=True)  # TODO this line crashes TypeError: only integer scalar arrays can be converted to a scalar index
 
 # Produce the corner plot
-fig = corner.corner(samples, labels=[r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$'],
-                    truths=[theta_true, eta_true, zeta_true, beta_true],
-                    quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+fig = corner.corner(samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/emcee3_tests/'
             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')
 
-theta_mcmc, eta_mcmc, zeta_mcmc, beta_mcmc = map(lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
-                                                 zip(*np.percentile(samples, [16, 50, 84], axis=0)))
-print("""MCMC Results:
-theta = {theta[0]:.2f} +{theta[1]:.3f} -{theta[2]:.3f} (truth: {theta_true})
-eta = {eta[0]:.2f} +{eta[1]:.3f} -{eta[2]:.3f} (truth: {eta_true})
-zeta = {zeta[0]:.2f} +{zeta[1]:.3f} -{zeta[2]:.3f} (truth: {zeta_true})
-beta = {beta[0]:.2f} +{beta[1]:.3f} -{beta[2]:.3f} (truth: {beta_true})"""
-      .format(theta=theta_mcmc, eta=eta_mcmc,  zeta=zeta_mcmc, beta=beta_mcmc,
-              theta_true=theta_true, eta_true=eta_true,  zeta_true=zeta_true, beta_true=beta_true))
+for i in range(ndim):
+    mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+    q = np.diff(mcmc)
+    print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
+          .format(labels=labels[i], median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
 
 print('Mean acceptance fraction: {}'.format(np.mean(sampler.acceptance_fraction)))
-# print('Integrates autocorrelation time: {}'.format(sampler.get_autocorr_time()))
+
+# Get estimate of autocorrelation time
+print('Autocorrelation time: {iter} (iterations)\nAutocorrelation time: {full} (full chain)'
+      .format(iter=old_tau, full=np.mean(sampler.get_autocorr_time())))
