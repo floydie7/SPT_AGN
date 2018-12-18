@@ -8,8 +8,8 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
-import os
 from itertools import product
+from multiprocessing import Pool, cpu_count
 from time import time
 
 import astropy.units as u
@@ -18,6 +18,7 @@ import emcee
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
@@ -25,8 +26,6 @@ from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
 from matplotlib.ticker import MaxNLocator
 from scipy.spatial.distance import cdist
-from numba import jit
-from multiprocessing import Pool, cpu_count
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -35,7 +34,6 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-# @jit(cache=True)
 def good_pixel_fraction(r, z, r500, center, cluster_id):
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
@@ -72,8 +70,8 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
 
     # select all pixels that are within the annulus
     good_pix_frac = []
-    for i in np.arange(len(r_pix) - 1):
-        pix_ring = large_image[np.where((image_dists >= r_pix[i]) & (image_dists < r_pix[i + 1]))]
+    for j in np.arange(len(r_pix) - 1):
+        pix_ring = large_image[np.where((image_dists >= r_pix[j]) & (image_dists < r_pix[j + 1]))]
 
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
@@ -81,7 +79,6 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
     return good_pix_frac
 
 
-# @jit(cache=True)
 def model_rate_opted(params, cluster_id, r_r500):
     """
     Our generating model.
@@ -124,7 +121,6 @@ def model_rate_opted(params, cluster_id, r_r500):
 
 
 # Set our log-likelihood
-# @jit(cache=True)
 def lnlike(param):
 
     lnlike_list = []
@@ -155,7 +151,6 @@ def lnlike(param):
 
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
-# @jit(cache=True)
 def lnprior(param):
     # Extract our parameters
     theta, eta, zeta, beta = param
@@ -219,6 +214,7 @@ rall = np.linspace(0, max_radius, num=100)
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
+start_gpf_time = time()
 catalog_dict = {}
 for cluster in mock_catalog_grp.groups:
     cluster_id = cluster['SPT_ID'][0]
@@ -236,7 +232,7 @@ for cluster in mock_catalog_grp.groups:
 
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
-
+print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -265,18 +261,22 @@ except KeyError:
 with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
     chain_file = 'Data/MCMC/Mock_Catalog/Chains/emcee3_test/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}.h5'\
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_short_test.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)
     backend.reset(nwalkers, ndim)
 
+    # Stretch move proposal. Manually specified to tune the `a` parameter.
+    moves = emcee.moves.StretchMove(a=2.5)
+
     # Initialize the sampler
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, pool=pool)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, moves=moves, pool=pool)
 
     # Run the sampler.
     print('Starting sampler.')
     start_sampler_time = time()
+
     # Sample up to nsteps.
     for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
         # Only check convergence every 100 steps
@@ -320,13 +320,23 @@ fig.savefig('Data/MCMC/Mock_Catalog/Plots/emcee3_tests/'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
             format='pdf')
 
+# Calculate the autocorrelation time
+tau = np.mean(sampler.get_autocorr_time())
 
-# Remove the burnin, typically 1/3 number of steps
-burnin = nsteps//3
-flat_samples = sampler.get_chain(discard=burnin, thin=old_tau//2, flat=True)  # TODO this line crashes TypeError: only integer scalar arrays can be converted to a scalar index
+# Remove the burn-in. We'll use ~3x the autocorrelation time
+if not np.isnan(tau):
+    burnin = int(3 * tau)
+
+    # We will also thin by roughly half our autocorrelation time
+    thinning = tau // 2
+else:
+    burnin = nsteps // 3
+    thinning = 1
+
+flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 
 # Produce the corner plot
-fig = corner.corner(samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/emcee3_tests/'
             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
@@ -336,10 +346,9 @@ for i in range(ndim):
     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
     q = np.diff(mcmc)
     print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
-          .format(labels=labels[i], median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
+          .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
 
 print('Mean acceptance fraction: {}'.format(np.mean(sampler.acceptance_fraction)))
 
 # Get estimate of autocorrelation time
-print('Autocorrelation time: {iter} (iterations)\nAutocorrelation time: {full} (full chain)'
-      .format(iter=old_tau, full=np.mean(sampler.get_autocorr_time())))
+print('Autocorrelation time: {}'.format(tau))
