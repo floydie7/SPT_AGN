@@ -20,6 +20,7 @@ from astropy.wcs import WCS
 from scipy import stats
 from scipy.spatial.distance import cdist
 from small_poisson import small_poisson
+
 # import scipy.optimize as op
 
 # Set matplotlib parameters
@@ -83,7 +84,7 @@ def model_rate(z, m, r500, r_r500, maxr, params):
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+
     # print(background)
 
     # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
@@ -95,7 +96,7 @@ def model_rate(z, m, r500, r_r500, maxr, params):
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5)
 
     # We impose a cut off of all objects with a radius greater than 1.1r500
     model[r_r500 > maxr] = 0.
@@ -234,18 +235,18 @@ for cluster in cluster_sample:
     # print("---\nCluster Data: z = {z:.2f}, M500 = {m:.2e}, r500 = {r:.2f}".format(z=z_cl, m=m500_cl, r=r500_cl))
 
     # Calculate the model values for the AGN candidates in the cluster
-    rad_model = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, max_radius, params_true)
+    model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, max_radius, params_true)
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
-    max_rate = np.max(rad_model)
+    max_rate = np.max(model_cluster_agn)
     max_rate_arcmin2 = max_rate * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2 / r500_cl**2
 
     # Simulate the AGN using the spatial Poisson point process.
-    agn_coords = poisson_point_process(max_rate_arcmin2, Dx)
+    cluster_agn_coords = poisson_point_process(max_rate_arcmin2, Dx)
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
-    radii_arcmin = np.sqrt((agn_coords[0] - Dx / 2.) ** 2 + (agn_coords[1] - Dx / 2.) ** 2) * u.arcmin
+    radii_arcmin = np.sqrt((cluster_agn_coords[0] - Dx / 2.) ** 2 + (cluster_agn_coords[1] - Dx / 2.) ** 2) * u.arcmin
     radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
 
     # Filter the candidates through the model to establish the radial trend in the data.
@@ -257,9 +258,17 @@ for cluster in cluster_sample:
     # Draw a random number for each candidate
     alpha = np.random.uniform(0, 1, len(rate_at_rad))
 
-    x_final = agn_coords[0][np.where(prob_reject >= alpha)]
-    y_final = agn_coords[1][np.where(prob_reject >= alpha)]
+    cluster_x_final = cluster_agn_coords[0][np.where(prob_reject >= alpha)]
+    cluster_y_final = cluster_agn_coords[1][np.where(prob_reject >= alpha)]
     # print('Number of points in final selection: {}'.format(len(x_final)))
+
+    # Generate background sources
+    background_rate = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
+    background_coords = poisson_point_process(background_rate, Dx)
+
+    # Concatenate the cluster sources with the background sources
+    x_final = np.concatenate((cluster_x_final, background_coords[0]))
+    y_final = np.concatenate((cluster_y_final, background_coords[1]))
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
     r_final_arcmin = np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
@@ -276,13 +285,14 @@ for cluster in cluster_sample:
         AGN_list['r500'] = r500_cl
         AGN_list['MASK_NAME'] = mask_name
 
-        # Reorder the columns in the cluster for ascetic reasons.
-        AGN_cat = AGN_list['SPT_ID', 'SZ_RA', 'SZ_DEC', 'REDSHIFT', 'M500', 'r500',
-                           'radial_arcmin', 'radial_r500', 'MASK_NAME']
-        AGN_cats.append(AGN_cat)
+        # Create a flag indicating if the object is a cluster member
+        AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_x_final, True),
+                                                  np.full_like(background_coords[0], False)))
+
+        AGN_cats.append(AGN_list)
 
         # Create a histogram of the objects in the cluster using evenly spaced bins on radius
-        hist, bin_edges = np.histogram(AGN_cat['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
+        hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
 
         # Compute area in terms of r500^2
         area_edges = np.pi * bin_edges ** 2
@@ -291,7 +301,7 @@ for cluster in cluster_sample:
         # Calculate the good pixel fraction for each annulus area (We can do this here for now as all mock clusters use
         # the same mask. If we source from real masks we'll need to move this up into the loop.)
         # For our center set a dummy center at (0,0)
-        SZ_center = AGN_cat['SZ_RA', 'SZ_DEC'][0]
+        SZ_center = AGN_list['SZ_RA', 'SZ_DEC'][0]
         gpf, pixel_area = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_file, SZ_center)
 
         # Scale our area by the good pixel fraction
@@ -318,6 +328,10 @@ for cluster in cluster_sample:
 
 outAGN = vstack(AGN_cats)
 
+# Reorder the columns in the cluster for ascetic reasons.
+outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500', 'MASK_NAME',
+                'Cluster_AGN']
+
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 # outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
@@ -330,7 +344,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
 # Diagnostic Plots
 # AGN Candidates
 fig, ax = plt.subplots()
-ax.scatter(agn_coords[0], agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
+ax.scatter(cluster_agn_coords[0], cluster_agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
 ax.set_aspect(1.0)
 ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
