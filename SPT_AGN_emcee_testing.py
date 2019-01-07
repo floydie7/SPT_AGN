@@ -90,20 +90,17 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta = params
+    theta, eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
-    # maxr = catalog_dict[cluster_id]['max_radius']
 
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
-
-    # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
+    background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
@@ -113,9 +110,6 @@ def model_rate_opted(params, cluster_id, r_r500):
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
-
-    # We impose a cut off of all objects with a radius greater than 1.1r500
-    # model[r_r500 > maxr] = 0.
 
     return model.value
 
@@ -153,11 +147,11 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta = param
+    theta, eta, zeta, beta, C = param
 
-    # # Set our hyperparameters
-    # h_C = 0.371
-    # h_C_err = 0.157
+    # Set our hyperparameters
+    h_C = 0.371
+    h_C_err = 0.157
 
     # Define all priors to be gaussian
     if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.:
@@ -171,10 +165,10 @@ def lnprior(param):
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
 
-    # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+    C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior  # + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -191,8 +185,8 @@ def lnpost(param):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr10.00_seed890.cat', format='ascii')
+mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr5.00_seed890_sepback_tusker.cat', format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
@@ -236,15 +230,15 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 4
-nwalkers = 24
+ndim = 5
+nwalkers = 30
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 5000
+nsteps = 10000
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
 index = 0
@@ -260,8 +254,8 @@ except KeyError:
 
 with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
-    chain_file = 'Data/MCMC/Mock_Catalog/Chains/emcee3_test/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_short_test.h5'\
+    chain_file = '/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_sepback.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)
@@ -300,25 +294,25 @@ with Pool(processes=ncpus) as pool:
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
-truths = [theta_true, eta_true, zeta_true, beta_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
 
 # Plot the chains
-fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
-for i in range(ndim):
-    ax = axes[i]
-    ax.plot(samples[:, :, i], color='k', alpha=0.3)
-    ax.axhline(truths[i], color='b')
-    ax.yaxis.set_major_locator(MaxNLocator(5))
-    ax.set(xlim=[0, len(samples)], ylabel=labels[i])
-
-axes[0].set(title='MCMC Chains')
-axes[-1].set(xlabel='Steps')
-
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/emcee3_tests/'
-            'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-            format='pdf')
+# fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
+# for i in range(ndim):
+#     ax = axes[i]
+#     ax.plot(samples[:, :, i], color='k', alpha=0.3)
+#     ax.axhline(truths[i], color='b')
+#     ax.yaxis.set_major_locator(MaxNLocator(5))
+#     ax.set(xlim=[0, len(samples)], ylabel=labels[i])
+#
+# axes[0].set(title='MCMC Chains')
+# axes[-1].set(xlabel='Steps')
+#
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+#             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_sepback.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
+#             format='pdf')
 
 # Calculate the autocorrelation time
 tau = np.mean(sampler.get_autocorr_time())
@@ -335,12 +329,12 @@ else:
 
 flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 
-# Produce the corner plot
-fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/emcee3_tests/'
-            'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_new.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-            format='pdf')
+# # Produce the corner plot
+# fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+#             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_sepback.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
+#             format='pdf')
 
 for i in range(ndim):
     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])

@@ -21,8 +21,6 @@ from scipy import stats
 from scipy.spatial.distance import cdist
 from small_poisson import small_poisson
 
-# import scipy.optimize as op
-
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
@@ -65,7 +63,7 @@ def poisson_point_process(model, dx, dy=None):
     return coord
 
 
-def model_rate(z, m, r500, r_r500, maxr, params):
+def model_rate(z, m, r500, r_r500, params):
     """
     Our generating model.
 
@@ -73,21 +71,12 @@ def model_rate(z, m, r500, r_r500, maxr, params):
     :param m: M_500 mass of the cluster
     :param r500: r500 radius of the cluster
     :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
-    :param maxr: maximum radius in units of r500 to consider
     :param params: Tuple of (theta, eta, zeta, beta, background)
     :return model: A surface density profile of objects as a function of radius
     """
 
     # Unpack our parameters
     theta, eta, zeta, beta = params
-
-    # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
-
-    # Convert our background surface density from angular units into units of r500^-2
-
-    # print(background)
-
-    # r_r500 = r * u.arcmin * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin) / r500
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
@@ -97,9 +86,6 @@ def model_rate(z, m, r500, r_r500, maxr, params):
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5)
-
-    # We impose a cut off of all objects with a radius greater than 1.1r500
-    model[r_r500 > maxr] = 0.
 
     return model.value
 
@@ -168,10 +154,11 @@ C_true = 0.371       # Background AGN surface density
 
 params_true = (theta_true, eta_true, zeta_true, beta_true)
 
-max_radius = 10.0
+# Set the maximum radius we will generate objects to
+max_radius = 5.0
 
 # Number of bins to use to plot our sampled data points
-num_bins = 100
+num_bins = 50
 
 # For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
 # Set the pixel scale and size of the image
@@ -197,7 +184,7 @@ mask_file = 'Data/MCMC/Mock_Catalog/mock_flat_mask.fits'
 mask_hdu.writeto(mask_file, overwrite=True)
 
 # Set up grid of radial positions (normalized by r500)
-r_dist_r500 = np.linspace(0, 2, 100)  # from 0 - 2r500
+r_dist_r500 = np.linspace(0, max_radius, 100)
 
 # Draw mass and redshift distribution from a uniform distribution as well.
 mass_dist = np.random.uniform(0.2e15, 1.8e15, n_cl)
@@ -211,12 +198,6 @@ SPT_data['MASK_NAME'] = mask_file
 # We'll need the r500 radius for each cluster too.
 SPT_data['r500'] = (3 * SPT_data['M500'] * u.Msun /
                     (4 * np.pi * 500 * cosmo.critical_density(SPT_data['REDSHIFT']).to(u.Msun / u.Mpc**3)))**(1/3)
-# SPT_data_z = SPT_data[np.where(SPT_data['REDSHIFT'] >= 0.75)]
-# SPT_data_m = SPT_data[np.where(SPT_data['M500'] <= 5e14)]
-
-# Select only the clusters that have a small enough angular size.
-# r500_arcmin = SPT_data['r500'] * cosmo.arcsec_per_kpc_proper(SPT_data['REDSHIFT']).to(u.arcmin / u.Mpc)
-# SPT_data_r500 = SPT_data[np.where(r500_arcmin <= 2.5 * u.arcmin)]
 
 cluster_sample = SPT_data
 
@@ -235,7 +216,7 @@ for cluster in cluster_sample:
     # print("---\nCluster Data: z = {z:.2f}, M500 = {m:.2e}, r500 = {r:.2f}".format(z=z_cl, m=m500_cl, r=r500_cl))
 
     # Calculate the model values for the AGN candidates in the cluster
-    model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, max_radius, params_true)
+    model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
@@ -250,7 +231,7 @@ for cluster in cluster_sample:
     radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
 
     # Filter the candidates through the model to establish the radial trend in the data.
-    rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, max_radius, params_true)
+    rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
 
     # Our rejection rate is the model rate at the radius scaled by the maximum rate
     prob_reject = rate_at_rad / max_rate
@@ -260,7 +241,6 @@ for cluster in cluster_sample:
 
     cluster_x_final = cluster_agn_coords[0][np.where(prob_reject >= alpha)]
     cluster_y_final = cluster_agn_coords[1][np.where(prob_reject >= alpha)]
-    # print('Number of points in final selection: {}'.format(len(x_final)))
 
     # Generate background sources
     background_rate = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
@@ -291,6 +271,7 @@ for cluster in cluster_sample:
 
         AGN_cats.append(AGN_list)
 
+        # ------- The rest of this loop is dictated to diagnostics of the sample --------
         # Create a histogram of the objects in the cluster using evenly spaced bins on radius
         hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
 
@@ -314,7 +295,7 @@ for cluster in cluster_sample:
 
         # Calculate the model for this cluster
         rall = np.linspace(0, max_radius+2, num=100)
-        model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, max_radius, params_true)
+        model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate
 
         # Drop model values for bins that do not have any area
         r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
@@ -326,6 +307,7 @@ for cluster in cluster_sample:
         hist_errors.update({spt_id: err})
         hist_models.update({spt_id: model_cl})
 
+# Stack the individual cluster catalogs into a single master catalog
 outAGN = vstack(AGN_cats)
 
 # Reorder the columns in the cluster for ascetic reasons.
@@ -336,25 +318,24 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 # outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
 #              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}'
-#              '_maxr{maxr:.2f}_seed{seed}.cat'
+#              '_maxr{maxr:.2f}_seed{seed}_sepback.cat'
 #              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
 #                      seed=rand_seed),
 #              format='ascii', overwrite=True)
 
-# Diagnostic Plots
+# -------- Diagnostic Plots --------
 # AGN Candidates
-fig, ax = plt.subplots()
-ax.scatter(cluster_agn_coords[0], cluster_agn_coords[1], edgecolor='b', facecolor='none', alpha=0.5)
-ax.set_aspect(1.0)
-ax.set(title=r'Spatial Poisson Point Process with $N_{{max}} = {:.2f}/r_{{500}}^2$'.format(max_rate_arcmin2),
-       xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-plt.show()
-
-# Selected AGN
 # fig, ax = plt.subplots()
-# ax.scatter(x_final, y_final, edgecolor='b', facecolor='none', alpha=0.5)
+# ax.scatter(cluster_x_final, cluster_y_final, edgecolor='b', facecolor='none', alpha=0.5)
+# ax.scatter(background_coords[0], background_coords[1], edgecolor='r', facecolor='none', alpha=0.5)
 # ax.set_aspect(1.0)
-# ax.set(title='Filtered SPPP', xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+# ax.set(title='Sample Cluster Line-of-sight Generation',
+#        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
+#             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_seed{seed}_sepback.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
+#                     seed=rand_seed),
+#             format='pdf')
 # plt.show()
 
 # Average the cluster histograms
@@ -409,12 +390,13 @@ ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
 ax.plot(rall, stacked_model, color='C0', label='Model Rate')
 ax.fill_between(rall, y1=stacked_model+stacked_model_err, y2=stacked_model-stacked_model_err, color='C0', alpha=0.2)
 ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
-       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
+       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]',
+       ylim=[-0.1, 80])
 ax.legend()
 # plt.show()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area.pdf'
+            '_seed{seed}_model_nan_0area_sepback.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
                     seed=rand_seed),
             format='pdf')
@@ -457,25 +439,7 @@ fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
 #     plt.show()
 #     fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
 #                 'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-#                 '_gpf_{id}.pdf'
+#                 '_gpf_{id}_sepback.pdf'
 #                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
 #                         id=cluster_id),
 #                 format='pdf')
-#
-#     # # Convert the pixel area arcsec2 > Mpc2 > r5002 units
-#     # cl_pix_area = cl_pix_area*u.arcsec**2
-#     # cl_pix_area_Mpc2 = cl_pix_area * (cosmo.kpc_proper_per_arcmin(cl_z).to(u.Mpc / u.arcsec))**2
-#     # cl_pix_area_r5002 = cl_pix_area_Mpc2 / (cl_r500*u.Mpc)**2
-#
-#     # cluster_diag_table = Table([bins, cl_hist_height, cl_scaled_area,
-#     #                             cl_pix_area, cl_pix_area_Mpc2, cl_pix_area_r5002],
-#     #                            names=['Bin', 'Number in Bin', 'Scaled Area',
-#     #                                   'Pixel Area (arcsec2)', 'Pixel Area (Mpc2)', 'Pixel Area (r5002)'])
-#     # cluster_diag_table.pprint(max_lines=-1, max_width=-1)
-#     # cluster_diag_table.write('/Users/btfkwd/Desktop/'
-#     #                          'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}'
-#     #                          '_nbins{nbins}_gpf_{id}_seed{seed}_diagnostic_table.tex'
-#     #                          .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius,
-#     #                                  nbins=num_bins, seed=rand_seed, id=cluster_id),
-#     #                          format='ascii.latex')
-#
