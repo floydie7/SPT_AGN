@@ -243,8 +243,9 @@ for cluster in cluster_sample:
     cluster_y_final = cluster_agn_coords[1][np.where(prob_reject >= alpha)]
 
     # Generate background sources
-    background_rate = 0.371 / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
+    background_rate = C_true #/ u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
     background_coords = poisson_point_process(background_rate, Dx)
+    # print('Number of background sources in cluster {id}: {back_ct}'.format(id=spt_id, back_ct=len(background_coords[0])))
 
     # Concatenate the cluster sources with the background sources
     x_final = np.concatenate((cluster_x_final, background_coords[0]))
@@ -271,7 +272,7 @@ for cluster in cluster_sample:
 
         AGN_cats.append(AGN_list)
 
-        # ------- The rest of this loop is dictated to diagnostics of the sample --------
+        # ------- The rest of this loop is dedicated to diagnostics of the sample --------
         # Create a histogram of the objects in the cluster using evenly spaced bins on radius
         hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
 
@@ -295,7 +296,8 @@ for cluster in cluster_sample:
 
         # Calculate the model for this cluster
         rall = np.linspace(0, max_radius+2, num=100)
-        model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate
+        background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
+        model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
 
         # Drop model values for bins that do not have any area
         r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
@@ -316,12 +318,12 @@ outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'REDSHIFT', 'M500', 'r500', 'radial
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-# outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}'
-#              '_maxr{maxr:.2f}_seed{seed}_sepback.cat'
-#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-#                      seed=rand_seed),
-#              format='ascii', overwrite=True)
+outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+             '_maxr{maxr:.2f}_seed{seed}_sepback_SPPP_arcmin2.cat'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
+             format='ascii', overwrite=True)
 
 # -------- Diagnostic Plots --------
 # AGN Candidates
@@ -332,11 +334,10 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
 # ax.set(title='Sample Cluster Line-of-sight Generation',
 #        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
 # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-#             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_seed{seed}_sepback.pdf'
-#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-#                     seed=rand_seed),
+#             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_sepback.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
 #             format='pdf')
-# plt.show()
 
 # Average the cluster histograms
 stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
@@ -357,18 +358,6 @@ stacked_model_err = np.nanstd(list(hist_models.values()), axis=0)
 bin_edges = np.linspace(0, max_radius, num=num_bins+1)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
 
-# # Diagnostic Table
-# diag_table = Table([bins, stacked_heights, stacked_raw_areas, stacked_areas, stacked_hist, frac_err, stacked_err],
-#                    names=['Bin', 'Number in Bin', 'Unscaled Area of Bin', 'Area of Bin', 'Surface Density',
-#                           'Fractional Error', 'Surface Density Error'])
-# diag_table.pprint(max_width=-1, max_lines=-1)
-# diag_table.write('/Users/btfkwd/Desktop/'
-#                  'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-#                  '_seed{seed}_diagnostic_table.tex'
-#                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius,
-#                          nbins=num_bins, seed=rand_seed),
-#                  format='ascii.latex')
-
 # A grid of radii for the model to be plotted on
 rall = np.linspace(0, max_radius+2, 100)
 
@@ -382,7 +371,6 @@ rall = np.linspace(0, max_radius+2, 100)
 # print('Mean model: z = {z:.2f} +/- {z_err:.2e}\tm500 = {m:.2e} +/- {m_err:.3e} Msun'
 #       .format(z=model_z_m[0], z_err=model_z_m_err[0], m=model_z_m[1], m_err=model_z_m_err[1]))
 
-
 # Overplot the normalized binned data with the model rate
 fig, ax = plt.subplots()
 ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
@@ -390,15 +378,13 @@ ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
 ax.plot(rall, stacked_model, color='C0', label='Model Rate')
 ax.fill_between(rall, y1=stacked_model+stacked_model_err, y2=stacked_model-stacked_model_err, color='C0', alpha=0.2)
 ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
-       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]',
-       ylim=[-0.1, 80])
+       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
 ax.legend()
-# plt.show()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area_sepback.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-                    seed=rand_seed),
+            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
+            '_seed{seed}_model_nan_0area_sepback_cluster+background_SPPParcmin2.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+                    maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
 
 # # Pull 5 random clusters to see how their data compares to their model

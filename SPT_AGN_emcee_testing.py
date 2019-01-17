@@ -150,22 +150,23 @@ def lnprior(param):
     theta, eta, zeta, beta, C = param
 
     # Set our hyperparameters
-    h_C = 0.371
-    h_C_err = 0.157
+    # h_C = 0.371
+    # h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.:
+    if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= 1: #np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
+        # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+        C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
-
-    C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+        C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
     total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
@@ -185,8 +186,9 @@ def lnpost(param):
 
 
 # Read in the mock catalog
-mock_catalog = Table.read('/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_maxr5.00_seed890_sepback_tusker.cat', format='ascii')
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_sepback_SPPP_arcmin2.cat',
+                          format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
@@ -201,7 +203,7 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 4.0
+max_radius = 5.0
 
 # Our integration mesh grid
 rall = np.linspace(0, max_radius, num=100)
@@ -254,10 +256,10 @@ except KeyError:
 
 with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
-    chain_file = '/work/mei/bfloyd/SPT_AGN/Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_sepback.h5'\
+    chain_file = 'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_flat.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
-                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius)
+                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)
     backend.reset(nwalkers, ndim)
 
@@ -287,10 +289,11 @@ with Pool(processes=ncpus) as pool:
         converged = np.all(tau * 100 < sampler.iteration)
         converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
         if converged:
+            print('Chains have converged. Ending sampler early.\nIteration stopped at: {}'.format(sampler.iteration))
             break
         old_tau = tau
 
-    print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
+print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
@@ -298,21 +301,21 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
 truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
 
 # Plot the chains
-# fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
-# for i in range(ndim):
-#     ax = axes[i]
-#     ax.plot(samples[:, :, i], color='k', alpha=0.3)
-#     ax.axhline(truths[i], color='b')
-#     ax.yaxis.set_major_locator(MaxNLocator(5))
-#     ax.set(xlim=[0, len(samples)], ylabel=labels[i])
-#
-# axes[0].set(title='MCMC Chains')
-# axes[-1].set(xlabel='Steps')
-#
-# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-#             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_sepback.pdf'
-#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-#             format='pdf')
+fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
+for i in range(ndim):
+    ax = axes[i]
+    ax.plot(samples[:, :, i], color='k', alpha=0.3)
+    ax.axhline(truths[i], color='b')
+    ax.yaxis.set_major_locator(MaxNLocator(5))
+    ax.set(xlim=[0, len(samples)], ylabel=labels[i])
+
+axes[0].set(title='MCMC Chains')
+axes[-1].set(xlabel='Steps')
+
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+            'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_flat.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
+            format='pdf')
 
 # Calculate the autocorrelation time
 tau = np.mean(sampler.get_autocorr_time())
@@ -322,19 +325,19 @@ if not np.isnan(tau):
     burnin = int(3 * tau)
 
     # We will also thin by roughly half our autocorrelation time
-    thinning = tau // 2
+    thinning = int(tau // 2)
 else:
-    burnin = nsteps // 3
+    burnin = int(nsteps // 3)
     thinning = 1
 
 flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 
-# # Produce the corner plot
-# fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
-# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-#             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_maxr{maxr}_sepback.pdf'
-#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius),
-#             format='pdf')
+# Produce the corner plot
+fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+            'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_flat.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
+            format='pdf')
 
 for i in range(ndim):
     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
@@ -342,7 +345,7 @@ for i in range(ndim):
     print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
           .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
 
-print('Mean acceptance fraction: {}'.format(np.mean(sampler.acceptance_fraction)))
+print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
 
 # Get estimate of autocorrelation time
-print('Autocorrelation time: {}'.format(tau))
+print('Autocorrelation time: {:.1f}'.format(tau))
