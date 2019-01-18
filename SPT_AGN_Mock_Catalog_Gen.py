@@ -9,6 +9,8 @@ from __future__ import print_function, division
 
 from itertools import product
 
+from os import listdir
+
 import astropy.units as u
 import matplotlib
 import matplotlib.pyplot as plt
@@ -163,25 +165,14 @@ num_bins = 50
 # For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
 # Set the pixel scale and size of the image
 pixel_scale = 0.000239631 * u.deg  # Standard pixel scale for SPT IRAC images (0.8626716 arcsec)
-mask_size = Dx * u.arcmin / pixel_scale.to(u.arcmin)
 
 # Make the mask data
-mask_data = np.ones(shape=(round(mask_size.value), round(mask_size.value)))
+# For our masks, we will co-op the masks for the real clusters.
+mask_dir = 'Data/Masks/'
+masks_files = [f for f in listdir(mask_dir) if not f.startswith('.')]
 
-# Create a header with a dummy WCS
-w = WCS(naxis=2)
-w.wcs.crpix = [mask_size.value // 2., mask_size.value // 2.]
-w.wcs.cdelt = np.array([-pixel_scale.value, pixel_scale.value])
-w.wcs.crval = [0., 0.]
-w.wcs.ctype = ['RA---TAN', 'DEC--TAN']
-mask_header = w.to_header()
-
-# Create an HDU
-mask_hdu = fits.PrimaryHDU(data=mask_data, header=mask_header)
-
-# Write the mask to disk
-mask_file = 'Data/MCMC/Mock_Catalog/mock_flat_mask.fits'
-mask_hdu.writeto(mask_file, overwrite=True)
+# Select a number of masks at random
+masks_bank = [mask_dir + masks_files[i] for i in np.random.randint(n_cl, size=n_cl)]
 
 # Set up grid of radial positions (normalized by r500)
 r_dist_r500 = np.linspace(0, max_radius, 100)
@@ -192,8 +183,7 @@ z_dist = np.random.uniform(0.5, 1.7, n_cl)
 
 # Create cluster names
 name_bank = ['SPT_Mock_{:03d}'.format(i) for i in range(n_cl)]
-SPT_data = Table([name_bank, z_dist, mass_dist], names=['SPT_ID', 'REDSHIFT', 'M500'])
-SPT_data['MASK_NAME'] = mask_file
+SPT_data = Table([name_bank, z_dist, mass_dist, masks_bank], names=['SPT_ID', 'REDSHIFT', 'M500', 'MASK_NAME'])
 
 # We'll need the r500 radius for each cluster too.
 SPT_data['r500'] = (3 * SPT_data['M500'] * u.Msun /
@@ -243,13 +233,15 @@ for cluster in cluster_sample:
     cluster_y_final = cluster_agn_coords[1][np.where(prob_reject >= alpha)]
 
     # Generate background sources
-    background_rate = C_true #/ u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
+    background_rate = C_true
     background_coords = poisson_point_process(background_rate, Dx)
     # print('Number of background sources in cluster {id}: {back_ct}'.format(id=spt_id, back_ct=len(background_coords[0])))
 
     # Concatenate the cluster sources with the background sources
     x_final = np.concatenate((cluster_x_final, background_coords[0]))
     y_final = np.concatenate((cluster_y_final, background_coords[1]))
+    # TODO Convert arcmin coords to pixel coords then using the mask's WCS into RA/Dec. Then use/modify the selection
+    #  pipeline's mask checking function to remove any object that is in a bad region of the mask.
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
     r_final_arcmin = np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
@@ -284,7 +276,7 @@ for cluster in cluster_sample:
         # the same mask. If we source from real masks we'll need to move this up into the loop.)
         # For our center set a dummy center at (0,0)
         SZ_center = AGN_list['SZ_RA', 'SZ_DEC'][0]
-        gpf, pixel_area = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_file, SZ_center)
+        gpf, pixel_area = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_name, SZ_center)
 
         # Scale our area by the good pixel fraction
         scaled_area = area * gpf
