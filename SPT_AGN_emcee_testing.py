@@ -154,7 +154,7 @@ def lnprior(param):
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= 1: #np.inf:
+    if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
