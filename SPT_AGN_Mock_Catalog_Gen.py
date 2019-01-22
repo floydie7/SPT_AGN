@@ -334,7 +334,7 @@ for cluster in cluster_sample:
 outAGN = vstack(AGN_cats)
 
 # Reorder the columns in the cluster for ascetic reasons.
-outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC' 'REDSHIFT', 'M500', 'r500',
+outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC', 'REDSHIFT', 'M500', 'r500',
                 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
