@@ -7,6 +7,7 @@ Using our Bayesian model, generates a mock catalog to use in testing the limitat
 
 from __future__ import print_function, division
 
+import re
 from itertools import product
 
 from os import listdir
@@ -15,6 +16,7 @@ import astropy.units as u
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, vstack
@@ -167,9 +169,14 @@ num_bins = 50
 pixel_scale = 0.000239631 * u.deg  # Standard pixel scale for SPT IRAC images (0.8626716 arcsec)
 
 # Make the mask data
+bocquet = Table.read('Data/2500d_cluster_sample_Bocquet18.fits')  # For SZ centers
+
 # For our masks, we will co-op the masks for the real clusters.
 mask_dir = 'Data/Masks/'
 masks_files = [f for f in listdir(mask_dir) if not f.startswith('.')]
+
+# Make sure all the masks have matches in the catalog
+masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[:-1] in bocquet['SPT_ID']]
 
 # Select a number of masks at random
 masks_bank = [mask_dir + masks_files[i] for i in np.random.randint(n_cl, size=n_cl)]
@@ -235,101 +242,127 @@ for cluster in cluster_sample:
     # Generate background sources
     background_rate = C_true
     background_coords = poisson_point_process(background_rate, Dx)
-    # print('Number of background sources in cluster {id}: {back_ct}'.format(id=spt_id, back_ct=len(background_coords[0])))
 
     # Concatenate the cluster sources with the background sources
-    x_final = np.concatenate((cluster_x_final, background_coords[0]))
-    y_final = np.concatenate((cluster_y_final, background_coords[1]))
-    # TODO Convert arcmin coords to pixel coords then using the mask's WCS into RA/Dec. Then use/modify the selection
-    #  pipeline's mask checking function to remove any object that is in a bad region of the mask.
+    cluster_back_x = np.concatenate((cluster_x_final, background_coords[0]))
+    cluser_back_y = np.concatenate((cluster_y_final, background_coords[1]))
+
+    # Convert the coordinates from angular units into pixel units
+    mask_pixel_scale = fits.getval(mask_name, 'PXSCAL2') * u.arcsec
+    cluser_back_x_pix = cluster_back_x * u.arcmin / mask_pixel_scale.to(u.arcmin)
+    cluster_back_y_pix = cluser_back_y * u.arcmin / mask_pixel_scale.to(u.arcmin)
+
+    # Find the SZ Center for the cluster we are mimicking
+    cluster_id = re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1]
+    SZ_center = bocquet['RA', 'DEC'][np.where(bocquet['SPT_ID'] == cluster_id)]
+    SZ_center_coord = SkyCoord(SZ_center['RA'], SZ_center['DEC'], unit='deg')
+
+    # Set up the table of objects
+    AGN_list = Table([cluser_back_x_pix, cluster_back_y_pix], names=['x_pixel', 'y_pixel'])
+    AGN_list['SPT_ID'] = spt_id
+    AGN_list['SZ_RA'] = SZ_center['RA']
+    AGN_list['SZ_DEC'] = SZ_center['DEC']
+    AGN_list['M500'] = m500_cl
+    AGN_list['REDSHIFT'] = z_cl
+    AGN_list['r500'] = r500_cl
+    AGN_list['MASK_NAME'] = mask_name
+
+    # Create a flag indicating if the object is a cluster member
+    AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_x_final, True),
+                                              np.full_like(background_coords[0], False)))
+    # print('objects before mask filtering: {}'.format(len(AGN_list)))
+
+    # Read in the mask and check if the object is on a good pixel of the mask
+    mask_image = fits.getdata(mask_name)
+    AGN_list = AGN_list[np.where(mask_image[AGN_list['y_pixel'].round().astype(int),
+                                            AGN_list['x_pixel'].round().astype(int)] == 1)]
+    # print('objects after mask filtering: {}'.format(len(AGN_list)))
+
+    # Convert the pixel coordinates to RA/Dec coordinates
+    w = WCS(mask_name)
+    agn_coords_radec = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
+    AGN_list['RA'] = agn_coords_radec.ra
+    AGN_list['DEC'] = agn_coords_radec.dec
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-    r_final_arcmin = np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
+    r_final_arcmin = SZ_center_coord.separation(agn_coords_radec).to(u.arcmin)
     r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
 
-    if r_final_r500.size != 0:
-        # Create a table of our output objects
-        AGN_list = Table([r_final_arcmin, r_final_r500], names=['radial_arcmin', 'radial_r500'])
-        AGN_list['SPT_ID'] = spt_id
-        AGN_list['SZ_RA'] = 0
-        AGN_list['SZ_DEC'] = 0
-        AGN_list['M500'] = m500_cl
-        AGN_list['REDSHIFT'] = z_cl
-        AGN_list['r500'] = r500_cl
-        AGN_list['MASK_NAME'] = mask_name
+    AGN_list['radial_arcmin'] = r_final_arcmin
+    AGN_list['radial_r500'] = r_final_r500
 
-        # Create a flag indicating if the object is a cluster member
-        AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_x_final, True),
-                                                  np.full_like(background_coords[0], False)))
+    AGN_cats.append(AGN_list)
 
-        AGN_cats.append(AGN_list)
+    # ------- The rest of this loop is dedicated to diagnostics of the sample --------
+    # Create a histogram of the objects in the cluster using evenly spaced bins on radius
+    hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
 
-        # ------- The rest of this loop is dedicated to diagnostics of the sample --------
-        # Create a histogram of the objects in the cluster using evenly spaced bins on radius
-        hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
+    # Compute area in terms of r500^2
+    area_edges = np.pi * bin_edges ** 2
+    area = area_edges[1:len(area_edges)] - area_edges[0:len(area_edges) - 1]
 
-        # Compute area in terms of r500^2
-        area_edges = np.pi * bin_edges ** 2
-        area = area_edges[1:len(area_edges)] - area_edges[0:len(area_edges) - 1]
+    # Calculate the good pixel fraction for each annulus area (We can do this here for now as all mock clusters use
+    # the same mask. If we source from real masks we'll need to move this up into the loop.)
+    # For our center set a dummy center at (0,0)
+    SZ_center = AGN_list['SZ_RA', 'SZ_DEC'][0]
+    gpf, pixel_area = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_name, SZ_center)
 
-        # Calculate the good pixel fraction for each annulus area (We can do this here for now as all mock clusters use
-        # the same mask. If we source from real masks we'll need to move this up into the loop.)
-        # For our center set a dummy center at (0,0)
-        SZ_center = AGN_list['SZ_RA', 'SZ_DEC'][0]
-        gpf, pixel_area = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_name, SZ_center)
+    # Scale our area by the good pixel fraction
+    scaled_area = area * gpf
 
-        # Scale our area by the good pixel fraction
-        scaled_area = area * gpf
+    # Use small-N Poisson error of counts in each bin normalized by the area of the bin
+    count_err = small_poisson(hist)
+    err = [count_err_ul / scaled_area for count_err_ul in count_err]
+    np.nan_to_num(err, copy=False)
 
-        # Use small-N Poisson error of counts in each bin normalized by the area of the bin
-        count_err = small_poisson(hist)
-        err = [count_err_ul / scaled_area for count_err_ul in count_err]
-        np.nan_to_num(err, copy=False)
+    # Calculate the model for this cluster
+    rall = np.linspace(0, max_radius+2, num=100)
+    background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
+    model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
 
-        # Calculate the model for this cluster
-        rall = np.linspace(0, max_radius+2, num=100)
-        background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
-        model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
+    # Drop model values for bins that do not have any area
+    r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
+    model_cl[np.where(rall >= r_zero)] = np.nan
 
-        # Drop model values for bins that do not have any area
-        r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
-        model_cl[np.where(rall >= r_zero)] = np.nan
-
-        # Store the binned data into the dictionaries
-        hist_heights.update({spt_id: hist})
-        hist_scaled_areas.update({spt_id: scaled_area})
-        hist_errors.update({spt_id: err})
-        hist_models.update({spt_id: model_cl})
+    # Store the binned data into the dictionaries
+    hist_heights.update({spt_id: hist})
+    hist_scaled_areas.update({spt_id: scaled_area})
+    hist_errors.update({spt_id: err})
+    hist_models.update({spt_id: model_cl})
 
 # Stack the individual cluster catalogs into a single master catalog
 outAGN = vstack(AGN_cats)
 
 # Reorder the columns in the cluster for ascetic reasons.
-outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500', 'MASK_NAME',
-                'Cluster_AGN']
+outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC' 'REDSHIFT', 'M500', 'r500',
+                'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_sepback_SPPP_arcmin2.cat'
+             '_maxr{maxr:.2f}_seed{seed}_sepback_SPPP_arcmin2_masks.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
 
 # -------- Diagnostic Plots --------
 # AGN Candidates
-# fig, ax = plt.subplots()
-# ax.scatter(cluster_x_final, cluster_y_final, edgecolor='b', facecolor='none', alpha=0.5)
-# ax.scatter(background_coords[0], background_coords[1], edgecolor='r', facecolor='none', alpha=0.5)
-# ax.set_aspect(1.0)
-# ax.set(title='Sample Cluster Line-of-sight Generation',
-#        xlabel=r'$x$ (arcmin)', ylabel=r'$y$ (arcmin)', xlim=[0, Dx], ylim=[0, Dx])
-# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-#             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_sepback.pdf'
-#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-#                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
-#             format='pdf')
+cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
+backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
+fig, ax = plt.subplots(subplot_kw={'projection': w})
+ax.imshow(mask_image, origin='lower', cmap='gray_r')
+ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1., label='Cluster AGN')
+ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1., label='Background AGN')
+ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
+ax.set(title='Sample Cluster Line-of-sight Generation',
+       xlabel='Right Ascension', ylabel='Declination')
+ax.legend(handletextpad=0.001)
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
+            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_sepback.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+                    maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
+            format='pdf')
 
 # Average the cluster histograms
 stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)

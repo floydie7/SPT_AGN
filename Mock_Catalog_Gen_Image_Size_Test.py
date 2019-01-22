@@ -269,7 +269,7 @@ for Dx in [5, 25]:
 
         x_final = agn_coords[0][np.where(prob_reject >= alpha)]
         y_final = agn_coords[1][np.where(prob_reject >= alpha)]
-        # print('Number of points in final selection: {}'.format(len(x_final)))
+        # print('Number of points in final selection: {}'.format(len(cluster_back_x)))
 
         # Calculate the radii of the final AGN scaled by the cluster's r500 radius
         r_final_arcmin = np.sqrt((x_final - Dx / 2.) ** 2 + (y_final - Dx / 2.) ** 2) * u.arcmin
