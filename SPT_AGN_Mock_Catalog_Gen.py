@@ -9,6 +9,7 @@ from __future__ import print_function, division
 
 import re
 from itertools import product
+from time import time
 
 from os import listdir
 
@@ -142,7 +143,7 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 
     return good_pix_frac, pix_area
 
-
+start_time = time()
 # Number of clusters to generate
 n_cl = 195
 
@@ -210,6 +211,11 @@ for cluster in cluster_sample:
     z_cl = cluster['REDSHIFT']
     m500_cl = cluster['M500'] * u.Msun
     r500_cl = cluster['r500'] * u.Mpc
+    # Find the SZ Center for the cluster we are mimicking
+    w = WCS(mask_name)
+    cluster_id = re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1]
+    SZ_center = bocquet['RA', 'DEC'][np.where(bocquet['SPT_ID'] == cluster_id)]
+    SZ_center_coord = SkyCoord(SZ_center['RA'], SZ_center['DEC'], unit='deg')
     # print("---\nCluster Data: z = {z:.2f}, M500 = {m:.2e}, r500 = {r:.2f}".format(z=z_cl, m=m500_cl, r=r500_cl))
 
     # Calculate the model values for the AGN candidates in the cluster
@@ -224,7 +230,9 @@ for cluster in cluster_sample:
     cluster_agn_coords = poisson_point_process(max_rate_arcmin2, Dx)
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
-    radii_arcmin = np.sqrt((cluster_agn_coords[0] - Dx / 2.) ** 2 + (cluster_agn_coords[1] - Dx / 2.) ** 2) * u.arcmin
+    cluster_agn_coords_pix = cluster_agn_coords * u.arcmin / pixel_scale.to(u.arcmin)
+    cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1], wcs=w, origin=0, mode='wcs',)
+    radii_arcmin = SZ_center_coord.separation(cluster_agn_skycoord).to(u.arcmin)
     radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
 
     # Filter the candidates through the model to establish the radial trend in the data.
@@ -252,11 +260,6 @@ for cluster in cluster_sample:
     cluser_back_x_pix = cluster_back_x * u.arcmin / mask_pixel_scale.to(u.arcmin)
     cluster_back_y_pix = cluser_back_y * u.arcmin / mask_pixel_scale.to(u.arcmin)
 
-    # Find the SZ Center for the cluster we are mimicking
-    cluster_id = re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1]
-    SZ_center = bocquet['RA', 'DEC'][np.where(bocquet['SPT_ID'] == cluster_id)]
-    SZ_center_coord = SkyCoord(SZ_center['RA'], SZ_center['DEC'], unit='deg')
-
     # Set up the table of objects
     AGN_list = Table([cluser_back_x_pix, cluster_back_y_pix], names=['x_pixel', 'y_pixel'])
     AGN_list['SPT_ID'] = spt_id
@@ -279,7 +282,7 @@ for cluster in cluster_sample:
     # print('objects after mask filtering: {}'.format(len(AGN_list)))
 
     # Convert the pixel coordinates to RA/Dec coordinates
-    w = WCS(mask_name)
+
     agn_coords_radec = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
     AGN_list['RA'] = agn_coords_radec.ra
     AGN_list['DEC'] = agn_coords_radec.dec
@@ -319,10 +322,12 @@ for cluster in cluster_sample:
     rall = np.linspace(0, max_radius+2, num=100)
     background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
     model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
+    gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
 
     # Drop model values for bins that do not have any area
-    r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
-    model_cl[np.where(rall >= r_zero)] = np.nan
+    # r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
+    # model_cl[np.where(rall >= r_zero)] = np.nan
+    model_cl = model_cl.value / np.insert(gpf_rall, 0, 1.)
 
     # Store the binned data into the dictionaries
     hist_heights.update({spt_id: hist})
@@ -341,7 +346,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_sepback_SPPP_arcmin2_masks.cat'
+             '_maxr{maxr:.2f}_seed{seed}_sepback_SPPP_arcmin2_masks_fixed_radii.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -359,7 +364,7 @@ ax.set(title='Sample Cluster Line-of-sight Generation',
        xlabel='Right Ascension', ylabel='Declination')
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_sepback.pdf'
+            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_sepback_fixed_radii.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')
@@ -407,11 +412,11 @@ ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area_sepback_cluster+background_SPPParcmin2.pdf'
+            '_seed{seed}_model_nan_0area_sepback_cluster+background_SPPParcmin2_model_gpf_test_fixed_radii.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
-
+print('Run time: {:.2f}s'.format(time() - start_time))
 # # Pull 5 random clusters to see how their data compares to their model
 # cluster_ids = np.random.choice(list(hist_heights.keys()), size=5)
 # for cluster_id in cluster_ids:

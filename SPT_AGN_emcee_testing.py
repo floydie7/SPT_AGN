@@ -187,13 +187,13 @@ def lnpost(param):
 
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # Read in the mock catalog
-mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_sepback_SPPP_arcmin2_masks.cat',
+mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_sepback_SPPP_arcmin2_masks_fixed_radii.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
+mask_dict = {cluster_id[0]: fits.getdata(mask_file, header=True) for cluster_id, mask_file
              in zip(mock_catalog_grp.groups.keys.as_array(),
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
@@ -257,8 +257,8 @@ except KeyError:
 
 with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
-    chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_shaped_masks.h5'\
+    chain_file = 'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_shaped_masks_fixed_radii.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)
@@ -302,21 +302,21 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
 truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
 
 # # Plot the chains
-# fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
-# for i in range(ndim):
-#     ax = axes[i]
-#     ax.plot(samples[:, :, i], color='k', alpha=0.3)
-#     ax.axhline(truths[i], color='b')
-#     ax.yaxis.set_major_locator(MaxNLocator(5))
-#     ax.set(xlim=[0, len(samples)], ylabel=labels[i])
-#
-# axes[0].set(title='MCMC Chains')
-# axes[-1].set(xlabel='Steps')
-#
-# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-#             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_shaped_masks.pdf'
-#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
-#             format='pdf')
+fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
+for i in range(ndim):
+    ax = axes[i]
+    ax.plot(samples[:, :, i], color='k', alpha=0.3)
+    ax.axhline(truths[i], color='b')
+    ax.yaxis.set_major_locator(MaxNLocator(5))
+    ax.set(xlim=[0, len(samples)], ylabel=labels[i])
+
+axes[0].set(title='MCMC Chains')
+axes[-1].set(xlabel='Steps')
+
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+            'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_shaped_masks_fixed_radii.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
+            format='pdf')
 
 # Calculate the autocorrelation time
 tau = np.mean(sampler.get_autocorr_time())
@@ -333,12 +333,12 @@ else:
 
 flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 
-# # Produce the corner plot
-# fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
-# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-#             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_shaped_masks.pdf'
-#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
-#             format='pdf')
+# Produce the corner plot
+fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+            'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_shaped_masks_fixed_radii.pdf'
+            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
+            format='pdf')
 
 for i in range(ndim):
     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
