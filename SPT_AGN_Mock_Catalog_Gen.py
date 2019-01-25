@@ -144,6 +144,8 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     return good_pix_frac, pix_area
 
 start_time = time()
+# <editor-fold desc="Parameter Set up">
+
 # Number of clusters to generate
 n_cl = 195
 
@@ -168,7 +170,9 @@ num_bins = 50
 # For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
 # Set the pixel scale and size of the image
 pixel_scale = 0.000239631 * u.deg  # Standard pixel scale for SPT IRAC images (0.8626716 arcsec)
+# </editor-fold>
 
+# <editor-fold desc="Data Generation">
 # Make the mask data
 bocquet = Table.read('Data/2500d_cluster_sample_Bocquet18.fits')  # For SZ centers
 
@@ -196,6 +200,7 @@ SPT_data = Table([name_bank, z_dist, mass_dist, masks_bank], names=['SPT_ID', 'R
 # We'll need the r500 radius for each cluster too.
 SPT_data['r500'] = (3 * SPT_data['M500'] * u.Msun /
                     (4 * np.pi * 500 * cosmo.critical_density(SPT_data['REDSHIFT']).to(u.Msun / u.Mpc**3)))**(1/3)
+# </editor-fold>
 
 cluster_sample = SPT_data
 
@@ -211,28 +216,32 @@ for cluster in cluster_sample:
     z_cl = cluster['REDSHIFT']
     m500_cl = cluster['M500'] * u.Msun
     r500_cl = cluster['r500'] * u.Mpc
-    # Find the SZ Center for the cluster we are mimicking
+
+    # Read in the mask's WCS for the pixel scale and making SkyCoords
     w = WCS(mask_name)
-    cluster_id = re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1]
-    SZ_center = bocquet['RA', 'DEC'][np.where(bocquet['SPT_ID'] == cluster_id)]
-    SZ_center_coord = SkyCoord(SZ_center['RA'], SZ_center['DEC'], unit='deg')
-    # print("---\nCluster Data: z = {z:.2f}, M500 = {m:.2e}, r500 = {r:.2f}".format(z=z_cl, m=m500_cl, r=r500_cl))
+    mask_pixel_scale = fits.getval(mask_name, 'PXSCAL2') * u.arcsec
+
+    # Find the SZ Center for the cluster we are mimicking
+    bocquet_id = re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1]
+    SZ_center = bocquet['RA', 'DEC'][np.where(bocquet['SPT_ID'] == bocquet_id)]
+    SZ_center_skycoord = SkyCoord(SZ_center['RA'], SZ_center['DEC'], unit='deg')
 
     # Calculate the model values for the AGN candidates in the cluster
     model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
-    max_rate = np.max(model_cluster_agn)
+    max_rate = np.max(model_cluster_agn)  # r500^2 units
     max_rate_arcmin2 = max_rate * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2 / r500_cl**2
 
     # Simulate the AGN using the spatial Poisson point process.
     cluster_agn_coords = poisson_point_process(max_rate_arcmin2, Dx)
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
-    cluster_agn_coords_pix = cluster_agn_coords * u.arcmin / pixel_scale.to(u.arcmin)
-    cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1], wcs=w, origin=0, mode='wcs',)
-    radii_arcmin = SZ_center_coord.separation(cluster_agn_skycoord).to(u.arcmin)
+    cluster_agn_coords_pix = cluster_agn_coords * u.arcmin / mask_pixel_scale.to(u.arcmin)
+    cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1],
+                                               wcs=w, origin=0, mode='wcs')
+    radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
     radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
 
     # Filter the candidates through the model to establish the radial trend in the data.
@@ -244,6 +253,7 @@ for cluster in cluster_sample:
     # Draw a random number for each candidate
     alpha = np.random.uniform(0, 1, len(rate_at_rad))
 
+    # Perform the rejection sampling
     cluster_x_final = cluster_agn_coords[0][np.where(prob_reject >= alpha)]
     cluster_y_final = cluster_agn_coords[1][np.where(prob_reject >= alpha)]
 
@@ -256,7 +266,6 @@ for cluster in cluster_sample:
     cluser_back_y = np.concatenate((cluster_y_final, background_coords[1]))
 
     # Convert the coordinates from angular units into pixel units
-    mask_pixel_scale = fits.getval(mask_name, 'PXSCAL2') * u.arcsec
     cluser_back_x_pix = cluster_back_x * u.arcmin / mask_pixel_scale.to(u.arcmin)
     cluster_back_y_pix = cluser_back_y * u.arcmin / mask_pixel_scale.to(u.arcmin)
 
@@ -273,29 +282,26 @@ for cluster in cluster_sample:
     # Create a flag indicating if the object is a cluster member
     AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_x_final, True),
                                               np.full_like(background_coords[0], False)))
-    # print('objects before mask filtering: {}'.format(len(AGN_list)))
 
     # Read in the mask and check if the object is on a good pixel of the mask
     mask_image = fits.getdata(mask_name)
     AGN_list = AGN_list[np.where(mask_image[AGN_list['y_pixel'].round().astype(int),
                                             AGN_list['x_pixel'].round().astype(int)] == 1)]
-    # print('objects after mask filtering: {}'.format(len(AGN_list)))
 
     # Convert the pixel coordinates to RA/Dec coordinates
-
-    agn_coords_radec = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
-    AGN_list['RA'] = agn_coords_radec.ra
-    AGN_list['DEC'] = agn_coords_radec.dec
+    agn_coords_skycoord = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
+    AGN_list['RA'] = agn_coords_skycoord.ra
+    AGN_list['DEC'] = agn_coords_skycoord.dec
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-    r_final_arcmin = SZ_center_coord.separation(agn_coords_radec).to(u.arcmin)
+    r_final_arcmin = SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
     r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
-
     AGN_list['radial_arcmin'] = r_final_arcmin
     AGN_list['radial_r500'] = r_final_r500
 
     AGN_cats.append(AGN_list)
 
+    # <editor-fold desc="Diagnostics">
     # ------- The rest of this loop is dedicated to diagnostics of the sample --------
     # Create a histogram of the objects in the cluster using evenly spaced bins on radius
     hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
@@ -334,6 +340,7 @@ for cluster in cluster_sample:
     hist_scaled_areas.update({spt_id: scaled_area})
     hist_errors.update({spt_id: err})
     hist_models.update({spt_id: model_cl})
+    # </editor-fold>
 
 # Stack the individual cluster catalogs into a single master catalog
 outAGN = vstack(AGN_cats)
@@ -351,6 +358,7 @@ outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
 
+# <editor-fold desc="Diagnostic Plots">
 # -------- Diagnostic Plots --------
 # AGN Candidates
 cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
@@ -459,3 +467,4 @@ print('Run time: {:.2f}s'.format(time() - start_time))
 #                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
 #                         id=cluster_id),
 #                 format='pdf')
+# </editor-fold>
