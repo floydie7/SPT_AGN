@@ -187,7 +187,7 @@ masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[
 masks_bank = [mask_dir + masks_files[i] for i in np.random.randint(n_cl, size=n_cl)]
 
 # Set up grid of radial positions (normalized by r500)
-r_dist_r500 = np.linspace(0, max_radius, 100)
+r_dist_r500 = np.logspace(-2, max_radius, 200)
 
 # Draw mass and redshift distribution from a uniform distribution as well.
 mass_dist = np.random.uniform(0.2e15, 1.8e15, n_cl)
@@ -325,15 +325,15 @@ for cluster in cluster_sample:
     np.nan_to_num(err, copy=False)
 
     # Calculate the model for this cluster
-    rall = np.linspace(0, max_radius+2, num=100)
+    rall = np.logspace(-2, max_radius+2, num=200)
     background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
     model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
-    gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
+    # gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
 
     # Drop model values for bins that do not have any area
-    # r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
-    # model_cl[np.where(rall >= r_zero)] = np.nan
-    model_cl = model_cl.value / np.insert(gpf_rall, 0, 1.)
+    r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
+    model_cl[np.where(rall >= r_zero)] = np.nan
+    # model_cl = model_cl.value / np.insert(gpf_rall, 0, 1.)
 
     # Store the binned data into the dictionaries
     hist_heights.update({spt_id: hist})
@@ -353,7 +353,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_sepback_SPPP_arcmin2_masks_fixed_radii.cat'
+             '_maxr{maxr:.2f}_seed{seed}_logspace_radii.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -361,10 +361,12 @@ outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
 # <editor-fold desc="Diagnostic Plots">
 # -------- Diagnostic Plots --------
 # AGN Candidates
+sz_center_pix = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
 cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
 backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
 fig, ax = plt.subplots(subplot_kw={'projection': w})
 ax.imshow(mask_image, origin='lower', cmap='gray_r')
+ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
 ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1., label='Cluster AGN')
 ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1., label='Background AGN')
 ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
@@ -372,7 +374,7 @@ ax.set(title='Sample Cluster Line-of-sight Generation',
        xlabel='Right Ascension', ylabel='Declination')
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_sepback_fixed_radii.pdf'
+            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_logspace_radii.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')
@@ -397,7 +399,7 @@ bin_edges = np.linspace(0, max_radius, num=num_bins+1)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
 
 # A grid of radii for the model to be plotted on
-rall = np.linspace(0, max_radius+2, 100)
+rall = np.logspace(-2, max_radius+2, 200)
 
 # A quick chi2 fit of the mean model to find the redshift and mass of the "cluster" it corresponds to
 # f = lambda r, z, m: model_rate(z, m*u.Msun, (3 * m*u.Msun / (4 * np.pi * 500 *
@@ -420,7 +422,7 @@ ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area_sepback_cluster+background_SPPParcmin2_model_gpf_test_fixed_radii.pdf'
+            '_seed{seed}_model_nan_0area_logspace_radii.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
