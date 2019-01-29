@@ -206,9 +206,6 @@ C_true = 0.371       # Background AGN surface density
 
 max_radius = 5.0  # Maximum integration radius in r500 units
 
-# Our integration mesh grid
-rall = np.logspace(-2, np.log10(max_radius), num=200)
-
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
@@ -221,6 +218,28 @@ for cluster in mock_catalog_grp.groups:
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     cluster_sz_cent = cluster_sz_cent.as_void()
     cluster_radial_r500 = cluster['radial_r500']
+
+    # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
+    # width is less than 1 pixel width in r500 units.
+    # Get the pixel scale in r500 units
+    w = WCS(mask_dict[cluster_id][1])
+    pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
+                        * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
+
+    # Find the maximum radius in the cluster
+    max_cluster_radius = cluster_radial_r500.max()
+
+    # Generate a logspace mesh from 10^-2 to the max radius
+    rlog = np.logspace(-2, np.log10(max_cluster_radius), num=300)
+
+    # Find the boundary point where the interval width is smaller than the pixel scale
+    lin_log_pt = np.where(np.diff(rlog) < pixel_scale_r500)[0][-1]
+
+    # Generate a linearly spaced mesh from 0 to the boundary point with spacing equal to the pixel scale
+    rlin = np.arange(0, rlog[lin_log_pt], pixel_scale_r500)
+
+    # Join the two radial meshes
+    rall = np.concatenate((rlin, rlog[lin_log_pt+1:]))
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
 
