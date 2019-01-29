@@ -187,7 +187,7 @@ masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[
 masks_bank = [mask_dir + masks_files[i] for i in np.random.randint(n_cl, size=n_cl)]
 
 # Set up grid of radial positions (normalized by r500)
-r_dist_r500 = np.logspace(-2, max_radius, 200)
+r_dist_r500 = np.logspace(-2, np.log10(max_radius), 200)
 
 # Draw mass and redshift distribution from a uniform distribution as well.
 mass_dist = np.random.uniform(0.2e15, 1.8e15, n_cl)
@@ -325,7 +325,7 @@ for cluster in cluster_sample:
     np.nan_to_num(err, copy=False)
 
     # Calculate the model for this cluster
-    rall = np.logspace(-2, max_radius+2, num=200)
+    rall = np.logspace(-2, np.log10(max_radius+2), num=200)
     background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
     model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
     # gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
@@ -399,7 +399,7 @@ bin_edges = np.linspace(0, max_radius, num=num_bins+1)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
 
 # A grid of radii for the model to be plotted on
-rall = np.logspace(-2, max_radius+2, 200)
+rall = np.logspace(-2, np.log10(max_radius+2), 200)
 
 # A quick chi2 fit of the mean model to find the redshift and mass of the "cluster" it corresponds to
 # f = lambda r, z, m: model_rate(z, m*u.Msun, (3 * m*u.Msun / (4 * np.pi * 500 *

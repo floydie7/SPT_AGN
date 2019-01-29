@@ -193,7 +193,7 @@ mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-fin
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id[0]: fits.getdata(mask_file, header=True) for cluster_id, mask_file
+mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
              in zip(mock_catalog_grp.groups.keys.as_array(),
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
@@ -207,7 +207,7 @@ C_true = 0.371       # Background AGN surface density
 max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Our integration mesh grid
-rall = np.logspace(-2, max_radius, num=200)
+rall = np.logspace(-2, np.log10(max_radius), num=200)
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
