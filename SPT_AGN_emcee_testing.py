@@ -63,7 +63,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
     # find the distances from center pixel to all other pixels
     image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
 
-    center_coord = np.array(center_pix) + np.array(width) + 1
+    center_coord = np.array(center_pix) + np.array(width)
     center_coord = center_coord.reshape((1, 2))
 
     image_dists = cdist(image_coords, center_coord).reshape(large_image.shape)
@@ -71,7 +71,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
     # select all pixels that are within the annulus
     good_pix_frac = []
     for j in np.arange(len(r_pix) - 1):
-        pix_ring = large_image[np.where((image_dists >= r_pix[j]) & (image_dists < r_pix[j + 1]))]
+        pix_ring = large_image[np.where((r_pix[j] <= image_dists) & (image_dists < r_pix[j + 1]))]
 
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
@@ -185,7 +185,8 @@ def lnpost(param):
     return lp + lnlike(param)
 
 
-tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
+tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
                           'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_logspace_radii.cat',

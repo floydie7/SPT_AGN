@@ -221,6 +221,10 @@ for cluster in cluster_sample:
     w = WCS(mask_name)
     mask_pixel_scale = fits.getval(mask_name, 'PXSCAL2') * u.arcsec
 
+    # Also get the mask's image size (- 1 to account for the shift between index and length)
+    mask_size_x = fits.getval(mask_name, 'NAXIS1') - 1
+    mask_size_y = fits.getval(mask_name, 'NAXIS2') - 1
+
     # Find the SZ Center for the cluster we are mimicking
     bocquet_id = re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1]
     SZ_center = bocquet['RA', 'DEC'][np.where(bocquet['SPT_ID'] == bocquet_id)]
@@ -231,14 +235,15 @@ for cluster in cluster_sample:
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster.
-    max_rate = np.max(model_cluster_agn)  # r500^2 units
-    max_rate_arcmin2 = max_rate * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2 / r500_cl**2
+    max_rate = np.max(model_cluster_agn)  # r500^-2 units
+    max_rate_inv_pix2 = (max_rate * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2
+                         / r500_cl**2 * mask_pixel_scale.to(u.arcmin)**2)
 
     # Simulate the AGN using the spatial Poisson point process.
-    cluster_agn_coords = poisson_point_process(max_rate_arcmin2, Dx)
+    cluster_agn_coords_pix = poisson_point_process(max_rate_inv_pix2, dx=mask_size_x, dy=mask_size_y)
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
-    cluster_agn_coords_pix = cluster_agn_coords * u.arcmin / mask_pixel_scale.to(u.arcmin)
+    # cluster_agn_coords_pix = cluster_agn_coords * u.arcmin / mask_pixel_scale.to(u.arcmin)
     cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1],
                                                wcs=w, origin=0, mode='wcs')
     radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
@@ -254,23 +259,18 @@ for cluster in cluster_sample:
     alpha = np.random.uniform(0, 1, len(rate_at_rad))
 
     # Perform the rejection sampling
-    cluster_x_final = cluster_agn_coords[0][np.where(prob_reject >= alpha)]
-    cluster_y_final = cluster_agn_coords[1][np.where(prob_reject >= alpha)]
+    cluster_agn_final = cluster_agn_skycoord[np.where(prob_reject >= alpha)]
+    cluster_agn_final_pix = np.array(cluster_agn_final.to_pixel(w, origin=0, mode='wcs'))
 
     # Generate background sources
-    background_rate = C_true
-    background_coords = poisson_point_process(background_rate, Dx)
+    background_rate = C_true / u.arcmin**2 * mask_pixel_scale.to(u.arcmin)**2
+    background_agn_pix = poisson_point_process(background_rate, dx=mask_size_x, dy=mask_size_y)
 
     # Concatenate the cluster sources with the background sources
-    cluster_back_x = np.concatenate((cluster_x_final, background_coords[0]))
-    cluser_back_y = np.concatenate((cluster_y_final, background_coords[1]))
-
-    # Convert the coordinates from angular units into pixel units
-    cluser_back_x_pix = cluster_back_x * u.arcmin / mask_pixel_scale.to(u.arcmin)
-    cluster_back_y_pix = cluser_back_y * u.arcmin / mask_pixel_scale.to(u.arcmin)
+    line_of_sight_agn_pix = np.hstack((cluster_agn_final_pix, background_agn_pix))
 
     # Set up the table of objects
-    AGN_list = Table([cluser_back_x_pix, cluster_back_y_pix], names=['x_pixel', 'y_pixel'])
+    AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1]], names=['x_pixel', 'y_pixel'])
     AGN_list['SPT_ID'] = spt_id
     AGN_list['SZ_RA'] = SZ_center['RA']
     AGN_list['SZ_DEC'] = SZ_center['DEC']
@@ -280,8 +280,8 @@ for cluster in cluster_sample:
     AGN_list['MASK_NAME'] = mask_name
 
     # Create a flag indicating if the object is a cluster member
-    AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_x_final, True),
-                                              np.full_like(background_coords[0], False)))
+    AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
+                                              np.full_like(background_agn_pix[0], False)))
 
     # Read in the mask and check if the object is on a good pixel of the mask
     mask_image = fits.getdata(mask_name)
@@ -353,7 +353,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_logspace_radii.cat'
+             '_maxr{maxr:.2f}_seed{seed}_dynamic_size.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -374,7 +374,7 @@ ax.set(title='Sample Cluster Line-of-sight Generation',
        xlabel='Right Ascension', ylabel='Declination')
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_logspace_radii.pdf'
+            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_dynamic_size.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')
@@ -422,7 +422,7 @@ ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area_logspace_radii.pdf'
+            '_seed{seed}_model_nan_0area_dynamic_size.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
