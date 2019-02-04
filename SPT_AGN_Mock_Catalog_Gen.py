@@ -147,13 +147,13 @@ start_time = time()
 # <editor-fold desc="Parameter Set up">
 
 # Number of clusters to generate
-n_cl = 195
+n_cl = 1
 
 # Dx is set to 5 to mimic an IRAC image's width in arcmin.
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 12     # Amplitude.
+theta_true = 12000     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
 beta_true = 0.5      # Radial slope
@@ -353,7 +353,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_dynamic_size.cat'
+             '_maxr{maxr:.2f}_seed{seed}_dynamic_size_single_cluster.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -374,7 +374,7 @@ ax.set(title='Sample Cluster Line-of-sight Generation',
        xlabel='Right Ascension', ylabel='Declination')
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_dynamic_size.pdf'
+            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_dynamic_size_single_cluster.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')

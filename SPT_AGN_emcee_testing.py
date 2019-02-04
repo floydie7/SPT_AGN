@@ -185,11 +185,11 @@ def lnpost(param):
     return lp + lnlike(param)
 
 
-# tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
-tusker_prefix = ''
+tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_logspace_radii.cat',
+                          'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_dynamic_size.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -230,17 +230,9 @@ for cluster in mock_catalog_grp.groups:
     # Find the maximum radius in the cluster
     max_cluster_radius = cluster_radial_r500.max()
 
-    # Generate a logspace mesh from 10^-2 to the max radius
-    rlog = np.logspace(-2, np.log10(max_cluster_radius), num=300)
-
-    # Find the boundary point where the interval width is smaller than the pixel scale
-    lin_log_pt = np.where(np.diff(rlog) < pixel_scale_r500)[0][-1]
-
-    # Generate a linearly spaced mesh from 0 to the boundary point with spacing equal to the pixel scale
-    rlin = np.arange(0, rlog[lin_log_pt], pixel_scale_r500)
-
-    # Join the two radial meshes
-    rall = np.concatenate((rlin, rlog[lin_log_pt+1:]))
+    # Generate a radial integration mesh with subinterval width of 5 pixels
+    rlin = np.arange(-2., np.log10(max_cluster_radius), step=5*pixel_scale_r500)
+    rall = np.power(10, rlin)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
 
@@ -278,7 +270,7 @@ except KeyError:
 with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
     chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_logspace_radii.h5'\
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_dynamic_size.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)
