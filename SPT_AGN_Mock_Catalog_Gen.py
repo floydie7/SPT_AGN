@@ -112,11 +112,13 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
     # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
     # Find the width needed to pad the image to include the largest radius inside the image.
-    width = (int(np.max(r_pix) - image.shape[0] // 2), int(np.max(r_pix) - image.shape[1] // 2))
+    width = ((int(round(np.max(r_pix.value) - center_pix[1])),
+              int(round(np.max(r_pix.value) - (image.shape[0] - center_pix[1])))),
+             (int(round(np.max(r_pix.value) - center_pix[0])),
+              int(round(np.max(r_pix.value) - (image.shape[1] - center_pix[0])))))
 
     # Insure that we are adding a non-negative padding width.
-    if (width[0] <= 0) or (width[1] <= 0):
-        width = (0, 0)
+    width = tuple(tuple([i if i >= 0 else 0 for i in axis]) for axis in width)
 
     large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
 
@@ -124,12 +126,11 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
 
     # The center pixel's coordinate needs to be transformed into the large image system
-    # We shifted the origin by (x_pad + 1, y_pad + 1). This is the padding width plus 1 for (x, y) = (0, 0).
-    center_coord = np.array(center_pix) + np.array(width) + 1
+    center_coord = np.array(center_pix) + np.array([width[1][0], width[0][0]])
     center_coord = center_coord.reshape((1, 2))
 
     # Compute the distance matrix. The entries are a_ij = sqrt((x_j - cent_x)^2 + (y_i - cent_y)^2)
-    image_dists = cdist(image_coords, center_coord).reshape(large_image.shape)
+    image_dists = cdist(image_coords, np.flip(center_coord)).reshape(large_image.shape)
 
     # select all pixels that are within the annulus
     good_pix_frac = []
@@ -165,7 +166,7 @@ params_true = (theta_true, eta_true, zeta_true, beta_true)
 max_radius = 5.0
 
 # Number of bins to use to plot our sampled data points
-num_bins = 50
+num_bins = 30
 
 # For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
 # Set the pixel scale and size of the image
@@ -304,11 +305,12 @@ for cluster in cluster_sample:
     # <editor-fold desc="Diagnostics">
     # ------- The rest of this loop is dedicated to diagnostics of the sample --------
     # Create a histogram of the objects in the cluster using evenly spaced bins on radius
-    hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=np.linspace(0, max_radius, num=num_bins+1))
+    hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins='auto')
+    num_bins = len(bin_edges-1)
 
     # Compute area in terms of r500^2
     area_edges = np.pi * bin_edges ** 2
-    area = area_edges[1:len(area_edges)] - area_edges[0:len(area_edges) - 1]
+    area = np.diff(area_edges)
 
     # Calculate the good pixel fraction for each annulus area (We can do this here for now as all mock clusters use
     # the same mask. If we source from real masks we'll need to move this up into the loop.)
@@ -325,14 +327,14 @@ for cluster in cluster_sample:
     np.nan_to_num(err, copy=False)
 
     # Calculate the model for this cluster
-    rall = np.logspace(-2, np.log10(max_radius+2), num=200)
+    rall = np.linspace(0, np.max(bin_edges), num=200)
     background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
     model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
     # gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
 
     # Drop model values for bins that do not have any area
-    r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
-    model_cl[np.where(rall >= r_zero)] = np.nan
+    # r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
+    # model_cl[np.where(rall >= r_zero)] = np.nan
     # model_cl = model_cl.value / np.insert(gpf_rall, 0, 1.)
 
     # Store the binned data into the dictionaries
@@ -353,7 +355,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_dynamic_size_single_cluster.cat'
+             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_single_cluster.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -367,17 +369,21 @@ backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
 fig, ax = plt.subplots(subplot_kw={'projection': w})
 ax.imshow(mask_image, origin='lower', cmap='gray_r')
 ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
-ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1., label='Cluster AGN')
-ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1., label='Background AGN')
+ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1.,
+           label='Cluster AGN')
+ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1.,
+           label='Background AGN')
 ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
 ax.set(title='Sample Cluster Line-of-sight Generation',
        xlabel='Right Ascension', ylabel='Declination')
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_dynamic_size_single_cluster.pdf'
+            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_single_cluster.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')
+plt.show()
 
 # Average the cluster histograms
 stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
@@ -395,11 +401,11 @@ stacked_model = np.nanmean(list(hist_models.values()), axis=0)
 stacked_model_err = np.nanstd(list(hist_models.values()), axis=0)
 
 # A grid of radii for the data to be plotted on
-bin_edges = np.linspace(0, max_radius, num=num_bins+1)
+# bin_edges = np.logspace(-2, np.log10(max_radius), num=num_bins+1)
 bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
 
 # A grid of radii for the model to be plotted on
-rall = np.logspace(-2, np.log10(max_radius+2), 200)
+# rall = np.logspace(-2, np.log10(max_radius+2), 200)
 
 # A quick chi2 fit of the mean model to find the redshift and mass of the "cluster" it corresponds to
 # f = lambda r, z, m: model_rate(z, m*u.Msun, (3 * m*u.Msun / (4 * np.pi * 500 *
@@ -422,51 +428,10 @@ ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area_dynamic_size.pdf'
+            '_seed{seed}_model_nan_0area_gpf_fixed_single_cluster.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
+plt.show()
 print('Run time: {:.2f}s'.format(time() - start_time))
-# # Pull 5 random clusters to see how their data compares to their model
-# cluster_ids = np.random.choice(list(hist_heights.keys()), size=5)
-# for cluster_id in cluster_ids:
-#     # Grab the right cluster's histogram height, scaled area, error, and model
-#     cl_hist_height = hist_heights[cluster_id]
-#     cl_scaled_area = hist_scaled_areas[cluster_id]
-#     cl_error = np.array(hist_errors[cluster_id])
-#     cl_model = hist_models[cluster_id]
-#
-#     # For identification purposes grab the cluster's redshift, mass, and r500 for the title of the plot
-#     cl_z = outAGN[outAGN['SPT_ID'] == cluster_id]['REDSHIFT'][0]
-#     cl_m500 = outAGN[outAGN['SPT_ID'] == cluster_id]['M500'][0]
-#     cl_r500 = outAGN[outAGN['SPT_ID'] == cluster_id]['r500'][0]
-#
-#     # Find the largest possible distance on the image that could contain points (the corner).
-#     # This should occur at an angular radius of 3.53 arcmin for a 5'x5' image.
-#     max_r_arcmin = np.sqrt((Dx / 2)**2 + (Dx / 2)**2) * u.arcmin
-#     max_r_Mpc = max_r_arcmin * cosmo.kpc_proper_per_arcmin(cl_z).to(u.Mpc / u.arcmin)
-#     max_r_r500 = max_r_Mpc / (cl_r500 * u.Mpc)
-#
-#     # Now, move the "true" max radius on image to the right-most bin edge.
-#     _, step = np.linspace(0, max_radius, num=num_bins+1, retstep=True)
-#     ext_bin_edges = np.linspace(0, 10, num=num_bins+1+(10. - 1.5)/step)
-#     max_bin_radius = ext_bin_edges[np.where((max_r_r500 <= ext_bin_edges))][0]
-#
-#     fig, ax = plt.subplots()
-#     ax.errorbar(bins, cl_hist_height / cl_scaled_area, yerr=cl_error[::-1, ...], fmt='o', color='C1',
-#                 label='AGN candidates per Scaled Area')
-#     ax.plot(rall, cl_model, color='C0', label='Model')
-#     ax.axvline(x=max_bin_radius, linestyle='--', color='gray', label='Maximum Radius on Image')
-#     ax.set(title='Comparison of Sampled Points to Model\n'
-#                  r'ID: {id}  $z$ = {z:.2f}, $M_{{500}}$ = {m:.2e} $M_\odot$, $r_{{500}}$ = {r:.2f} Mpc'
-#            .format(id=cluster_id, z=cl_z, m=cl_m500, r=cl_r500),
-#            xlabel=r'$r/r_{{500}}$', ylabel=r'Rate [$r_{{500}}^{-2}$]', ylim=[-0.1, 40])
-#     ax.legend()
-#     plt.show()
-#     fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-#                 'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_maxr{maxr:.2f}_nbins{nbins}'
-#                 '_gpf_{id}_sepback.pdf'
-#                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, maxr=max_radius, nbins=num_bins,
-#                         id=cluster_id),
-#                 format='pdf')
 # </editor-fold>

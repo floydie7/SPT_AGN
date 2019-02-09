@@ -52,21 +52,25 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
     # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
     # Find the width needed to pad the image to include the largest radius inside the image.
-    width = (int(np.max(r_pix) - image.shape[0] // 2), int(np.max(r_pix) - image.shape[1] // 2))
+    width = ((int(round(np.max(r_pix) - center_pix[1])),
+              int(round(np.max(r_pix) - (image.shape[0] - center_pix[1])))),
+             (int(round(np.max(r_pix) - center_pix[0])),
+              int(round(np.max(r_pix) - (image.shape[1] - center_pix[0])))))
 
     # Insure that we are adding a non-negative padding width.
-    if (width[0] <= 0) or (width[1] <= 0):
-        width = (0, 0)
+    width = tuple(tuple([i if i >= 0 else 0 for i in axis]) for axis in width)
 
     large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
 
     # find the distances from center pixel to all other pixels
     image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
 
-    center_coord = np.array(center_pix) + np.array(width)
+    # The center pixel's coordinate needs to be transformed into the large image system
+    center_coord = np.array(center_pix) + np.array([width[1][0], width[0][0]])
     center_coord = center_coord.reshape((1, 2))
 
-    image_dists = cdist(image_coords, center_coord).reshape(large_image.shape)
+    # Compute the distance matrix. The entries are a_ij = sqrt((x_j - cent_x)^2 + (y_i - cent_y)^2)
+    image_dists = cdist(image_coords, np.flip(center_coord)).reshape(large_image.shape)
 
     # select all pixels that are within the annulus
     good_pix_frac = []
@@ -154,7 +158,7 @@ def lnprior(param):
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= np.inf:
+    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -199,7 +203,7 @@ mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) f
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
 # Set parameter values
-theta_true = 12    # Amplitude.
+theta_true = 12000    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -223,16 +227,15 @@ for cluster in mock_catalog_grp.groups:
     # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
     # width is less than 1 pixel width in r500 units.
     # Get the pixel scale in r500 units
-    w = WCS(mask_dict[cluster_id][1])
-    pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
-                        * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
+    # w = WCS(mask_dict[cluster_id][1])
+    # pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
+    #                     * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
 
     # Find the maximum radius in the cluster
-    max_cluster_radius = cluster_radial_r500.max()
+    # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
-    # Generate a radial integration mesh with subinterval width of 5 pixels
-    rlin = np.arange(-2., np.log10(max_cluster_radius), step=5*pixel_scale_r500)
-    rall = np.power(10, rlin)
+    # Generate a radial integration mesh
+    rall = np.histogram_bin_edges(cluster_radial_r500, bins='auto')
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
 
