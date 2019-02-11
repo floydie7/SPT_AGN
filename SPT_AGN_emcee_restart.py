@@ -262,8 +262,11 @@ with Pool(processes=ncpus) as pool:
     print('Starting sampler.')
     start_sampler_time = time()
 
+    # Get the previous state so we can restart the chains
+    restart_state = sampler._previous_state
+
     # Sample up to nsteps.
-    for sample in sampler.sample(None, iterations=nsteps):
+    for sample in sampler.sample(restart_state, iterations=nsteps):
         # Only check convergence every 100 steps
         if sampler.iteration % 100:
             continue
