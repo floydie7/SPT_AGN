@@ -193,8 +193,7 @@ tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                                        'mock_AGN_catalog_t12000.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890'
-                                        '_gpf_fixed_single_cluster.cat',
+                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_gpf_fixed_multicluster.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -253,7 +252,7 @@ ndim = 5
 nwalkers = 30
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 100000
+nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
@@ -275,7 +274,7 @@ with Pool(processes=ncpus) as pool:
     # Filename for hd5 backend
     chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
                  'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}' \
-                               '_gpf_fixed_single_cluster.h5'\
+                               '_gpf_fixed_multicluster.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)

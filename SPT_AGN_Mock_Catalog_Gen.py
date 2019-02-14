@@ -148,13 +148,13 @@ start_time = time()
 # <editor-fold desc="Parameter Set up">
 
 # Number of clusters to generate
-n_cl = 1
+n_cl = 195
 
 # Dx is set to 5 to mimic an IRAC image's width in arcmin.
 Dx = 5.  # In arcmin
 
 # Set parameter values
-theta_true = 12000     # Amplitude.
+theta_true = 12     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
 beta_true = 0.5      # Radial slope
@@ -305,7 +305,8 @@ for cluster in cluster_sample:
     # <editor-fold desc="Diagnostics">
     # ------- The rest of this loop is dedicated to diagnostics of the sample --------
     # Create a histogram of the objects in the cluster using evenly spaced bins on radius
-    hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins='auto')
+    radial_bins = np.linspace(0., 5., num=num_bins)
+    hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=radial_bins)
     num_bins = len(bin_edges-1)
 
     # Compute area in terms of r500^2
@@ -333,8 +334,8 @@ for cluster in cluster_sample:
     # gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
 
     # Drop model values for bins that do not have any area
-    # r_zero = np.min(bin_edges[np.where(scaled_area == 0)])
-    # model_cl[np.where(rall >= r_zero)] = np.nan
+    r_zero = np.min(bin_edges[np.where(np.array(gpf) <= 0.5)])
+    model_cl[np.where(rall >= r_zero)] = np.nan
     # model_cl = model_cl.value / np.insert(gpf_rall, 0, 1.)
 
     # Store the binned data into the dictionaries
@@ -355,7 +356,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_single_cluster.cat'
+             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -379,7 +380,7 @@ ax.set(title='Sample Cluster Line-of-sight Generation',
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_single_cluster.pdf'
+            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')
@@ -428,7 +429,7 @@ ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0area_gpf_fixed_single_cluster.pdf'
+            '_seed{seed}_model_nan_0.5gpf_gpf_fixed_multicluster.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
