@@ -205,7 +205,7 @@ mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) f
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
 # Set parameter values
-theta_true = 12000    # Amplitude.
+theta_true = 12.    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
