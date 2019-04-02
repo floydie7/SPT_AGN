@@ -144,6 +144,7 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 
     return good_pix_frac, pix_area
 
+
 start_time = time()
 # <editor-fold desc="Parameter Set up">
 
@@ -167,10 +168,6 @@ max_radius = 5.0
 
 # Number of bins to use to plot our sampled data points
 num_bins = 30
-
-# For a preliminary mask, we will use a perfect 5'x5' image with a dummy WCS
-# Set the pixel scale and size of the image
-pixel_scale = 0.000239631 * u.deg  # Standard pixel scale for SPT IRAC images (0.8626716 arcsec)
 # </editor-fold>
 
 # <editor-fold desc="Data Generation">
@@ -188,7 +185,7 @@ masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[
 masks_bank = [mask_dir + masks_files[i] for i in np.random.randint(n_cl, size=n_cl)]
 
 # Set up grid of radial positions (normalized by r500)
-r_dist_r500 = np.logspace(-2, np.log10(max_radius), 200)
+r_dist_r500 = np.logspace(-2, np.log10(max_radius), 15)
 
 # Draw mass and redshift distribution from a uniform distribution as well.
 mass_dist = np.random.uniform(0.2e15, 1.8e15, n_cl)
@@ -210,7 +207,9 @@ hist_scaled_areas = {}
 hist_errors = {}
 hist_models = {}
 
-AGN_cats = []
+AGN_cats_no_mask = []
+AGN_cats_quarter_mask = []
+AGN_cats_full_mask = []
 for cluster in cluster_sample:
     spt_id = cluster['SPT_ID']
     mask_name = cluster['MASK_NAME']
@@ -284,11 +283,6 @@ for cluster in cluster_sample:
     AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
                                               np.full_like(background_agn_pix[0], False)))
 
-    # Read in the mask and check if the object is on a good pixel of the mask
-    mask_image = fits.getdata(mask_name)
-    AGN_list = AGN_list[np.where(mask_image[AGN_list['y_pixel'].round().astype(int),
-                                            AGN_list['x_pixel'].round().astype(int)] == 1)]
-
     # Convert the pixel coordinates to RA/Dec coordinates
     agn_coords_skycoord = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
     AGN_list['RA'] = agn_coords_skycoord.ra
@@ -300,7 +294,23 @@ for cluster in cluster_sample:
     AGN_list['radial_arcmin'] = r_final_arcmin
     AGN_list['radial_r500'] = r_final_r500
 
-    AGN_cats.append(AGN_list)
+    # Read in the mask and check if the object is on a good pixel of the mask
+    mask_image = fits.getdata(mask_name)
+    AGN_list_full_mask = AGN_list[np.where(mask_image[AGN_list['y_pixel'].round().astype(int),
+                                                      AGN_list['x_pixel'].round().astype(int)] == 1)]
+
+    # 3/4 masking
+    quarter_mask_image = np.ones_like(mask_image)
+    sz_x, sz_y = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
+    quarter_mask_area = quarter_mask_image[int(round(sz_x)):, int(round(sz_y)):]
+    quarter_mask_image[int(round(sz_x)):, int(round(sz_y)):] = np.zeros_like(quarter_mask_area)
+
+    AGN_list_quarter_mask = AGN_list[np.where(quarter_mask_image[AGN_list['y_pixel'].round().astype(int),
+                                                                 AGN_list['x_pixel'].round().astype(int)] == 1)]
+
+    AGN_cats_no_mask.append(AGN_list)
+    AGN_cats_quarter_mask.append(AGN_list_quarter_mask)
+    AGN_cats_full_mask.append(AGN_list_full_mask)
 
     # <editor-fold desc="Diagnostics">
     # ------- The rest of this loop is dedicated to diagnostics of the sample --------
@@ -328,8 +338,8 @@ for cluster in cluster_sample:
     np.nan_to_num(err, copy=False)
 
     # Calculate the model for this cluster
-    rall = np.linspace(0, np.max(bin_edges), num=200)
-    background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
+    rall = np.logspace(-2, np.log10(max_radius), 15)
+    background_rate_r500 = C_true / u.arcmin**2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc)**2 * r500_cl**2
     model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
     # gpf_rall, _ = good_pixel_fraction(rall, z_cl, r500_cl, mask_name, SZ_center)
 
@@ -356,7 +366,7 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster.cat'
+             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
@@ -367,6 +377,7 @@ outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
 sz_center_pix = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
 cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
 backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
+
 fig, ax = plt.subplots(subplot_kw={'projection': w})
 ax.imshow(mask_image, origin='lower', cmap='gray_r')
 ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
@@ -380,7 +391,7 @@ ax.set(title='Sample Cluster Line-of-sight Generation',
 ax.legend(handletextpad=0.001)
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster.pdf'
+            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster_log_nbin15.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
             format='pdf')
@@ -429,7 +440,7 @@ ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0.5gpf_gpf_fixed_multicluster.pdf'
+            '_seed{seed}_model_nan_0.5gpf_gpf_fixed_multicluster_log_nbin15.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')
