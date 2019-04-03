@@ -141,7 +141,7 @@ def lnlike(param):
         nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
+        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - np.trapz(gpf_all * nall * 2*np.pi * rall, rall))
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -236,10 +236,19 @@ for cluster in mock_catalog_grp.groups:
     # Find the maximum radius in the cluster
     # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
+    # Determine the maximum radius we can integrate to while remaining completely on image.
+    mask_image, mask_header = mask_dict[cluster_id]
+    mask_wcs = WCS(mask_header)
+    pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
+    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    max_radius_pix = np.min(cluster_sz_cent_pix)
+    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / (cluster_r500 * u.Mpc)
+
     # Generate a radial integration mesh
-    rall = np.histogram_bin_edges(cluster_radial_r500, bins='auto')
+    rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
+    cluster_gpf_all = np.insert(cluster_gpf_all, 1.)
 
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
                     'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
@@ -265,12 +274,6 @@ index = 0
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
-# Set up multiprocessing pool
-# get number of cpus available to job
-# try:
-#     ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"].split('(')[0])
-# except KeyError:
-#     ncpus = cpu_count()
 
 with MPIPool() as pool:
     if not pool.is_master():

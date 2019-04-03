@@ -295,15 +295,23 @@ for cluster in cluster_sample:
     AGN_list['radial_r500'] = r_final_r500
 
     # Read in the mask and check if the object is on a good pixel of the mask
-    mask_image = fits.getdata(mask_name)
+    mask_image, mask_header = fits.getdata(mask_name, header=True)
     AGN_list_full_mask = AGN_list[np.where(mask_image[AGN_list['y_pixel'].round().astype(int),
                                                       AGN_list['x_pixel'].round().astype(int)] == 1)]
 
+    # split the mask name to generated new files
+    mask_path, mask_file = mask_name[:11], mask_name[11:]
+
+    # no masking
+    no_mask_image = np.ones_like(mask_image)
+    fits.PrimaryHDU(data=no_mask_image, header=mask_header).writeto(mask_path+'no_masks'+mask_file)
+
     # 3/4 masking
-    quarter_mask_image = np.ones_like(mask_image)
+    quarter_mask_image = no_mask_image.copy()
     sz_x, sz_y = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
     quarter_mask_area = quarter_mask_image[int(round(sz_x)):, int(round(sz_y)):]
     quarter_mask_image[int(round(sz_x)):, int(round(sz_y)):] = np.zeros_like(quarter_mask_area)
+    fits.PrimaryHDU(data=quarter_mask_image, header=mask_header).writeto(mask_path + 'quarter_masks' + mask_file)
 
     AGN_list_quarter_mask = AGN_list[np.where(quarter_mask_image[AGN_list['y_pixel'].round().astype(int),
                                                                  AGN_list['x_pixel'].round().astype(int)] == 1)]
@@ -356,17 +364,31 @@ for cluster in cluster_sample:
     # </editor-fold>
 
 # Stack the individual cluster catalogs into a single master catalog
-outAGN = vstack(AGN_cats)
+outAGN_no_mask = vstack(AGN_cats_no_mask)
+outAGN_quarter_mask = vstack(AGN_cats_quarter_mask)
+outAGN_full_mask = vstack(AGN_cats_full_mask)
 
-# Reorder the columns in the cluster for ascetic reasons.
-outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC', 'REDSHIFT', 'M500', 'r500',
-                'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+# # Reorder the columns in the cluster for ascetic reasons.
+# outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC', 'REDSHIFT', 'M500', 'r500',
+#                 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+outAGN_no_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15.cat'
+             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_no_mask.cat'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
+             format='ascii', overwrite=True)
+outAGN_quarter_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_quarter_mask.cat'
+             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
+             format='ascii', overwrite=True)
+outAGN_full_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_full_mask.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
