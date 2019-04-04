@@ -241,7 +241,9 @@ for cluster in mock_catalog_grp.groups:
     mask_wcs = WCS(mask_header)
     pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
     cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    max_radius_pix = np.min(cluster_sz_cent_pix)
+    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
     max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / (cluster_r500 * u.Mpc)
 
     # Generate a radial integration mesh

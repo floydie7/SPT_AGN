@@ -176,7 +176,7 @@ bocquet = Table.read('Data/2500d_cluster_sample_Bocquet18.fits')  # For SZ cente
 
 # For our masks, we will co-op the masks for the real clusters.
 mask_dir = 'Data/Masks/'
-masks_files = [f for f in listdir(mask_dir) if not f.startswith('.')]
+masks_files = [f for f in listdir(mask_dir) if not (f.startswith('.') or f == 'no_masks' or f == 'quarter_masks')]
 
 # Make sure all the masks have matches in the catalog
 masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[:-1] in bocquet['SPT_ID']]
@@ -304,14 +304,14 @@ for cluster in cluster_sample:
 
     # no masking
     no_mask_image = np.ones_like(mask_image)
-    fits.PrimaryHDU(data=no_mask_image, header=mask_header).writeto(mask_path+'no_masks'+mask_file)
+    fits.PrimaryHDU(data=no_mask_image, header=mask_header).writeto(mask_path+'no_masks/'+mask_file, overwrite=True)
 
     # 3/4 masking
     quarter_mask_image = no_mask_image.copy()
     sz_x, sz_y = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
-    quarter_mask_area = quarter_mask_image[int(round(sz_x)):, int(round(sz_y)):]
-    quarter_mask_image[int(round(sz_x)):, int(round(sz_y)):] = np.zeros_like(quarter_mask_area)
-    fits.PrimaryHDU(data=quarter_mask_image, header=mask_header).writeto(mask_path + 'quarter_masks' + mask_file)
+    quarter_mask_area = quarter_mask_image[int(round(sz_x[0])):, int(round(sz_y[0])):]
+    quarter_mask_image[int(round(sz_x[0])):, int(round(sz_y[0])):] = np.zeros_like(quarter_mask_area)
+    fits.PrimaryHDU(data=quarter_mask_image, header=mask_header).writeto(mask_path + 'quarter_masks/' + mask_file, overwrite=True)
 
     AGN_list_quarter_mask = AGN_list[np.where(quarter_mask_image[AGN_list['y_pixel'].round().astype(int),
                                                                  AGN_list['x_pixel'].round().astype(int)] == 1)]
@@ -373,7 +373,11 @@ outAGN_full_mask = vstack(AGN_cats_full_mask)
 #                 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
-      .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
+      .format(param=params_true, cl=len(outAGN_no_mask.group_by('SPT_ID').groups.keys), agn=len(outAGN_no_mask)))
+print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
+      .format(param=params_true, cl=len(outAGN_quarter_mask.group_by('SPT_ID').groups.keys), agn=len(outAGN_quarter_mask)))
+print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
+      .format(param=params_true, cl=len(outAGN_full_mask.group_by('SPT_ID').groups.keys), agn=len(outAGN_full_mask)))
 outAGN_no_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
              '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_no_mask.cat'
@@ -392,7 +396,7 @@ outAGN_full_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
-
+raise SystemExit
 # <editor-fold desc="Diagnostic Plots">
 # -------- Diagnostic Plots --------
 # AGN Candidates
