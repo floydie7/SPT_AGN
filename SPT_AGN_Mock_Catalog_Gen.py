@@ -303,18 +303,26 @@ for cluster in cluster_sample:
     mask_path, mask_file = mask_name[:11], mask_name[11:]
 
     # no masking
+    no_mask_filename = mask_path+'no_masks/'+mask_file
     no_mask_image = np.ones_like(mask_image)
-    fits.PrimaryHDU(data=no_mask_image, header=mask_header).writeto(mask_path+'no_masks/'+mask_file, overwrite=True)
+    fits.PrimaryHDU(data=no_mask_image, header=mask_header).writeto(no_mask_filename, overwrite=True)
 
     # 3/4 masking
+    quarter_mask_filename = mask_path + 'quarter_masks/' + mask_file
     quarter_mask_image = no_mask_image.copy()
     sz_x, sz_y = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
-    quarter_mask_area = quarter_mask_image[int(round(sz_x[0])):, int(round(sz_y[0])):]
-    quarter_mask_image[int(round(sz_x[0])):, int(round(sz_y[0])):] = np.zeros_like(quarter_mask_area)
-    fits.PrimaryHDU(data=quarter_mask_image, header=mask_header).writeto(mask_path + 'quarter_masks/' + mask_file, overwrite=True)
+    quarter_mask_area = quarter_mask_image[int(round(sz_y[0])):, int(round(sz_x[0])):]
+    quarter_mask_image[int(round(sz_y[0])):, int(round(sz_x[0])):] = np.zeros_like(quarter_mask_area)
+    fits.PrimaryHDU(data=quarter_mask_image, header=mask_header).writeto(quarter_mask_filename, overwrite=True)
 
     AGN_list_quarter_mask = AGN_list[np.where(quarter_mask_image[AGN_list['y_pixel'].round().astype(int),
                                                                  AGN_list['x_pixel'].round().astype(int)] == 1)]
+
+    # Overwrite the mask names in the no mask and quarter mask catalogs
+    del AGN_list['MASK_NAME']
+    del AGN_list_quarter_mask['MASK_NAME']
+    AGN_list['MASK_NAME'] = no_mask_filename
+    AGN_list_quarter_mask['MASK_NAME'] = quarter_mask_filename
 
     AGN_cats_no_mask.append(AGN_list)
     AGN_cats_quarter_mask.append(AGN_list_quarter_mask)
@@ -378,25 +386,25 @@ print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total nu
       .format(param=params_true, cl=len(outAGN_quarter_mask.group_by('SPT_ID').groups.keys), agn=len(outAGN_quarter_mask)))
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN_full_mask.group_by('SPT_ID').groups.keys), agn=len(outAGN_full_mask)))
-outAGN_no_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_no_mask.cat'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
-             format='ascii', overwrite=True)
-outAGN_quarter_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_quarter_mask.cat'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
-             format='ascii', overwrite=True)
-outAGN_full_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-             'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_full_mask.cat'
-             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
-             format='ascii', overwrite=True)
-raise SystemExit
+# outAGN_no_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+#              '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_no_mask.cat'
+#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
+#              format='ascii', overwrite=True)
+# outAGN_quarter_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+#              '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_quarter_mask.cat'
+#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
+#              format='ascii', overwrite=True)
+# outAGN_full_mask.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+#              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+#              '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15_full_mask.cat'
+#              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
+#              format='ascii', overwrite=True)
+# raise SystemExit
 # <editor-fold desc="Diagnostic Plots">
 # -------- Diagnostic Plots --------
 # AGN Candidates
@@ -404,24 +412,24 @@ sz_center_pix = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
 cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
 backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
 
-fig, ax = plt.subplots(subplot_kw={'projection': w})
-ax.imshow(mask_image, origin='lower', cmap='gray_r')
-ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
-ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1.,
-           label='Cluster AGN')
-ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1.,
-           label='Background AGN')
-ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
-ax.set(title='Sample Cluster Line-of-sight Generation',
-       xlabel='Right Ascension', ylabel='Declination')
-ax.legend(handletextpad=0.001)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster_log_nbin15.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                    maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
-            format='pdf')
-plt.show()
+# fig, ax = plt.subplots(subplot_kw={'projection': w})
+# ax.imshow(mask_image, origin='lower', cmap='gray_r')
+# ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
+# ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1.,
+#            label='Cluster AGN')
+# ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1.,
+#            label='Background AGN')
+# ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
+# ax.set(title='Sample Cluster Line-of-sight Generation',
+#        xlabel='Right Ascension', ylabel='Declination')
+# ax.legend(handletextpad=0.001)
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
+#             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+#             '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster_log_nbin15.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
+#             format='pdf')
+# plt.show()
 
 # Average the cluster histograms
 stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
@@ -464,12 +472,12 @@ ax.fill_between(rall, y1=stacked_model+stacked_model_err, y2=stacked_model-stack
 ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
        xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
 ax.legend()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-            'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0.5gpf_gpf_fixed_multicluster_log_nbin15.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                    maxr=max_radius, nbins=num_bins, seed=rand_seed),
-            format='pdf')
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+#             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
+#             '_seed{seed}_model_nan_0.5gpf_gpf_fixed_multicluster_log_nbin15.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
+#             format='pdf')
 plt.show()
 print('Run time: {:.2f}s'.format(time() - start_time))
 # </editor-fold>

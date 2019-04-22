@@ -250,7 +250,7 @@ for cluster in mock_catalog_grp.groups:
     rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
-    cluster_gpf_all = np.insert(cluster_gpf_all, 1.)
+    cluster_gpf_all = np.insert(cluster_gpf_all, 0, 1.)
 
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
                     'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
