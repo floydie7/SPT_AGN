@@ -195,8 +195,8 @@ def lnpost(param):
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_gpf_fixed_multicluster_log_nbin15_no_mask.cat',
+mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/masking_tests/'
+                                        'mock_AGN_catalog_t12000.00_e1.20_z-1.00_b0.50_C0.371_seed890_single_cluster_no_mask.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -206,7 +206,7 @@ mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) f
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
 # Set parameter values
-theta_true = 12.    # Amplitude.
+theta_true = 12000.    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -286,8 +286,8 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}' \
-                               '_gpf_fixed_multicluster_log_nbin15_no_mask.h5'\
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}' \
+                               '_single_cluster_log_nbin15_no_mask.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)
