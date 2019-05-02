@@ -134,15 +134,13 @@ def good_pixel_fraction(r, z, r500, image_name, center):
 
     # select all pixels that are within the annulus
     good_pix_frac = []
-    pix_area = []
     for i in np.arange(len(r_pix) - 1):
         pix_ring = large_image[np.where((r_pix[i] <= image_dists) & (image_dists < r_pix[i + 1]))]
 
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
-        pix_area.append(np.sum(pix_ring) * pix_scale * pix_scale)
 
-    return good_pix_frac, pix_area
+    return good_pix_frac
 
 
 start_time = time()
@@ -176,7 +174,7 @@ bocquet = Table.read('Data/2500d_cluster_sample_Bocquet18.fits')  # For SZ cente
 
 # For our masks, we will co-op the masks for the real clusters.
 mask_dir = 'Data/Masks/'
-masks_files = [f for f in listdir(mask_dir) if not f.startswith('.')]
+masks_files = [f for f in listdir(mask_dir) if not f.startswith('.') and f not in ['no_masks', 'quarter_masks']]
 
 # Make sure all the masks have matches in the catalog
 masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[:-1] in bocquet['SPT_ID']]
@@ -206,6 +204,7 @@ hist_heights = {}
 hist_scaled_areas = {}
 hist_errors = {}
 hist_models = {}
+gpfs = {}
 
 AGN_cats = []
 for cluster in cluster_sample:
@@ -281,10 +280,18 @@ for cluster in cluster_sample:
     AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
                                               np.full_like(background_agn_pix[0], False)))
 
-    # Read in the mask and check if the object is on a good pixel of the mask
-    mask_image = fits.getdata(mask_name)
+    # Read in the mask and generate the flat (no) mask version
+    mask_image, mask_header = fits.getdata(mask_name, header=True)
+    no_mask_image = np.ones_like(mask_image)
+
+    # Write the new mask out to disk for use in fitting later
+    fits.PrimaryHDU(no_mask_image, header=mask_header).writeto(mask_dir + 'no_masks/'
+                                                               + re.search('SPT(.+?).fits', mask_name).group(0),
+                                                               overwrite=True)
+
+    # Pass the cluster catalog through the flat mask to insure all objects are on image.
     AGN_list = AGN_list[np.where(mask_image[AGN_list['y_pixel'].round().astype(int),
-                                            AGN_list['x_pixel'].round().astype(int)] == 1)]
+                                               AGN_list['x_pixel'].round().astype(int)] == 1)]
 
     # Convert the pixel coordinates to RA/Dec coordinates
     agn_coords_skycoord = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
@@ -314,7 +321,7 @@ for cluster in cluster_sample:
     # the same mask. If we source from real masks we'll need to move this up into the loop.)
     # For our center set a dummy center at (0,0)
     SZ_center = AGN_list['SZ_RA', 'SZ_DEC'][0]
-    gpf, pixel_area = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_name, SZ_center)
+    gpf = good_pixel_fraction(bin_edges, z_cl, r500_cl, mask_name, SZ_center)
 
     # Scale our area by the good pixel fraction
     scaled_area = area * gpf
@@ -336,6 +343,7 @@ for cluster in cluster_sample:
     # model_cl = model_cl.value / np.insert(gpf_rall, 0, 1.)
 
     # Store the binned data into the dictionaries
+    gpfs.update({spt_id: gpf})
     hist_heights.update({spt_id: hist})
     hist_scaled_areas.update({spt_id: scaled_area})
     hist_errors.update({spt_id: err})
@@ -348,40 +356,48 @@ outAGN = vstack(AGN_cats)
 # Reorder the columns in the cluster for ascetic reasons.
 outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC', 'REDSHIFT', 'M500', 'r500',
                 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+outAGN.remove_rows(np.where(outAGN['SPT_ID']=='SPT_Mock_072'))
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
              'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-             '_maxr{maxr:.2f}_seed{seed}_gpf_fixed_multicluster_log_nbin15.cat'
+             '_maxr{maxr:.2f}_seed{seed}_removed072.cat'
              .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                      maxr=max_radius, nbins=num_bins, seed=rand_seed),
              format='ascii', overwrite=True)
 
 # <editor-fold desc="Diagnostic Plots">
 # -------- Diagnostic Plots --------
-# AGN Candidates
-sz_center_pix = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
-cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
-backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
-fig, ax = plt.subplots(subplot_kw={'projection': w})
-ax.imshow(mask_image, origin='lower', cmap='gray_r')
-ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
-ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1.,
-           label='Cluster AGN')
-ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1.,
-           label='Background AGN')
-ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
-ax.set(title='Sample Cluster Line-of-sight Generation',
-       xlabel='Right Ascension', ylabel='Declination')
-ax.legend(handletextpad=0.001)
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
-            '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-            '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster_log_nbin15.pdf'
-            .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                    maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
-            format='pdf')
-plt.show()
+# # AGN Candidates
+# sz_center_pix = w.wcs_world2pix(AGN_list['SZ_RA'], AGN_list['SZ_DEC'], 0)
+# cluster_agn = AGN_list[np.where(AGN_list['Cluster_AGN'].astype(bool))]
+# backgound_agn = AGN_list[np.where(~AGN_list['Cluster_AGN'].astype(bool))]
+# fig, ax = plt.subplots(subplot_kw={'projection': w})
+# ax.imshow(mask_image, origin='lower', cmap='gray_r')
+# ax.plot(sz_center_pix[0], sz_center_pix[1], 'w+')
+# ax.scatter(cluster_agn['x_pixel'], cluster_agn['y_pixel'], edgecolor='cyan', facecolor='none', alpha=1.,
+#            label='Cluster AGN')
+# ax.scatter(backgound_agn['x_pixel'], backgound_agn['y_pixel'], edgecolor='red', facecolor='none', alpha=1.,
+#            label='Background AGN')
+# ax.coords[0].set_major_formatter('hh:mm:ss.s'); ax.coords[1].set_major_formatter('dd:mm:ss')
+# ax.set(title='Sample Cluster Line-of-sight Generation',
+#        xlabel='Right Ascension', ylabel='Declination')
+# ax.legend(handletextpad=0.001)
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/example_cluster'
+#             '_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+#             '_maxr{maxr:.2f}_seed{seed}_mask{spt_id}_gpf_fixed_multicluster_log_nbin15.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
+#                     maxr=max_radius, nbins=num_bins, seed=rand_seed, spt_id=spt_id),
+#             format='pdf')
+# plt.show()
+
+# Remove cluster 072 since it has an issue
+removal_ids = 'SPT_Mock_072'
+hist_heights.pop(removal_ids)
+hist_errors.pop(removal_ids)
+hist_scaled_areas.pop(removal_ids)
+hist_models.pop(removal_ids)
 
 # Average the cluster histograms
 stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
@@ -422,11 +438,11 @@ ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
 ax.plot(rall, stacked_model, color='C0', label='Model Rate')
 ax.fill_between(rall, y1=stacked_model+stacked_model_err, y2=stacked_model-stacked_model_err, color='C0', alpha=0.2)
 ax.set(title='Comparison of Sampled Points to Model (Stacked Sample)',
-       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
+       xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]', xlim=[0, 2.75], ylim=[0, 100])
 ax.legend()
 fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-            '_seed{seed}_model_nan_0.5gpf_gpf_fixed_multicluster_log_nbin15.pdf'
+            '_seed{seed}_model_nan_0.5gpf_removed072.pdf'
             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
             format='pdf')

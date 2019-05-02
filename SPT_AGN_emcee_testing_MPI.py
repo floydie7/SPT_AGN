@@ -211,7 +211,7 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 5.0  # Maximum integration radius in r500 units
+max_radius = 2.5  # Maximum integration radius in r500 units
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
@@ -237,7 +237,7 @@ for cluster in mock_catalog_grp.groups:
     # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
     # Generate a radial integration mesh
-    rall = np.logspace(-2, np.log10(5.), num=15)
+    rall = np.logspace(-2, np.log10(max_radius), num=15)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
 
