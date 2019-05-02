@@ -195,7 +195,7 @@ tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_gpf_fixed_multicluster_log_nbin15.cat',
+                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_removed072.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -279,10 +279,10 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w30_s1000000_mock_t12.0_e1.2_z-1.0_b0.5_C0.371_maxr5.0_gpf_fixed_multicluster_logbins_1e-2-5_15.h5'\
+                 'emcee_run_w30_s1000000_mock_t12.0_e1.2_z-1.0_b0.5_C0.371_maxr2.5_removed072.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file, name='run_20190426')
+    backend = emcee.backends.HDFBackend(chain_file)
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
