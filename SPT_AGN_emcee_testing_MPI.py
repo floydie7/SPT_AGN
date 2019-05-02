@@ -237,7 +237,7 @@ for cluster in mock_catalog_grp.groups:
     # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
     # Generate a radial integration mesh
-    rall = np.logspace(-2, np.log10(max_radius), num=15)
+    rall = np.logspace(-2, np.log10(max_radius), num=7)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
 
