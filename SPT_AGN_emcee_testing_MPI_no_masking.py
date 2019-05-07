@@ -142,7 +142,7 @@ def lnlike(param):
         nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - np.trapz(gpf_all * nall * 2*np.pi * rall, rall))
+        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -195,18 +195,18 @@ def lnpost(param):
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/masking_tests/'
-                                        'mock_AGN_catalog_t12000.00_e1.20_z-1.00_b0.50_C0.371_seed890_single_cluster_no_mask.cat',
+mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
+                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_all_data_to_5r500.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
-             in zip(mock_catalog_grp.groups.keys.as_array(),
-                    mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
+# mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
+#              in zip(mock_catalog_grp.groups.keys.as_array(),
+#                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
 # Set parameter values
-theta_true = 12000.    # Amplitude.
+theta_true = 12.    # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -215,7 +215,7 @@ C_true = 0.371       # Background AGN surface density
 max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
-print('Generating Good Pixel Fractions.')
+# print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
 catalog_dict = {}
 for cluster in mock_catalog_grp.groups:
@@ -237,29 +237,28 @@ for cluster in mock_catalog_grp.groups:
     # Find the maximum radius in the cluster
     # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
-    # Determine the maximum radius we can integrate to while remaining completely on image.
-    mask_image, mask_header = mask_dict[cluster_id]
-    mask_wcs = WCS(mask_header)
-    pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    # # Determine the maximum radius we can integrate to while remaining completely on image.
+    # mask_image, mask_header = mask_dict[cluster_id]
+    # mask_wcs = WCS(mask_header)
+    # pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
+    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Generate a radial integration mesh
-    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=15)
+    rall = np.logspace(-2, np.log10(max_radius), num=15)
 
-#    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
-#    cluster_gpf_all = np.insert(cluster_gpf_all, 1.)
+    # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
+    cluster_gpf_all = None
 
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
-                    'radial_r500': cluster_radial_r500, 'rall': rall}
+                    'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
 
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
-
-print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
+# print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -286,8 +285,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}' \
-                               '_single_cluster_log_nbin15_no_mask.h5'\
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_all_data_to_5r500.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file)

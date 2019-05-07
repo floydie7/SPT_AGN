@@ -29,6 +29,7 @@ from matplotlib.ticker import MaxNLocator
 from scipy.spatial.distance import cdist
 from schwimmbad import MPIPool
 
+
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
@@ -265,12 +266,6 @@ index = 0
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
-# Set up multiprocessing pool
-# get number of cpus available to job
-# try:
-#     ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"].split('(')[0])
-# except KeyError:
-#     ncpus = cpu_count()
 
 with MPIPool() as pool:
     if not pool.is_master():
