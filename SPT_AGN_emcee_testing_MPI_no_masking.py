@@ -161,13 +161,13 @@ def lnprior(param):
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= np.inf:
+    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and C == C_true:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
-        # C_lnprior = 0.0
+        # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+        C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
@@ -288,7 +288,7 @@ with MPIPool() as pool:
                  'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_all_data_to_5r500.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file)
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
