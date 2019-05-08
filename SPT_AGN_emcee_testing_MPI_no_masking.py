@@ -271,7 +271,7 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = emcee.utils.sample.ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
