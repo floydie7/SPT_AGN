@@ -97,7 +97,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, C = params
+    theta, eta, zeta, beta = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -107,7 +107,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
@@ -127,7 +127,7 @@ def lnlike(param):
     lnlike_list = []
     for cluster_id in catalog_dict.keys():
         # Get the good pixel fraction for this cluster
-        gpf_all = 1.0
+        gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
         # Get the radial positions of the AGN
         radial_r500 = catalog_dict[cluster_id]['radial_r500']
@@ -154,29 +154,29 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta, C = param
+    theta, eta, zeta, beta = param
 
     # Set our hyperparameters
     h_C = 0.371
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= np.inf:
+    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.: # and C == C_true:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+        # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
         # C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
-        C_lnprior = -np.inf
+        # C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior #+ C_lnprior
 
     return total_lnprior
 
@@ -262,7 +262,7 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
+ndim = 4
 nwalkers = 30
 
 # Also, set the number of steps to run the sampler for.
@@ -271,8 +271,8 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
 index = 0
@@ -291,7 +291,7 @@ with MPIPool() as pool:
                                '_data_to_5r500_flat_mask_applied.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_free_int_to_5r500')
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_5r500')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -328,8 +328,10 @@ print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+# truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
+truths = [theta_true, eta_true, zeta_true, beta_true]
 
 # Plot the chains
 # fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
