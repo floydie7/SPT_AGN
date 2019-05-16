@@ -292,7 +292,7 @@ with MPIPool() as pool:
                                '_data_to_5r500_flat_mask_applied.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_max_image_radius')
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_max_image_radius_gpf_on')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
