@@ -248,9 +248,8 @@ for cluster in mock_catalog_grp.groups:
                              np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
     max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
-    # Generate a radial integration mesh. The number of subintervals is relative to having 15 subintervals for the full
-    # radial range of 5r500. This should hopefully insure that no subinterval "threads" between pixels in the masks.
-    rall = np.logspace(-2, np.log10(max_radius_r500), num=int(15 * (max_radius_r500 / max_radius)))
+    # Generate a radial integration mesh.
+    rall = np.logspace(-2, np.log10(max_radius_r500), num=7)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
     # cluster_gpf_all = None
