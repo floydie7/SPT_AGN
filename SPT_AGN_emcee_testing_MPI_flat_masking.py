@@ -36,7 +36,7 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
-
+#%%
 def good_pixel_fraction(r, z, r500, center, cluster_id):
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
@@ -107,16 +107,16 @@ def model_rate_opted(params, cluster_id, r_r500):
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = C_true / u.arcmin**2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2 * r500**2
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
 
     return model.value
 
@@ -135,14 +135,17 @@ def lnlike(param):
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
 
+        # Select only the objects within the same radial limit we are using for integration.
+        radial_r500_maxr = radial_r500[radial_r500 <= np.max(rall)]
+
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, radial_r500)
+        ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
 
         # Compute the full model along the radial direction
         nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all))
+        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -191,7 +194,7 @@ def lnpost(param):
 
     return lp + lnlike(param)
 
-
+#%%
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
@@ -205,7 +208,7 @@ mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
              in zip(mock_catalog_grp.groups.keys.as_array(),
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
-
+#%%
 # Set parameter values
 theta_true = 12.    # Amplitude.
 eta_true = 1.2       # Redshift slope
@@ -214,7 +217,7 @@ zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
 max_radius = 5.0  # Maximum integration radius in r500 units
-
+#%%
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
@@ -260,7 +263,7 @@ for cluster in mock_catalog_grp.groups:
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
-
+#%%
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
@@ -292,7 +295,7 @@ with MPIPool() as pool:
                                '_data_to_5r500_flat_mask_applied.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_max_image_radius_gpf_on')
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_max_image_radius_gpf_on_sum_term_to_max_radius')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.

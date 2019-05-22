@@ -107,16 +107,16 @@ def model_rate_opted(params, cluster_id, r_r500):
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = C_true / u.arcmin**2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2 * r500**2
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
 
     return model.value
 
@@ -127,7 +127,7 @@ def lnlike(param):
     lnlike_list = []
     for cluster_id in catalog_dict.keys():
         # Get the good pixel fraction for this cluster
-        gpf_all = 1.0
+        gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
         # Get the radial positions of the AGN
         radial_r500 = catalog_dict[cluster_id]['radial_r500']
@@ -201,10 +201,10 @@ mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-fin
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
-# mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
-#              in zip(mock_catalog_grp.groups.keys.as_array(),
-#                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
-
+mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
+             in zip(mock_catalog_grp.groups.keys.as_array(),
+                    mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
+#%%
 # Set parameter values
 theta_true = 12.    # Amplitude.
 eta_true = 1.2       # Redshift slope
@@ -237,18 +237,18 @@ for cluster in mock_catalog_grp.groups:
     # Find the maximum radius in the cluster
     # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
-    # # Determine the maximum radius we can integrate to while remaining completely on image.
-    # mask_image, mask_header = mask_dict[cluster_id]
-    # mask_wcs = WCS(mask_header)
-    # pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    # Determine the maximum radius we can integrate to while remaining completely on image.
+    mask_image, mask_header = mask_dict[cluster_id]
+    mask_wcs = WCS(mask_header)
+    pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
+    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
-    # Generate a radial integration mesh
-    rall = np.logspace(-2, np.log10(max_radius), num=15)
+    # Generate a radial integration mesh.
+    rall = np.logspace(-2, np.log10(max_radius_r500), num=7)
 
     # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
     cluster_gpf_all = None
@@ -290,7 +290,7 @@ with MPIPool() as pool:
                  'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_all_data_to_5r500.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed')
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_max_image_radius')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
