@@ -136,7 +136,7 @@ def lnlike(param):
         rall = catalog_dict[cluster_id]['rall']
 
         # Select only the objects within the same radial limit we are using for integration.
-        radial_r500_maxr = radial_r500[radial_r500 <= np.max(rall)]
+        radial_r500_maxr = radial_r500[radial_r500 <= rall[-1]]
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
