@@ -216,7 +216,7 @@ zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
 # max_radius = 5.0  # Maximum integration radius in r500 units
-max_radius_list = np.arange(0., 5.+0.5, 0.5)
+max_radius_list = np.arange(0.5, 5.+0.5, 0.5)
 
 for max_radius_r500 in max_radius_list:
     print('Maximum radius: {}'.format(max_radius_r500))
