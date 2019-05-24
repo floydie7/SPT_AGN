@@ -97,7 +97,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta = params
+    theta, eta, zeta = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -116,7 +116,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
+    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta_true + 0.5) + background
 
     return model.value
 
@@ -266,7 +266,7 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 #%%
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 4
+ndim = 3
 nwalkers = 30
 
 # Also, set the number of steps to run the sampler for.
@@ -275,8 +275,8 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true],
+                               std=[1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
 index = 0
@@ -295,7 +295,7 @@ with MPIPool() as pool:
                                '_data_to_5r500_flat_mask_applied.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_max_image_radius_gpf_on_sum_term_to_max_radius')
+    backend = emcee.backends.HDFBackend(chain_file, name='background_and beta_fixed')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -334,8 +334,8 @@ print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 samples = sampler.get_chain()
 # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
 # truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
-truths = [theta_true, eta_true, zeta_true, beta_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$']
+truths = [theta_true, eta_true, zeta_true]
 
 # Plot the chains
 # fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
