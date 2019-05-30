@@ -6,29 +6,32 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 
-from __future__ import print_function, division
-
 import sys
 from itertools import product
-from multiprocessing import Pool, cpu_count
 from time import time
 
 import astropy.units as u
-import corner
 import emcee
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
-import os
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
-from matplotlib.ticker import MaxNLocator
-from scipy.spatial.distance import cdist
 from schwimmbad import MPIPool
+from mpi_logger import MPIFileHandler
+from scipy.spatial.distance import cdist
+import logging
 
+# Configure logging to write to a file with timestamps at INFO level.
+# initialise the logfile (all processes participate)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+mh = MPIFileHandler('SPT_AGN_emcee_no_masking.log')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+mh.setFormatter(formatter)
+logger.addHandler(mh)
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -38,19 +41,26 @@ cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
 def good_pixel_fraction(r, z, r500, center, cluster_id):
+    logger.info('Starting Good Pixel Function Calculation')
+    logger.debug('Using input parameters: r={r}, z={z}, r500={r500}, center={center}, cluster_id={cluster_id}'
+                 .format(r=r, z=z, r500=r500, center=center, cluster_id=cluster_id))
+
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
 
     # From the WCS get the pixel scale
     pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
+    logger.debug('pix_scale: {}'.format(pix_scale))
 
     # Convert our center into pixel units
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
+    logger.debug('center_pix: {}'.format(center_pix))
 
     # Convert our radius to pixels
     r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
     r_pix = r_pix.value
+    logger.debug('r_pix: {}'.format(r_pix))
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
     # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
@@ -62,6 +72,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
 
     # Insure that we are adding a non-negative padding width.
     width = tuple(tuple([i if i >= 0 else 0 for i in axis]) for axis in width)
+    logger.debug('width={}'.format(width))
 
     large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
 
@@ -71,6 +82,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
     # The center pixel's coordinate needs to be transformed into the large image system
     center_coord = np.array(center_pix) + np.array([width[1][0], width[0][0]])
     center_coord = center_coord.reshape((1, 2))
+    logger.debug('center_coord: {}'.format(center_coord))
 
     # Compute the distance matrix. The entries are a_ij = sqrt((x_j - cent_x)^2 + (y_i - cent_y)^2)
     image_dists = cdist(image_coords, np.flip(center_coord)).reshape(large_image.shape)
@@ -79,10 +91,13 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
     good_pix_frac = []
     for j in np.arange(len(r_pix) - 1):
         pix_ring = large_image[np.where((r_pix[j] <= image_dists) & (image_dists < r_pix[j + 1]))]
+        logger.debug('annulus {idx} good pixel area: {area}'.format(idx=j, area=np.sum(pix_ring)))
+        logger.debug('total number of pixels in annulus {idx}: {pixels}'.format(idx=j, pixels=len(pix_ring)))
 
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
 
+    logger.info('Exiting Good Pixel Fraction with array: {}'.format(good_pix_frac))
     return good_pix_frac
 
 
@@ -96,6 +111,10 @@ def model_rate_opted(params, cluster_id, r_r500):
     :return model: A surface density profile of objects as a function of radius
     """
 
+    logger.info('Starting Model Calculations')
+    logger.debug('Using input parameters: params={params}, cluster_id={cluster_id}, r_r500={r_r500}'
+                 .format(params=params, cluster_id=cluster_id, r_r500=r_r500))
+
     # Unpack our parameters
     theta, eta, zeta, beta = params
 
@@ -103,29 +122,39 @@ def model_rate_opted(params, cluster_id, r_r500):
     z = catalog_dict[cluster_id]['redshift']
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
+    logger.debug('Cluster information: z={z}, m={m}, r500={r500}'.format(z=z, m=m, r500=r500))
 
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
     background = C_true / u.arcmin**2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2 * r500**2
+    logger.debug('background (in r500^-2 units): {}'.format(background))
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
+    logger.debug('Core radius (in r500 units): {}'.format(rc_r500))
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    logger.debug('Cluster factors: {}'.format(a))
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
 
+    logger.info('Exiting Model with array: {}'.format(model.value))
     return model.value
 
 
 # Set our log-likelihood
 def lnlike(param):
+    logger.info('Starting likelihood calculation.')
+    logger.debug('Using input parameters: {}'.format(param))
 
     lnlike_list = []
     for cluster_id in catalog_dict.keys():
+        logger.debug('Computing likelihood for cluster: {}'.format(cluster_id))
+        logger.debug('Cluster information: {}'.format(catalog_dict[cluster_id]))
+
         # Get the good pixel fraction for this cluster
         gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
@@ -147,9 +176,11 @@ def lnlike(param):
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
+        logger.debug('Cluster {id} likelihood value: {like}'.format(id=cluster_id, like=cluster_lnlike))
 
     total_lnlike = np.sum(lnlike_list)
 
+    logger.info('Exiting likelihood function with total likelihood value: {}'.format(total_lnlike))
     return total_lnlike
 
 
@@ -255,6 +286,7 @@ for max_radius_r500 in max_radius_list:
 
         # Generate a radial integration mesh.
         rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
+        logger.debug('Integration mesh: {}'.format(rall))
 
         # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
         cluster_gpf_all = None
@@ -265,6 +297,7 @@ for max_radius_r500 in max_radius_list:
         # Store the cluster dictionary in the master catalog dictionary
         catalog_dict[cluster_id] = cluster_dict
     # print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
+    logger.debug('Catalog Dictionary: {}'.format(catalog_dict))
 
     # Set up our MCMC sampler.
     # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -273,6 +306,8 @@ for max_radius_r500 in max_radius_list:
 
     # Also, set the number of steps to run the sampler for.
     nsteps = int(1e6)
+    logger.debug('Sampler initialization: ndim={ndim}, nwalkers={nwalkers}, nsteps={nsteps}'
+                 .format(ndim=ndim, nwalkers=nwalkers, nsteps=nsteps))
 
     # We will initialize our walkers in a tight ball near the initial parameter values.
     # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
@@ -286,6 +321,7 @@ for max_radius_r500 in max_radius_list:
     old_tau = np.inf  # For convergence
 
     with MPIPool() as pool:
+        logger.info('Entering MPI pool and beginning sampling.')
         if not pool.is_master():
             pool.wait()
             sys.exit(0)
@@ -314,6 +350,7 @@ for max_radius_r500 in max_radius_list:
             if sampler.iteration % 100:
                 continue
 
+            logger.info('Convergence Check. Sampler at iteration: {}'.format(sampler.iteration))
             # Compute the autocorrelation time so far.
             # Using tol = 0 means we will always get an estimate even if it isn't trustworthy
             tau = sampler.get_autocorr_time(tol=0)
