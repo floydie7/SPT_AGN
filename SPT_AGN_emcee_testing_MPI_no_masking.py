@@ -247,179 +247,178 @@ zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
 # max_radius = 5.0  # Maximum integration radius in r500 units
-max_radius_list = np.arange(0.5, 5.+0.5, 0.5)
+max_radius_r500 = sys.argv[1]
+print('Maximum radius: {}'.format(max_radius_r500))
 
-for max_radius_r500 in max_radius_list:
-    print('Maximum radius: {}'.format(max_radius_r500))
-    # Compute the good pixel fractions for each cluster and store the array in the catalog.
-    # print('Generating Good Pixel Fractions.')
-    start_gpf_time = time()
-    catalog_dict = {}
-    for cluster in mock_catalog_grp.groups:
-        cluster_id = cluster['SPT_ID'][0]
-        cluster_z = cluster['REDSHIFT'][0]
-        cluster_m500 = cluster['M500'][0] * u.Msun
-        cluster_r500 = cluster['r500'][0] * u.Mpc
-        cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
-        cluster_sz_cent = cluster_sz_cent.as_void()
-        cluster_radial_r500 = cluster['radial_r500']
+# Compute the good pixel fractions for each cluster and store the array in the catalog.
+# print('Generating Good Pixel Fractions.')
+start_gpf_time = time()
+catalog_dict = {}
+for cluster in mock_catalog_grp.groups:
+    cluster_id = cluster['SPT_ID'][0]
+    cluster_z = cluster['REDSHIFT'][0]
+    cluster_m500 = cluster['M500'][0] * u.Msun
+    cluster_r500 = cluster['r500'][0] * u.Mpc
+    cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+    cluster_sz_cent = cluster_sz_cent.as_void()
+    cluster_radial_r500 = cluster['radial_r500']
 
-        # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
-        # width is less than 1 pixel width in r500 units.
-        # Get the pixel scale in r500 units
-        # w = WCS(mask_dict[cluster_id][1])
-        # pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
-        #                     * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
+    # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
+    # width is less than 1 pixel width in r500 units.
+    # Get the pixel scale in r500 units
+    # w = WCS(mask_dict[cluster_id][1])
+    # pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
+    #                     * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
 
-        # Find the maximum radius in the cluster
-        # max_cluster_radius = cluster_radial_r500.max() + 0.5
+    # Find the maximum radius in the cluster
+    # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
-        # Determine the maximum radius we can integrate to while remaining completely on image.
-        # mask_image, mask_header = mask_dict[cluster_id]
-        # mask_wcs = WCS(mask_header)
-        # pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-        # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-        # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-        #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-        #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-        # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    # Determine the maximum radius we can integrate to while remaining completely on image.
+    # mask_image, mask_header = mask_dict[cluster_id]
+    # mask_wcs = WCS(mask_header)
+    # pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
+    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
-        # Generate a radial integration mesh.
-        rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
-        logger.debug('Integration mesh: {}'.format(rall))
+    # Generate a radial integration mesh.
+    rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
+    logger.debug('Integration mesh: {}'.format(rall))
 
-        # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
-        cluster_gpf_all = None
+    # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
+    cluster_gpf_all = None
 
-        cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
-                        'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
+    cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
+                    'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
 
-        # Store the cluster dictionary in the master catalog dictionary
-        catalog_dict[cluster_id] = cluster_dict
-    # print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
-    logger.debug('Catalog Dictionary: {}'.format(catalog_dict))
+    # Store the cluster dictionary in the master catalog dictionary
+    catalog_dict[cluster_id] = cluster_dict
+# print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
+logger.debug('Catalog Dictionary: {}'.format(catalog_dict))
 
-    # Set up our MCMC sampler.
-    # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-    ndim = 4
-    nwalkers = 24
+# Set up our MCMC sampler.
+# Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
+ndim = 4
+nwalkers = 24
 
-    # Also, set the number of steps to run the sampler for.
-    nsteps = int(1e6)
-    logger.debug('Sampler initialization: ndim={ndim}, nwalkers={nwalkers}, nsteps={nsteps}'
-                 .format(ndim=ndim, nwalkers=nwalkers, nsteps=nsteps))
+# Also, set the number of steps to run the sampler for.
+nsteps = int(1e6)
+logger.debug('Sampler initialization: ndim={ndim}, nwalkers={nwalkers}, nsteps={nsteps}'
+             .format(ndim=ndim, nwalkers=nwalkers, nsteps=nsteps))
 
-    # We will initialize our walkers in a tight ball near the initial parameter values.
-    # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-    #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-    pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
-                                   std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
+# We will initialize our walkers in a tight ball near the initial parameter values.
+# pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
+#                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
-    # Set up the autocorrelation and convergence variables
-    index = 0
-    autocorr = np.empty(nsteps)
-    old_tau = np.inf  # For convergence
+# Set up the autocorrelation and convergence variables
+index = 0
+autocorr = np.empty(nsteps)
+old_tau = np.inf  # For convergence
 
-    with MPIPool() as pool:
-        logger.info('Entering MPI pool and beginning sampling.')
-        if not pool.is_master():
-            pool.wait()
-            sys.exit(0)
+with MPIPool() as pool:
+    logger.info('Entering MPI pool and beginning sampling.')
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
 
-        # Filename for hd5 backend
-        chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                     'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_all_data_to_5r500.h5'\
-            .format(nwalkers=nwalkers, nsteps=nsteps,
-                    theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-        backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_{}r500'.format(max_radius_r500))
-        backend.reset(nwalkers, ndim)
+    # Filename for hd5 backend
+    chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
+                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_all_data_to_5r500.h5'\
+        .format(nwalkers=nwalkers, nsteps=nsteps,
+                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_{}r500'.format(max_radius_r500))
+    backend.reset(nwalkers, ndim)
 
-        # Stretch move proposal. Manually specified to tune the `a` parameter.
-        moves = emcee.moves.StretchMove(a=2.75)
+    # Stretch move proposal. Manually specified to tune the `a` parameter.
+    moves = emcee.moves.StretchMove(a=2.75)
 
-        # Initialize the sampler
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, moves=moves, pool=pool)
+    # Initialize the sampler
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, moves=moves, pool=pool)
 
-        # Run the sampler.
-        print('Starting sampler.')
-        start_sampler_time = time()
+    # Run the sampler.
+    print('Starting sampler.')
+    start_sampler_time = time()
 
-        # Sample up to nsteps.
-        for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
-            # Only check convergence every 100 steps
-            if sampler.iteration % 100:
-                continue
+    # Sample up to nsteps.
+    for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
+        # Only check convergence every 100 steps
+        if sampler.iteration % 100:
+            continue
 
-            logger.info('Convergence Check. Sampler at iteration: {}'.format(sampler.iteration))
-            # Compute the autocorrelation time so far.
-            # Using tol = 0 means we will always get an estimate even if it isn't trustworthy
-            tau = sampler.get_autocorr_time(tol=0)
-            autocorr[index] = np.mean(tau)
-            index += 1
+        logger.info('Convergence Check. Sampler at iteration: {}'.format(sampler.iteration))
+        # Compute the autocorrelation time so far.
+        # Using tol = 0 means we will always get an estimate even if it isn't trustworthy
+        tau = sampler.get_autocorr_time(tol=0)
+        autocorr[index] = np.mean(tau)
+        index += 1
 
-            # Check convergence
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-            if converged:
-                print('Chains have converged. Ending sampler early.\nIteration stopped at: {}'.format(sampler.iteration))
-                break
-            old_tau = tau
+        # Check convergence
+        converged = np.all(tau * 100 < sampler.iteration)
+        converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+        if converged:
+            print('Chains have converged. Ending sampler early.\nIteration stopped at: {}'.format(sampler.iteration))
+            break
+        old_tau = tau
 
-    print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
+print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
-    # Get the chain from the sampler
-    samples = sampler.get_chain()
-    # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-    # truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
-    labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
-    truths = [theta_true, eta_true, zeta_true, beta_true]
+# Get the chain from the sampler
+samples = sampler.get_chain()
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+# truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
+truths = [theta_true, eta_true, zeta_true, beta_true]
 
-    # Plot the chains
-    # fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
-    # for i in range(ndim):
-    #     ax = axes[i]
-    #     ax.plot(samples[:, :, i], color='k', alpha=0.3)
-    #     ax.axhline(truths[i], color='b')
-    #     ax.yaxis.set_major_locator(MaxNLocator(5))
-    #     ax.set(xlim=[0, len(samples)], ylabel=labels[i])
-    #
-    # axes[0].set(title='MCMC Chains')
-    # axes[-1].set(xlabel='Steps')
-    #
-    # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-    #             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_logspace_radii.pdf'
-    #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
-    #             format='pdf')
+# Plot the chains
+# fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
+# for i in range(ndim):
+#     ax = axes[i]
+#     ax.plot(samples[:, :, i], color='k', alpha=0.3)
+#     ax.axhline(truths[i], color='b')
+#     ax.yaxis.set_major_locator(MaxNLocator(5))
+#     ax.set(xlim=[0, len(samples)], ylabel=labels[i])
+#
+# axes[0].set(title='MCMC Chains')
+# axes[-1].set(xlabel='Steps')
+#
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+#             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_logspace_radii.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
+#             format='pdf')
 
-    # Calculate the autocorrelation time
-    tau = np.mean(sampler.get_autocorr_time())
+# Calculate the autocorrelation time
+tau = np.mean(sampler.get_autocorr_time())
 
-    # Remove the burn-in. We'll use ~3x the autocorrelation time
-    if not np.isnan(tau):
-        burnin = int(3 * tau)
+# Remove the burn-in. We'll use ~3x the autocorrelation time
+if not np.isnan(tau):
+    burnin = int(3 * tau)
 
-        # We will also thin by roughly half our autocorrelation time
-        thinning = int(tau // 2)
-    else:
-        burnin = int(nsteps // 3)
-        thinning = 1
+    # We will also thin by roughly half our autocorrelation time
+    thinning = int(tau // 2)
+else:
+    burnin = int(nsteps // 3)
+    thinning = 1
 
-    flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
+flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 
-    # Produce the corner plot
-    # fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
-    # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-    #             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_logspace_radii.pdf'
-    #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
-    #             format='pdf')
+# Produce the corner plot
+# fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+# fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
+#             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}_logspace_radii.pdf'
+#             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
+#             format='pdf')
 
-    for i in range(ndim):
-        mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-        q = np.diff(mcmc)
-        print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
-              .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
+for i in range(ndim):
+    mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+    q = np.diff(mcmc)
+    print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
+          .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
 
-    print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
+print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
 
-    # Get estimate of autocorrelation time
-    print('Autocorrelation time: {:.1f}'.format(tau))
+# Get estimate of autocorrelation time
+print('Autocorrelation time: {:.1f}'.format(tau))
