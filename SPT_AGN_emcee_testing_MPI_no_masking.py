@@ -326,8 +326,7 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_all_data_to_5r500.h5'\
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_all_data_to_5r500.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_{}r500'.format(max_radius_r500))
