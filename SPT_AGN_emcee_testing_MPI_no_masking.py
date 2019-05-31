@@ -12,6 +12,7 @@ from time import time
 
 import astropy.units as u
 import emcee
+import logging
 import matplotlib
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -20,9 +21,9 @@ from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
 from schwimmbad import MPIPool
-from mpi_logger import MPIFileHandler
 from scipy.spatial.distance import cdist
-import logging
+
+from mpi_logger import MPIFileHandler
 
 # Configure logging to write to a file with timestamps at INFO level.
 # initialise the logfile (all processes participate)
@@ -247,7 +248,7 @@ zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
 # max_radius = 5.0  # Maximum integration radius in r500 units
-max_radius_r500 = sys.argv[1]
+max_radius_r500 = float(sys.argv[1])
 print('Maximum radius: {}'.format(max_radius_r500))
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
