@@ -304,6 +304,10 @@ for cluster in mock_catalog_grp.groups:
 # print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 logger.debug('Catalog Dictionary: {}'.format(catalog_dict))
 
+# Remove cluster 072
+del cluster_dict['SPT_Mock_072']
+
+#%%
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
