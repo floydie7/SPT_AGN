@@ -290,7 +290,7 @@ for cluster in mock_catalog_grp.groups:
     max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Generate a radial integration mesh.
-    rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
+    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=15)
     logger.debug('Integration mesh: {}'.format(rall))
 
     # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
