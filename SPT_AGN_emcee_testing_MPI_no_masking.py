@@ -20,22 +20,22 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
-from schwimmbad import MPIPool
+# from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
 
-from mpi_logger import MPIFileHandler
+# from mpi_logger import MPIFileHandler
 
 # Configure logging to write to a file with timestamps at INFO level.
 # initialise the logfile (all processes participate)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler('SPT_AGN_emcee_no_masking.log')
-fh.setFormatter(formatter)
-mh = MPIFileHandler('SPT_AGN_emcee_no_masking.log')
-mh.setFormatter(formatter)
-logger.addHandler(fh)
-logger.addHandler(mh)
+# logger.setLevel(logging.INFO)
+# formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+# fh = logging.FileHandler('SPT_AGN_emcee_no_masking.log')
+# fh.setFormatter(formatter)
+# mh = MPIFileHandler('SPT_AGN_emcee_no_masking.log')
+# mh.setFormatter(formatter)
+# logger.addHandler(fh)
+# logger.addHandler(mh)
 
 
 # Set matplotlib parameters
@@ -305,7 +305,7 @@ for cluster in mock_catalog_grp.groups:
 logger.debug('Catalog Dictionary: {}'.format(catalog_dict))
 
 # Remove cluster 072
-del cluster_dict['SPT_Mock_072']
+del catalog_dict['SPT_Mock_072']
 
 #%%
 # Set up our MCMC sampler.
