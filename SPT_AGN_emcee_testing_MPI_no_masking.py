@@ -29,10 +29,14 @@ from mpi_logger import MPIFileHandler
 # initialise the logfile (all processes participate)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-mh = MPIFileHandler('SPT_AGN_emcee_no_masking.log')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+fh = logging.FileHandler('SPT_AGN_emcee_no_masking.log')
+fh.setFormatter(formatter)
+mh = MPIFileHandler('SPT_AGN_emcee_no_masking.log')
 mh.setFormatter(formatter)
+logger.addHandler(fh)
 logger.addHandler(mh)
+
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -42,7 +46,7 @@ cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
 def good_pixel_fraction(r, z, r500, center, cluster_id):
-    logger.info('Starting Good Pixel Function Calculation')
+    logger.debug('Starting Good Pixel Function Calculation')
     logger.debug('Using input parameters: r={r}, z={z}, r500={r500}, center={center}, cluster_id={cluster_id}'
                  .format(r=r, z=z, r500=r500, center=center, cluster_id=cluster_id))
 
@@ -98,7 +102,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id):
         # Calculate the fraction
         good_pix_frac.append(np.sum(pix_ring) / len(pix_ring))
 
-    logger.info('Exiting Good Pixel Fraction with array: {}'.format(good_pix_frac))
+    logger.debug('Exiting Good Pixel Fraction with array: {}'.format(good_pix_frac))
     return good_pix_frac
 
 
@@ -112,7 +116,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     :return model: A surface density profile of objects as a function of radius
     """
 
-    logger.info('Starting Model Calculations')
+    logger.debug('Starting Model Calculations')
     logger.debug('Using input parameters: params={params}, cluster_id={cluster_id}, r_r500={r_r500}'
                  .format(params=params, cluster_id=cluster_id, r_r500=r_r500))
 
@@ -142,13 +146,13 @@ def model_rate_opted(params, cluster_id, r_r500):
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
 
-    logger.info('Exiting Model with array: {}'.format(model.value))
+    logger.debug('Exiting Model with array: {}'.format(model.value))
     return model.value
 
 
 # Set our log-likelihood
 def lnlike(param):
-    logger.info('Starting likelihood calculation.')
+    logger.debug('Starting likelihood calculation.')
     logger.debug('Using input parameters: {}'.format(param))
 
     lnlike_list = []
@@ -181,7 +185,7 @@ def lnlike(param):
 
     total_lnlike = np.sum(lnlike_list)
 
-    logger.info('Exiting likelihood function with total likelihood value: {}'.format(total_lnlike))
+    logger.debug('Exiting likelihood function with total likelihood value: {}'.format(total_lnlike))
     return total_lnlike
 
 
@@ -248,11 +252,12 @@ zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
 # max_radius = 5.0  # Maximum integration radius in r500 units
-max_radius_r500 = float(sys.argv[1])
-print('Maximum radius: {}'.format(max_radius_r500))
+# max_radius_r500 = float(sys.argv[1])
+# print('Maximum radius: {}'.format(max_radius_r500))
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 # print('Generating Good Pixel Fractions.')
+logger.info('Preprocessing Catalog Dictionary.')
 start_gpf_time = time()
 catalog_dict = {}
 for cluster in mock_catalog_grp.groups:
@@ -275,14 +280,14 @@ for cluster in mock_catalog_grp.groups:
     # max_cluster_radius = cluster_radial_r500.max() + 0.5
 
     # Determine the maximum radius we can integrate to while remaining completely on image.
-    # mask_image, mask_header = mask_dict[cluster_id]
-    # mask_wcs = WCS(mask_header)
-    # pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    mask_image, mask_header = mask_dict[cluster_id]
+    mask_wcs = WCS(mask_header)
+    pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
+    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Generate a radial integration mesh.
     rall = np.logspace(-2, np.log10(max_radius_r500), num=15)
@@ -330,7 +335,7 @@ with MPIPool() as pool:
     chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_all_data_to_5r500.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_{}r500'.format(max_radius_r500))
+    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_on_image_max')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -344,7 +349,8 @@ with MPIPool() as pool:
     start_sampler_time = time()
 
     # Sample up to nsteps.
-    for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
+    for sample in sampler.sample(pos0, iterations=nsteps):
+        logger.info('Computing Iteration: {}'.format(sampler.iteration))
         # Only check convergence every 100 steps
         if sampler.iteration % 100:
             continue
@@ -390,17 +396,23 @@ truths = [theta_true, eta_true, zeta_true, beta_true]
 #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
 #             format='pdf')
 
-# Calculate the autocorrelation time
-tau = np.mean(sampler.get_autocorr_time())
+try:
+    # Calculate the autocorrelation time
+    tau_est = sampler.get_autocorr_time()
 
-# Remove the burn-in. We'll use ~3x the autocorrelation time
-if not np.isnan(tau):
+    tau = np.mean(tau_est)
+
+    # Remove the burn-in. We'll use ~3x the autocorrelation time
     burnin = int(3 * tau)
 
     # We will also thin by roughly half our autocorrelation time
     thinning = int(tau // 2)
-else:
-    burnin = int(nsteps // 3)
+
+except emcee.autocorr.AutocorrError:
+    tau_est = sampler.get_autocorr_time(quiet=True)
+    tau = np.mean(tau_est)
+
+    burnin = int(sampler.iteration // 3)
     thinning = 1
 
 flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
