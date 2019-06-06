@@ -269,16 +269,6 @@ for cluster in mock_catalog_grp.groups:
     cluster_sz_cent = cluster_sz_cent.as_void()
     cluster_radial_r500 = cluster['radial_r500']
 
-    # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
-    # width is less than 1 pixel width in r500 units.
-    # Get the pixel scale in r500 units
-    # w = WCS(mask_dict[cluster_id][1])
-    # pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
-    #                     * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
-
-    # Find the maximum radius in the cluster
-    # max_cluster_radius = cluster_radial_r500.max() + 0.5
-
     # Determine the maximum radius we can integrate to while remaining completely on image.
     mask_image, mask_header = mask_dict[cluster_id]
     mask_wcs = WCS(mask_header)

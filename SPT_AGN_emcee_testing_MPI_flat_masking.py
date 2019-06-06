@@ -6,29 +6,21 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 
-from __future__ import print_function, division
-
 import sys
 from itertools import product
-from multiprocessing import Pool, cpu_count
 from time import time
 
 import astropy.units as u
-import corner
 import emcee
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
-import os
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
-from matplotlib.ticker import MaxNLocator
-from scipy.spatial.distance import cdist
 from schwimmbad import MPIPool
-
+from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -36,7 +28,7 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
-#%%
+
 def good_pixel_fraction(r, z, r500, center, cluster_id):
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
@@ -97,7 +89,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta = params
+    theta, eta, zeta, beta = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -116,7 +108,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta_true + 0.5) + background
+    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
 
     return model.value
 
@@ -194,13 +186,12 @@ def lnpost(param):
 
     return lp + lnlike(param)
 
-#%%
+
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890'
-                                        '_data_to_5r500_flat_mask_applied.cat',
+                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_all_data_to_5r500.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -208,7 +199,7 @@ mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
              in zip(mock_catalog_grp.groups.keys.as_array(),
                     mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
-#%%
+
 # Set parameter values
 theta_true = 12.    # Amplitude.
 eta_true = 1.2       # Redshift slope
@@ -217,7 +208,7 @@ zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
 max_radius = 5.0  # Maximum integration radius in r500 units
-#%%
+
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
@@ -231,16 +222,6 @@ for cluster in mock_catalog_grp.groups:
     cluster_sz_cent = cluster_sz_cent.as_void()
     cluster_radial_r500 = cluster['radial_r500']
 
-    # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
-    # width is less than 1 pixel width in r500 units.
-    # Get the pixel scale in r500 units
-    # w = WCS(mask_dict[cluster_id][1])
-    # pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
-    #                     * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
-
-    # Find the maximum radius in the cluster
-    # max_cluster_radius = cluster_radial_r500.max() + 0.5
-
     # Determine the maximum radius we can integrate to while remaining completely on image.
     mask_image, mask_header = mask_dict[cluster_id]
     mask_wcs = WCS(mask_header)
@@ -252,7 +233,7 @@ for cluster in mock_catalog_grp.groups:
     max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Generate a radial integration mesh.
-    rall = np.logspace(-2, np.log10(max_radius_r500), num=7)
+    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=15)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
     # cluster_gpf_all = None
@@ -263,11 +244,11 @@ for cluster in mock_catalog_grp.groups:
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
-#%%
+
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 3
-nwalkers = 30
+ndim = 4
+nwalkers = 24
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
@@ -275,8 +256,8 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true],
-                               std=[1e-2, 1e-2, 1e-2], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
 index = 0
@@ -309,7 +290,7 @@ with MPIPool() as pool:
     start_sampler_time = time()
 
     # Sample up to nsteps.
-    for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
+    for sample in sampler.sample(pos0, iterations=nsteps):
         # Only check convergence every 100 steps
         if sampler.iteration % 100:
             continue
@@ -334,8 +315,8 @@ print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 samples = sampler.get_chain()
 # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
 # truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$']
-truths = [theta_true, eta_true, zeta_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
+truths = [theta_true, eta_true, zeta_true, beta_true]
 
 # Plot the chains
 # fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
@@ -354,17 +335,23 @@ truths = [theta_true, eta_true, zeta_true]
 #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
 #             format='pdf')
 
-# Calculate the autocorrelation time
-tau = np.mean(sampler.get_autocorr_time())
+try:
+    # Calculate the autocorrelation time
+    tau_est = sampler.get_autocorr_time()
 
-# Remove the burn-in. We'll use ~3x the autocorrelation time
-if not np.isnan(tau):
+    tau = np.mean(tau_est)
+
+    # Remove the burn-in. We'll use ~3x the autocorrelation time
     burnin = int(3 * tau)
 
     # We will also thin by roughly half our autocorrelation time
     thinning = int(tau // 2)
-else:
-    burnin = int(nsteps // 3)
+
+except emcee.autocorr.AutocorrError:
+    tau_est = sampler.get_autocorr_time(quiet=True)
+    tau = np.mean(tau_est)
+
+    burnin = int(sampler.iteration // 3)
     thinning = 1
 
 flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
