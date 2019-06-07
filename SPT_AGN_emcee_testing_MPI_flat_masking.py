@@ -194,6 +194,9 @@ mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-fin
                                         'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_all_data_to_5r500.cat',
                           format='ascii')
 
+# Remove cluster 072
+mock_catalog = mock_catalog[mock_catalog['SPT_ID'] != 'SPT_Mock_072']
+
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
@@ -233,7 +236,7 @@ for cluster in mock_catalog_grp.groups:
     max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Generate a radial integration mesh.
-    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=15)
+    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=7)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
     # cluster_gpf_all = None
