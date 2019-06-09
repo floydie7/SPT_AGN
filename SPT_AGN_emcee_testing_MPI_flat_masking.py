@@ -6,6 +6,7 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 
+import re
 import sys
 from itertools import product
 from time import time
@@ -196,6 +197,12 @@ mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-fin
 
 # Remove cluster 072
 mock_catalog = mock_catalog[mock_catalog['SPT_ID'] != 'SPT_Mock_072']
+
+# Modify the mask names
+mask_dir = 'Data/Masks/'
+no_mask_name = [mask_dir + 'no_masks/' + re.search('SPT(.+?).fits', mask_name).group(0) for mask_name in mock_catalog['MASK_NAME']]
+del mock_catalog['MASK_NAME']
+mock_catalog['MASK_NAME'] = no_mask_name
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
