@@ -6,7 +6,6 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 
-import re
 import sys
 from itertools import product
 from time import time
@@ -15,6 +14,7 @@ import astropy.units as u
 import emcee
 import matplotlib
 import numpy as np
+import re
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
@@ -217,7 +217,7 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 5.0  # Maximum integration radius in r500 units
+max_radius = 0.39  # Maximum integration radius in r500 units
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
@@ -236,14 +236,18 @@ for cluster in mock_catalog_grp.groups:
     mask_image, mask_header = mask_dict[cluster_id]
     mask_wcs = WCS(mask_header)
     pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+
+    # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
+    # r500/pix.
+    pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500
 
     # Generate a radial integration mesh.
-    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=7)
+    rall = np.arange(0., max_radius, pix_scale_r500)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
     # cluster_gpf_all = None
