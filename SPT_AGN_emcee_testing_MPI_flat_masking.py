@@ -11,7 +11,7 @@ from itertools import product
 from time import time
 
 import astropy.units as u
-import emcee
+# import emcee
 import matplotlib
 import numpy as np
 import re
@@ -19,8 +19,8 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-from custom_math import trap_weight  # Custom trapezoidal integration
-from schwimmbad import MPIPool
+# from custom_math import trap_weight  # Custom trapezoidal integration
+# from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters
@@ -30,19 +30,54 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def good_pixel_fraction(r, z, r500, center, cluster_id):
+def rebin(a, rebin_factor, wcs=None):
+    """
+    Rebin an image to the new shape and adjust the WCS
+    :param a: Original image
+    :param rebin_factor: rebinning scale factor
+    :param wcs: Optional, original WCS object
+    :return:
+    """
+    newshape = tuple(rebin_factor * x for x in a.shape)
+
+    assert len(a.shape) == len(newshape)
+
+    slices = [slice(0, old, float(old) / new) for old, new in zip(a.shape, newshape)]
+    coordinates = np.mgrid[slices]
+    indices = coordinates.astype('i')  # choose the biggest smaller integer index
+    new_image = a[tuple(indices)]
+
+    if wcs is not None:
+        new_wcs = wcs.deepcopy()
+        new_wcs.pixel_shape = new_image.shape  # Update the NAXIS1/2 values
+        new_wcs.wcs.cd /= rebin_factor  # Update the pixel scale
+
+        # Transform the reference pixel coordinate
+        old_crpix = wcs.wcs.crpix
+        new_crpix = np.floor(old_crpix) / a.shape * new_image.shape + old_crpix - np.floor(old_crpix)
+        new_wcs.wcs.crpix = new_crpix
+
+        return new_image, new_wcs
+
+    return new_image
+
+
+def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=1.):
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
 
+    if not np.isclose(rescale_factor, 1.):
+        image, image_wcs = rebin(image, rescale_factor, wcs=image_wcs)
+
     # From the WCS get the pixel scale
-    pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
+    pix_scale = image_wcs.pixel_scale_matrix[1, 1] * u.deg
 
     # Convert our center into pixel units
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
 
     # Convert our radius to pixels
-    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
+    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.deg / u.Mpc) / pix_scale
     r_pix = r_pix.value
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
@@ -188,8 +223,8 @@ def lnpost(param):
     return lp + lnlike(param)
 
 
-tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
-# tusker_prefix = ''
+# tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
+tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
                                         'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_all_data_to_5r500.cat',
@@ -246,10 +281,13 @@ for cluster in mock_catalog_grp.groups:
     # r500/pix.
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500
 
-    # Generate a radial integration mesh.
-    rall = np.arange(0., max_radius, pix_scale_r500)
+    rescale_fact = 6
 
-    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
+    # Generate a radial integration mesh.
+    rall = np.arange(0., max_radius, pix_scale_r500/rescale_fact)
+    # rall = np.logspace(-2, np.log10(max_radius), num=200)
+
+    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id, rescale_factor=rescale_fact)
     # cluster_gpf_all = None
 
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
@@ -258,7 +296,7 @@ for cluster in mock_catalog_grp.groups:
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
-
+#%%
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4
