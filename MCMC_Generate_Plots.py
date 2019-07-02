@@ -21,9 +21,8 @@ C_true = 0.371       # Background AGN surface density
 max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Read in the chain file
-sampler = emcee.backends.HDFBackend('Data/MCMC/Mock_Catalog/Chains/pre-final_tests/'
-                                    'emcee_run_w24_s1000000_mock_t12.0_e1.2_z-1.0_b0.5_C0.371_all_data_to_5r500.h5',
-                                    name='background_fixed_int_to_0.5r500')
+filename = 'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/emcee_run_w24_s1000000_mock_t12.0_e1.2_z-1.0_b0.5_C0.371_maxr0.39_data_to_5r500_flat_mask_applied_test_rebin_gpf.h5'
+sampler = emcee.backends.HDFBackend(filename, name='bkg_fixed_rebin_arange_0_maxr')
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
@@ -95,3 +94,4 @@ print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.accepted / sampl
 
 # Get estimate of autocorrelation time
 print('Autocorrelation time: {:.1f}'.format(tau))
+plt.show()

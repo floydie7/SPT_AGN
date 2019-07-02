@@ -11,7 +11,7 @@ from itertools import product
 from time import time
 
 import astropy.units as u
-# import emcee
+import emcee
 import matplotlib
 import numpy as np
 import re
@@ -19,8 +19,8 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-# from custom_math import trap_weight  # Custom trapezoidal integration
-# from schwimmbad import MPIPool
+from custom_math import trap_weight  # Custom trapezoidal integration
+from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters
@@ -62,12 +62,12 @@ def rebin(a, rebin_factor, wcs=None):
     return new_image
 
 
-def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=1.):
+def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
 
-    if not np.isclose(rescale_factor, 1.):
+    if rescale_factor is not None:
         image, image_wcs = rebin(image, rescale_factor, wcs=image_wcs)
 
     # From the WCS get the pixel scale
@@ -223,8 +223,8 @@ def lnpost(param):
     return lp + lnlike(param)
 
 
-# tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
-tusker_prefix = ''
+tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# tusker_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
                                         'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_all_data_to_5r500.cat',
@@ -316,16 +316,14 @@ index = 0
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
-
 with MPIPool() as pool:
     if not pool.is_master():
         pool.wait()
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}' \
-                               '_data_to_5r500_flat_mask_applied.h5'\
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}' \
+                               '_data_to_5r500_flat_mask_applied'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
     backend = emcee.backends.HDFBackend(chain_file, name='background_and beta_fixed')
