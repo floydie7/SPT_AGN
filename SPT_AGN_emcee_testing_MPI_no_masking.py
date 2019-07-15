@@ -226,18 +226,9 @@ def lnpost(param):
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_all_data_to_5r500.cat',
+mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/refresh/'
+                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_no_mask_refresh.cat',
                           format='ascii')
-
-# Remove cluster 072
-mock_catalog = mock_catalog[mock_catalog['SPT_ID'] != 'SPT_Mock_072']
-
-# Modify the mask names
-mask_dir = 'Data/Masks/'
-no_mask_name = [mask_dir + 'no_masks/' + re.search('SPT(.+?).fits', mask_name).group(0) for mask_name in mock_catalog['MASK_NAME']]
-del mock_catalog['MASK_NAME']
-mock_catalog['MASK_NAME'] = no_mask_name
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
@@ -252,7 +243,9 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 0.39  # Maximum integration radius in r500 units
+# max_radius = 0.39  # Maximum integration radius in r500 units
+
+rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 # print('Generating Good Pixel Fractions.')
@@ -263,28 +256,26 @@ for cluster in mock_catalog_grp.groups:
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
     cluster_r500 = cluster['r500'][0] * u.Mpc
-    # cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
-    # cluster_sz_cent = cluster_sz_cent.as_void()
+    cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+    cluster_sz_cent = cluster_sz_cent.as_void()
     cluster_radial_r500 = cluster['radial_r500']
 
     # Determine the maximum radius we can integrate to while remaining completely on image.
     mask_image, mask_header = mask_dict[cluster_id]
     mask_wcs = WCS(mask_header)
     pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
     # r500/pix.
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500
 
-    rescale_fact = 6
-
     # Generate a radial integration mesh.
-    rall = np.arange(0., max_radius, pix_scale_r500/rescale_fact)
+    rall = np.arange(0., max_radius_r500, pix_scale_r500/rescale_fact)
     # rall = np.logspace(-2, np.log10(max_radius), num=200)
 
     # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id, rescale_factor=rescale_fact)
@@ -322,10 +313,10 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_all_data_to_5r500.h5'\
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_refresh_gpf_tests.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='background_fixed_int_to_on_image_max')
+    backend = emcee.backends.HDFBackend(chain_file, name='bkg_fixed_variable_endpt_gpf_off_no_mask')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.

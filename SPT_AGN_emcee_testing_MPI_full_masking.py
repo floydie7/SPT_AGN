@@ -6,28 +6,22 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 
-from __future__ import print_function, division
-
 import sys
 from itertools import product
-from multiprocessing import Pool, cpu_count
 from time import time
 
 import astropy.units as u
-import corner
 import emcee
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
-import os
+import re
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
-from matplotlib.ticker import MaxNLocator
-from scipy.spatial.distance import cdist
 from schwimmbad import MPIPool
+from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -36,19 +30,54 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def good_pixel_fraction(r, z, r500, center, cluster_id):
+def rebin(a, rebin_factor, wcs=None):
+    """
+    Rebin an image to the new shape and adjust the WCS
+    :param a: Original image
+    :param rebin_factor: rebinning scale factor
+    :param wcs: Optional, original WCS object
+    :return:
+    """
+    newshape = tuple(rebin_factor * x for x in a.shape)
+
+    assert len(a.shape) == len(newshape)
+
+    slices = [slice(0, old, float(old) / new) for old, new in zip(a.shape, newshape)]
+    coordinates = np.mgrid[slices]
+    indices = coordinates.astype('i')  # choose the biggest smaller integer index
+    new_image = a[tuple(indices)]
+
+    if wcs is not None:
+        new_wcs = wcs.deepcopy()
+        new_wcs.pixel_shape = new_image.shape  # Update the NAXIS1/2 values
+        new_wcs.wcs.cd /= rebin_factor  # Update the pixel scale
+
+        # Transform the reference pixel coordinate
+        old_crpix = wcs.wcs.crpix
+        new_crpix = np.floor(old_crpix) / a.shape * new_image.shape + old_crpix - np.floor(old_crpix)
+        new_wcs.wcs.crpix = new_crpix
+
+        return new_image, new_wcs
+
+    return new_image
+
+
+def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
 
+    if rescale_factor is not None:
+        image, image_wcs = rebin(image, rescale_factor, wcs=image_wcs)
+
     # From the WCS get the pixel scale
-    pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
+    pix_scale = image_wcs.pixel_scale_matrix[1, 1] * u.deg
 
     # Convert our center into pixel units
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
 
     # Convert our radius to pixels
-    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.arcsec / u.Mpc) / pix_scale
+    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.deg / u.Mpc) / pix_scale
     r_pix = r_pix.value
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
@@ -96,7 +125,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, C = params
+    theta, eta, zeta, beta = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -106,16 +135,16 @@ def model_rate_opted(params, cluster_id, r_r500):
     # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = C_true / u.arcmin**2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc)**2 * r500**2
 
     # The cluster's core radius in units of r500
     rc_r500 = 0.1 * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
 
     return model.value
 
@@ -134,14 +163,17 @@ def lnlike(param):
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
 
+        # Select only the objects within the same radial limit we are using for integration.
+        radial_r500_maxr = radial_r500[radial_r500 <= rall[-1]]
+
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, radial_r500)
+        ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
 
         # Compute the full model along the radial direction
         nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * radial_r500)) - np.trapz(gpf_all * nall * 2*np.pi * rall, rall))
+        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - trap_weight(nall * 2*np.pi * rall, rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -153,29 +185,29 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta, C = param
+    theta, eta, zeta, beta = param
 
     # Set our hyperparameters
     h_C = 0.371
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0 <= C <= np.inf:
+    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3.: # and C == C_true:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
+        # C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
         # C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
-        C_lnprior = -np.inf
+        # C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior #+ C_lnprior
 
     return total_lnprior
 
@@ -194,8 +226,8 @@ def lnpost(param):
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
-                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_gpf_fixed_multicluster_log_nbin15_full_mask.cat',
+mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/refresh/'
+                                        'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_full_mask_refresh.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -211,7 +243,9 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-max_radius = 5.0  # Maximum integration radius in r500 units
+# max_radius = 0.39  # Maximum integration radius in r500 units
+
+rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
@@ -226,16 +260,6 @@ for cluster in mock_catalog_grp.groups:
     cluster_sz_cent = cluster_sz_cent.as_void()
     cluster_radial_r500 = cluster['radial_r500']
 
-    # Our integration mesh is a symmetric log with the linear-log boundary point determined to be where the sub-interval
-    # width is less than 1 pixel width in r500 units.
-    # Get the pixel scale in r500 units
-    # w = WCS(mask_dict[cluster_id][1])
-    # pixel_scale_r500 = (w.pixel_scale_matrix[1, 1] * u.deg
-    #                     * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500)
-
-    # Find the maximum radius in the cluster
-    # max_cluster_radius = cluster_radial_r500.max() + 0.5
-
     # Determine the maximum radius we can integrate to while remaining completely on image.
     mask_image, mask_header = mask_dict[cluster_id]
     mask_wcs = WCS(mask_header)
@@ -244,13 +268,18 @@ for cluster in mock_catalog_grp.groups:
     max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
                              np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
                              np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / (cluster_r500 * u.Mpc)
+    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
-    # Generate a radial integration mesh
-    rall = np.logspace(-2, np.log10(max_radius_r500.value), num=15)
+    # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
+    # r500/pix.
+    pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500
 
-    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id)
-    cluster_gpf_all = np.insert(cluster_gpf_all, 0, 1.)
+    # Generate a radial integration mesh.
+    rall = np.arange(0., max_radius_r500, pix_scale_r500/rescale_fact)
+    # rall = np.logspace(-2, np.log10(max_radius), num=200)
+
+    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id, rescale_factor=rescale_fact)
+    # cluster_gpf_all = None
 
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
                     'radial_r500': cluster_radial_r500, 'gpf_rall': cluster_gpf_all, 'rall': rall}
@@ -261,21 +290,22 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
-nwalkers = 30
+ndim = 4
+nwalkers = 24
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+# pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
+#                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
+                               std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
 index = 0
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
-
 
 with MPIPool() as pool:
     if not pool.is_master():
@@ -283,12 +313,10 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = tusker_prefix+'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/' \
-                 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}' \
-                               '_gpf_fixed_multicluster_log_nbin15_full_mask.h5'\
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_refresh_gpf_tests.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
-                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius)
-    backend = emcee.backends.HDFBackend(chain_file)
+                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
+    backend = emcee.backends.HDFBackend(chain_file, name='bkg_fixed_variable_endpt_gpf_on_full_mask')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -302,7 +330,7 @@ with MPIPool() as pool:
     start_sampler_time = time()
 
     # Sample up to nsteps.
-    for sample in sampler.sample(pos0, iterations=nsteps, progress=True):
+    for sample in sampler.sample(pos0, iterations=nsteps):
         # Only check convergence every 100 steps
         if sampler.iteration % 100:
             continue
@@ -325,8 +353,10 @@ print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+# truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
+truths = [theta_true, eta_true, zeta_true, beta_true]
 
 # Plot the chains
 # fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
@@ -345,17 +375,23 @@ truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
 #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
 #             format='pdf')
 
-# Calculate the autocorrelation time
-tau = np.mean(sampler.get_autocorr_time())
+try:
+    # Calculate the autocorrelation time
+    tau_est = sampler.get_autocorr_time()
 
-# Remove the burn-in. We'll use ~3x the autocorrelation time
-if not np.isnan(tau):
+    tau = np.mean(tau_est)
+
+    # Remove the burn-in. We'll use ~3x the autocorrelation time
     burnin = int(3 * tau)
 
     # We will also thin by roughly half our autocorrelation time
     thinning = int(tau // 2)
-else:
-    burnin = int(nsteps // 3)
+
+except emcee.autocorr.AutocorrError:
+    tau_est = sampler.get_autocorr_time(quiet=True)
+    tau = np.mean(tau_est)
+
+    burnin = int(sampler.iteration // 3)
     thinning = 1
 
 flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
