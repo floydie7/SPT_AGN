@@ -244,7 +244,7 @@ C_true = 0.371       # Background AGN surface density
 
 # max_radius = 5.0  # Maximum integration radius in r500 units
 
-rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
+rescale_fact = 10  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')

@@ -14,7 +14,6 @@ import astropy.units as u
 import emcee
 import matplotlib
 import numpy as np
-import re
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
@@ -287,7 +286,7 @@ for cluster in mock_catalog_grp.groups:
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
-#%%
+
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 4

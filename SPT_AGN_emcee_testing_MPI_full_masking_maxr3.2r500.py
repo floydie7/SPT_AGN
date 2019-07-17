@@ -242,7 +242,7 @@ beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
 C_true = 0.371       # Background AGN surface density
 
-# max_radius = 5.0  # Maximum integration radius in r500 units
+max_radius = 3.2  # Maximum integration radius in r500 units
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
@@ -263,18 +263,18 @@ for cluster in mock_catalog_grp.groups:
     mask_image, mask_header = mask_dict[cluster_id]
     mask_wcs = WCS(mask_header)
     pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
+    # cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
+    # max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
+    #                          np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
+    #                          np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
+    # max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.deg) / cluster_r500
 
     # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
     # r500/pix.
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500
 
     # Generate a radial integration mesh.
-    rall = np.arange(0., max_radius_r500, pix_scale_r500/rescale_fact)
+    rall = np.arange(0., max_radius, pix_scale_r500/rescale_fact)
     # rall = np.logspace(-2, np.log10(max_radius), num=200)
 
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id, rescale_factor=rescale_fact)
@@ -312,10 +312,10 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_refresh_gpf_tests.h5'\
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_full_mask_tuning.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='bkg_fixed_variable_endpt_gpf_on_full_mask')
+    backend = emcee.backends.HDFBackend(chain_file, name='max_radius_3.2r500')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
