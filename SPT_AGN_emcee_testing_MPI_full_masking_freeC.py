@@ -191,7 +191,7 @@ def lnprior(param):
     h_C_err = 0.157
 
     # Define all priors to be gaussian
-    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and h_C-h_C_err <= C <= h_C+h_C_err:
+    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and h_C-2*h_C_err <= C <= h_C+2*h_C_err:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -315,7 +315,7 @@ with MPIPool() as pool:
     chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_full_mask_tuning.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='bkg_free_lnPgauss_1-sigma_bounds')
+    backend = emcee.backends.HDFBackend(chain_file, name='bkg_free_lnPgauss_2-sigma_bounds')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
