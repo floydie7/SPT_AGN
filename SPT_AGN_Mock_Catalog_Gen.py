@@ -5,20 +5,20 @@ Author: Benjamin Floyd
 Using our Bayesian model, generates a mock catalog to use in testing the limitations of the model.
 """
 
+import re
 from itertools import product
+from os import listdir
 from time import time
 
 import astropy.units as u
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, vstack
 from astropy.wcs import WCS
-from os import listdir
 from scipy import stats
 from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
@@ -153,7 +153,7 @@ start_time = time()
 n_cl = 195
 
 # Set parameter values
-theta_list = np.concatenate((np.insert(np.arange(0.2, 1.0, 0.2), 0, 0.1), np.insert(np.arange(2.0, 14.0, 2.), 0, 1.0)))
+theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
 # theta_true = 12     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope

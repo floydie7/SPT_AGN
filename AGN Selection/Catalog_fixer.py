@@ -3,48 +3,80 @@ Catalog_fixer.py
 Author: Benjamin Floyd
 Some of the SExtractor catalogs have a tab character which interferes with astropy reading the tables in correctly.
 """
+import glob
+from itertools import takewhile, dropwhile
 
-import numpy as np
-import os
-from astropy.io import ascii
+from astropy.table import Table
 
-for files in os.listdir('Data/Catalogs.old/'):
-    if not files.startswith('.'):
-        print("Opening: " + files)
-        with open('Data/Catalogs.old/' + files, 'r') as sexcat:
-            # Read all the lines in.
-            lines = sexcat.readlines()
 
-            i = 0
-            header = []
-            # From the top lines grab the header of the catalog.
-            while lines[i][0] == '#':
-                header.append(lines[i])
-                i += 1
+def get_index(x, y):
+    for xx in x:
+        if xx.startswith(y):
+            return x.index(xx)
 
-            # For the rest of the file get all the data and replace the tab character with a space.
-            data = []
-            for j in np.arange(i, len(lines)):
-                data.append(lines[j].replace('\t', ' '))
 
-        # Write the corrected file out.
-        print("Writing: " + files)
-        with open('Data/Catalogs.old/' + files, 'w') as outcat:
-            outcat.writelines(header)
-            outcat.writelines(data)
+orig_cats = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs.old/*.cat')
+for files in orig_cats:
+    print("Opening: " + files)
+    with open(files, 'r') as sexcat:
+        # Read all the lines in.
+        lines = sexcat.readlines()
 
-        # Read the catalog back in, this time using Astropy, and rename the columns.
-        tempcat = ascii.read('Data/Catalogs.old/' + files,
-                             names=['SPT_ID', 'X_IMAGE', 'Y_IMAGE', 'ALPHA_J2000', 'DELTA_J2000', 'KRON_RADIUS',
-                                    'BACKGROUND', 'FLUX_RADIUS', 'ALPHAPEAK_J2000', 'DELTAPEAK_J2000', 'X2_IMAGE',
-                                    'Y2_IMAGE', 'XY_IMAGE', 'A_IMAGE', 'B_IMAGE', 'THETA_IMAGE', 'A_WORLD', 'B_WORLD',
-                                    'THETA_WORLD', 'CLASS_STAR', 'FLAGS', 'I1_MAG_AUTO','I1_MAGERR_AUTO',
-                                    'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_MAG_APER6', 'I1_MAGERR_APER6',
-                                    'I1_FLUX_AUTO', 'I1_FLUXERR_AUTO', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4',
-                                    'I1_FLUX_APER6', 'I1_FLUXERR_APER6', 'I2_MAG_AUTO', 'I2_MAGERR_AUTO',
-                                    'I2_MAG_APER4', 'I2_MAGERR_APER4', 'I2_MAG_APER6', 'I2_MAGERR_APER6',
-                                    'I2_FLUX_AUTO', 'I2_FLUXERR_AUTO', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4',
-                                    'I2_FLUX_APER6', 'I2_FLUXERR_APER6'])
+        header = [ln for ln in takewhile(lambda x: x.startswith('#'), lines)]
+        data = [ln.replace('\t', ' ') for ln in dropwhile(lambda x: x.startswith('#'), lines)]
 
-        # Finally, write the corrected catalog out now that it has the correct formatting.
-        ascii.write(tempcat, 'Data/Catalogs/' + files)
+        # Find the starting points of the 3.6 um photometery columns
+        ch1_cols = get_index(header, '#  22')
+        ch2_cols = get_index(header, '#  34')
+        # Modify the column names for the 3.6 um magnitudes and fluxes
+        for i, ch1_lines in enumerate(header[ch1_cols:ch1_cols+12]):
+            ch1_line = ch1_lines.split(maxsplit=3)
+
+            # Prepend the column names with 'I1'
+            ch1_line[2] = 'I1_' + ch1_line[2]
+
+            # For the aperture measurements append the aperture size (in arcseconds) to the column name
+            if ch1_line[3].startswith('4'):
+                ch1_line[2] += '4'
+            elif ch1_line[3].startswith('6'):
+                ch1_line[2] += '6'
+
+            # Join the modified line together and replace the existing line with our new version
+            new_ch1_line = '{commchar}  {colnum} {colname}\t{comment}'.format(commchar=ch1_line[0],
+                                                                              colnum=ch1_line[1],
+                                                                              colname=ch1_line[2],
+                                                                              comment=ch1_line[3])
+            header[ch1_cols + i] = new_ch1_line
+
+        # Modify the column names for the 4.5 um magnitudes and fluxes
+        for i, ch2_lines in enumerate(header[ch2_cols:ch2_cols+12]):
+            ch2_line = ch2_lines.split(maxsplit=3)
+
+            # Prepend the column names with 'I2'
+            ch2_line[2] = 'I2_' + ch2_line[2]
+
+            # For the aperture measurements append the aperture size (in arcseconds) to the column name
+            if ch2_line[3].startswith('4'):
+                ch2_line[2] += '4'
+            elif ch2_line[3].startswith('6'):
+                ch2_line[2] += '6'
+
+            # Join the modified line together and replace the existing line with our new version
+            new_ch2_line = '{commchar}  {colnum} {colname}\t{comment}'.format(commchar=ch2_line[0],
+                                                                              colnum=ch2_line[1],
+                                                                              colname=ch2_line[2],
+                                                                              comment=ch2_line[3])
+            header[ch2_cols + i] = new_ch2_line
+
+    # Write the corrected file out.
+    new_file = files.replace('old', 'new')
+    print("Writing: " + new_file)
+    with open(new_file, 'w') as outcat:
+        outcat.writelines(header)
+        outcat.writelines(data)
+
+for catalog in glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs.new/*.cat'):
+    try:
+        tempcat = Table.read(catalog, format='ascii.sextractor')
+    except:
+        print('Error in {}'.format(catalog))

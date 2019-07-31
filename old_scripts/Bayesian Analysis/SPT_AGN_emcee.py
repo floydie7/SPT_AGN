@@ -10,6 +10,7 @@ from __future__ import print_function, division
 
 from itertools import product
 from os import listdir
+from time import time
 
 import astropy.units as u
 import corner
@@ -24,7 +25,6 @@ from astropy.wcs import WCS
 from matplotlib.ticker import MaxNLocator
 from scipy.spatial.distance import cdist
 from small_poisson import small_poisson
-from time import time
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0

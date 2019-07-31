@@ -8,22 +8,22 @@ for all fitting parameters.
 
 from __future__ import print_function, division
 
+import os
 # import sys
 from itertools import product
+from multiprocessing import Pool, cpu_count
 from time import time
 
 import astropy.units as u
 import emcee
 import matplotlib
 import numpy as np
-import os
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
 from scipy.spatial.distance import cdist
-from multiprocessing import Pool, cpu_count
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
