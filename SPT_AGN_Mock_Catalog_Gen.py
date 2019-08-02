@@ -4,10 +4,9 @@ Author: Benjamin Floyd
 
 Using our Bayesian model, generates a mock catalog to use in testing the limitations of the model.
 """
-
+import glob
 import re
 from itertools import product
-from os import listdir
 from time import time
 
 import astropy.units as u
@@ -153,7 +152,8 @@ start_time = time()
 n_cl = 195
 
 # Set parameter values
-theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
+# theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
+theta_list = [0.037, 0.107]
 # theta_true = 12     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
@@ -179,13 +179,13 @@ for theta_true in theta_list:
 
     # For our masks, we will co-op the masks for the real clusters.
     mask_dir = 'Data/Masks/'
-    masks_files = [f for f in listdir(mask_dir) if not f.startswith('.') and f not in ['no_masks', 'quarter_masks']]
+    masks_files = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Masks/*.fits')
 
     # Make sure all the masks have matches in the catalog
     masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[:-1] in bocquet['SPT_ID']]
 
     # Select a number of masks at random
-    masks_bank = np.sort([mask_dir + masks_files[i] for i in np.random.choice(n_cl, size=n_cl, replace=False)])
+    masks_bank = np.sort([masks_files[i] for i in np.random.choice(n_cl, size=n_cl, replace=False)])
 
     # Find the corresponding cluster IDs in Bocquet that match the masks we chose
     bocquet_ids = [re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1] for mask_name in masks_bank]
@@ -417,7 +417,7 @@ for theta_true in theta_list:
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
     outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/theta_varied/'
-                 'mock_AGN_catalog_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
+                 'mock_AGN_catalog_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
                  '_maxr{maxr:.2f}_seed{seed}_full_mask.cat'
                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                          maxr=max_radius, nbins=num_bins, seed=rand_seed),
@@ -473,7 +473,7 @@ for theta_true in theta_list:
     #                     maxr=max_radius, seed=rand_seed), format='pdf')
     ax.set(xlim=[0, 3.0])
     fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/theta_varied/'
-                'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}'
+                'mock_AGN_binned_check_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}'
                 '_full_mask_zoom.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                         maxr=max_radius, seed=rand_seed), format='pdf')

@@ -210,7 +210,7 @@ class SelectIRAGN:
 
         """
 
-        for cluster_id, cluster_info in self._catalog_dictionary.items():
+        for cluster_info in self._catalog_dictionary.values():
             # Array element names
             irac_ch1_cov_path = cluster_info['ch1_cov_path']
             irac_ch2_cov_path = cluster_info['ch2_cov_path']
@@ -223,8 +223,11 @@ class SelectIRAGN:
             # both IRAC bands.
             combined_cov = np.logical_and((irac_ch1_cover >= ch1_min_cov), (irac_ch2_cover >= ch2_min_cov)).astype(int)
 
+            # For naming, we will use the official SPT ID name for the cluster
+            spt_id = self._spt_catalog['SPT_ID'][cluster_info['SPT_cat_idx']]
+
             # Write out the coverage mask.
-            mask_fname = '{cluster_id}_cov_mask{ch1_cov}_{ch2_cov}.fits'.format(cluster_id=cluster_id,
+            mask_fname = '{cluster_id}_cov_mask{ch1_cov}_{ch2_cov}.fits'.format(cluster_id=spt_id,
                                                                                 ch1_cov=ch1_min_cov,
                                                                                 ch2_cov=ch2_min_cov)
             mask_pathname = self._mask_dir + '/' + mask_fname
