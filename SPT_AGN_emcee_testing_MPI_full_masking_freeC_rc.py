@@ -323,7 +323,7 @@ with MPIPool() as pool:
     chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_full_mask_tuning.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='bkg_free_lnPgauss_2-sigma_bounds')
+    backend = emcee.backends.HDFBackend(chain_file, name='bkg_free_full_support_rc_free_full_support')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
