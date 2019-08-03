@@ -239,6 +239,7 @@ mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # For this test, we will select 50 clusters from our sample
 mock_catalog_grp = mock_catalog_grp.groups[(np.random.randint(0, len(mock_catalog_grp.groups.keys), 50),)]
+mock_catalog_grp = mock_catalog_grp.group_by('SPT_ID')
 
 mask_dict = {cluster_id[0]: fits.getdata(tusker_prefix+mask_file, header=True) for cluster_id, mask_file
              in zip(mock_catalog_grp.groups.keys.as_array(),
