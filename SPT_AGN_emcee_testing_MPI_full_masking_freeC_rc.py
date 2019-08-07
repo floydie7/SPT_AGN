@@ -194,14 +194,15 @@ def lnprior(param):
 
     # Define all priors to be gaussian
     if 0. <= theta <= 24. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. \
-            and 0.0 <= C < np.inf and 0.0 < rc < np.inf:
+            and 0.0 <= C < np.inf and 0.0 < rc <= 0.5:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
         # C_lnprior = 0.0
-        rc_lnprior = (h_rc_alpha - 1) * np.log(rc) - h_rc_beta * rc
+        # rc_lnprior = (h_rc_alpha - 1) * np.log(rc) - h_rc_beta * rc
+        rc_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
