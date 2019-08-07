@@ -124,7 +124,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta = params
+    theta, eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
