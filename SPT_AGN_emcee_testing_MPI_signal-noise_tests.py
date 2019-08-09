@@ -190,8 +190,13 @@ def lnprior(param):
     h_C = 0.371
     h_C_err = 0.157
 
+    # Narrow the prior on theta to bracket +- 50% of theta_true
+    theta_lower = theta_true - theta_true * 0.5
+    theta_upper = theta_true + theta_true * 0.5
+
     # Define all priors to be gaussian
-    if 0. <= theta <= 24000. and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf:
+    if theta_lower <= theta <= theta_upper and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. \
+            and 0.0 <= C < np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -317,7 +322,8 @@ with MPIPool() as pool:
     chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_snr_tests.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='snr_test_{theta:.3f}_bkg_free_rc_fixed'.format(theta=theta_true))
+    backend = emcee.backends.HDFBackend(chain_file, name='snr_test_{theta:.3f}_bkg_free_rc_fixed_'
+                                                         'theta_prior_pm0.5theta_true'.format(theta=theta_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
