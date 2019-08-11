@@ -124,7 +124,8 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, C = params
+    # theta, eta, zeta, beta, C = params
+    eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -140,7 +141,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     rc_r500 = 0.1 * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
+    a = theta_true * (1 + z)**eta * (m / (1e15 * u.Msun))**zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc_r500)**2)**(-1.5 * beta + 0.5) + background
@@ -184,7 +185,8 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta, C = param
+    # theta, eta, zeta, beta, C = param
+    eta, zeta, beta, C = param
 
     # Set our hyperparameters
     h_C = 0.371
@@ -195,23 +197,24 @@ def lnprior(param):
     theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if theta_lower <= theta <= theta_upper and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. \
+    if -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. \
             and 0.0 <= C < np.inf:
-        theta_lnprior = 0.0
+        # theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C)**2 / h_C_err**2)
         # C_lnprior = 0.0
     else:
-        theta_lnprior = -np.inf
+        # theta_lnprior = -np.inf
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
         C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -296,17 +299,17 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
+ndim = 4
 nwalkers = 30
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-# pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true],
-#                                std=[1e-2, 1e-2, 1e-2, 1e-2], size=nwalkers)
+# pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
+#                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+pos0 = emcee.utils.sample_ball(p0=[eta_true, zeta_true, beta_true, C_true],
+                               std=[1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
 
 # Set up the autocorrelation and convergence variables
 index = 0
@@ -323,7 +326,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file, name='snr_test_{theta:.3f}_bkg_free_rc_fixed_'
-                                                         'theta_prior_pm0.5theta_true'.format(theta=theta_true))
+                                                         'theta_fixed'.format(theta=theta_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -360,10 +363,10 @@ print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
-# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$']
-# truths = [theta_true, eta_true, zeta_true, beta_true]
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+# truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+truths = [eta_true, zeta_true, beta_true, C_true]
 
 try:
     # Calculate the autocorrelation time
