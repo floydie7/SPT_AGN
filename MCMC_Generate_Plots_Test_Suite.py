@@ -30,6 +30,8 @@ filename = 'Data/MCMC/Mock_Catalog/Chains/signal-noise_tests/' \
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
+chain_names = [chain_name for chain_name in chain_names if '_theta_fixed' in chain_name]
+
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
 
@@ -44,8 +46,10 @@ for chain_name, sampler in sampler_dict.items():
     # To get the number of iterations ran, number of walkers used, and the number of parameters measured
     nsteps, nwalkers, ndim = samples.shape
 
-    labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-    truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+    # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+    # truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
+    labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
+    truths = [eta_true, zeta_true, beta_true, C_true]
 
     # Plot the chains
     fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
@@ -106,7 +110,6 @@ for chain_name, sampler in sampler_dict.items():
 
     print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.accepted / sampler.iteration)))
 
-    if chain_name != 'GaussianMove_cov=1.0':
-        # Get estimate of autocorrelation time
-        print('Autocorrelation time: {:.1f}'.format(tau))
+    # Get estimate of autocorrelation time
+    print('Autocorrelation time: {:.1f}'.format(tau))
 # plt.show()

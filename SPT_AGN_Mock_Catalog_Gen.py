@@ -149,11 +149,11 @@ start_time = time()
 # <editor-fold desc="Parameter Set up">
 
 # Number of clusters to generate
-n_cl = 195
+n_cl = 238
 
 # Set parameter values
 # theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
-theta_list = [0.037, 0.107]
+theta_list = [0.037, 0.107, 0.2, 0.4]
 # theta_true = 12     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
@@ -174,7 +174,7 @@ for theta_true in theta_list:
     # Read in the SPT cluster catalog. We will use real data to source our mock cluster properties.
     bocquet = Table.read('Data/2500d_cluster_sample_Bocquet18.fits')
     bocquet = bocquet[bocquet['M500'] != 0.0]  # So we only include confirmed clusters with measured masses.
-    bocquet = bocquet[bocquet['REDSHIFT'] >= 0.5]
+    # bocquet = bocquet[bocquet['REDSHIFT'] >= 0.5]
     bocquet['M500'] *= 1e14  # So that our masses are in Msun instead of 1e14*Msun
 
     # For our masks, we will co-op the masks for the real clusters.
@@ -182,13 +182,13 @@ for theta_true in theta_list:
     masks_files = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Masks/*.fits')
 
     # Make sure all the masks have matches in the catalog
-    masks_files = [f for f in masks_files if re.search('SPT-CLJ(.+?)_', f).group(0)[:-1] in bocquet['SPT_ID']]
+    masks_files = [f for f in masks_files if re.search(r'SPT-CLJ\d+-\d+', f).group(0) in bocquet['SPT_ID']]
 
     # Select a number of masks at random
     masks_bank = np.sort([masks_files[i] for i in np.random.choice(n_cl, size=n_cl, replace=False)])
 
     # Find the corresponding cluster IDs in Bocquet that match the masks we chose
-    bocquet_ids = [re.search('SPT-CLJ(.+?)_', mask_name).group(0)[:-1] for mask_name in masks_bank]
+    bocquet_ids = [re.search(r'SPT-CLJ\d+-\d+', mask_name).group(0) for mask_name in masks_bank]
     bocquet_idx = np.any([bocquet['SPT_ID'] == b_id for b_id in bocquet_ids], axis=0)
     selected_clusters = bocquet['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT'][bocquet_idx]
 
@@ -418,7 +418,7 @@ for theta_true in theta_list:
           .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
     outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/theta_varied/'
                  'mock_AGN_catalog_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-                 '_maxr{maxr:.2f}_seed{seed}_full_mask.cat'
+                 '_maxr{maxr:.2f}_seed{seed}_all_redshifts.cat'
                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                          maxr=max_radius, nbins=num_bins, seed=rand_seed),
                  format='ascii', overwrite=True)
@@ -474,7 +474,7 @@ for theta_true in theta_list:
     ax.set(xlim=[0, 3.0])
     fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/theta_varied/'
                 'mock_AGN_binned_check_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}'
-                '_full_mask_zoom.pdf'
+                '_all_redshifts_zoom.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                         maxr=max_radius, seed=rand_seed), format='pdf')
 
