@@ -15,7 +15,8 @@ def get_index(x, y):
             return x.index(xx)
 
 
-orig_cats = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs.old/*.cat')
+# orig_cats = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs.old/*.cat')
+orig_cats = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/catalogs/SSDF2.20130918.v9.private_old.cat')
 for files in orig_cats:
     print("Opening: " + files)
     with open(files, 'r') as sexcat:
@@ -75,7 +76,8 @@ for files in orig_cats:
         outcat.writelines(header)
         outcat.writelines(data)
 
-for catalog in glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs.new/*.cat'):
+# for catalog in glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs.new/*.cat'):
+for catalog in glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/catalogs/SSDF2.20130918.v9.private_new.cat'):
     try:
         tempcat = Table.read(catalog, format='ascii.sextractor')
     except:
