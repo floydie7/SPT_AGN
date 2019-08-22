@@ -29,7 +29,7 @@ huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
 huang = huang[huang['imaging'] >= 2]
 
 # Read in the SSDF photometric catalog
-ssdf_template = Table.read('Data/ssdf_table_template.cat', format='ascii.sextractor')
+ssdf_template = Table.read(hcc_prefix+'Data/ssdf_table_template.cat', format='ascii.sextractor')
 ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat',
                            delim_whitespace=True, skiprows=52, names=ssdf_template.colnames)
 
@@ -114,7 +114,8 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                     cluster_objs = cluster_objs[image_objs]
 
                     # Write the catalog to disk using the standard format for the SPT-SZ cutouts
-                    cluster_objs.write('{spt_id}.SSDFv9.cat', format='ascii')
+                    cluster_objs.write(hcc_prefix+'Data/SPTPol/catalogs/cutout_catalogs/{spt_id}.SSDFv9.cat',
+                                       format='ascii')
 
             except NoOverlapError or PartialOverlapError:
                 warnings.warn('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
