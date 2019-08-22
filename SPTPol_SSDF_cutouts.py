@@ -16,7 +16,7 @@ import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.nddata import Cutout2D, NoOverlapError, PartialOverlapError
-from astropy.table import Table
+from astropy.table import Table, setdiff
 from astropy.wcs import WCS
 
 logging.basicConfig(filename='SPTPol_cutouts.log', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,14 +27,20 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 
 logger.info('Reading in source catalogs')
+# Read in the SPT-SZ 2500d cluster catalog
+bocquet = Table.read(hcc_prefix + 'Data/2500d_cluster_sample_Bocquet18.fits')
+
 # Read in the SPTPol 100d cluster catalog
 huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
+
+# Select only clusters that have not already been discovered in SPT-SZ 2500d
+huang = setdiff(huang, bocquet, keys=['SPT_ID'])
 
 # Select only clusters with IR imaging
 huang = huang[huang['imaging'] >= 2]
 
 # Read in the SSDF photometric catalog
-ssdf_template = Table.read(hcc_prefix+'Data/ssdf_table_template.cat', format='ascii.sextractor')
+ssdf_template = Table.read(hcc_prefix + 'Data/ssdf_table_template.cat', format='ascii.sextractor')
 ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat',
                            delim_whitespace=True, skiprows=52, names=ssdf_template.colnames)
 
@@ -113,18 +119,23 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                 if img_type == 'I2_sci':
                     # Update the x and y pixel coordinates in the catalog
                     new_xy_image = cutout.to_cutout_position((cluster_objs['X_IMAGE'], cluster_objs['Y_IMAGE']))
-
                     cluster_objs['X_IMAGE'] = new_xy_image[0]
                     cluster_objs['Y_IMAGE'] = new_xy_image[1]
 
                     # Trim the catalog to only include objects within the image
-                    image_objs = np.where((cutout.xmin_cutout <= cluster_objs['X_IMAGE'] <= cutout.xmax_cutout) and
-                                          (cutout.ymin_cutout <= cluster_objs['Y_NAME'] <= cutout.ymax_cutout))
+                    image_objs = ((cutout.xmin_cutout <= cluster_objs['X_IMAGE']) &
+                                  (cluster_objs['X_IMAGE'] <= cutout.xmax_cutout) &
+                                  (cutout.ymin_cutout <= cluster_objs['Y_NAME']) &
+                                  (cluster_objs['Y_NAME'] <= cutout.ymax_cutout))
                     cluster_objs = cluster_objs[image_objs]
 
+                    # Add the units and description information from the template
+                    for col_cluster_objs, col_ssdf_template in zip(cluster_objs.itercols(), ssdf_template.itercols()):
+                        col_cluster_objs.unit = col_ssdf_template.unit
+                        col_cluster_objs.description = col_ssdf_template.description
+
                     # Write the catalog to disk using the standard format for the SPT-SZ cutouts
-                    cluster_objs.write(hcc_prefix+'Data/SPTPol/catalogs/cutout_catalogs/{spt_id}.SSDFv9.cat',
-                                       format='ascii')
+                    cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cutout_catalogs/{spt_id}.SSDFv9.fits')
 
             except NoOverlapError or PartialOverlapError:
                 logger.warning('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
