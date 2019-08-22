@@ -125,8 +125,8 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                     # Trim the catalog to only include objects within the image
                     image_objs = ((cutout.xmin_cutout <= cluster_objs['X_IMAGE']) &
                                   (cluster_objs['X_IMAGE'] <= cutout.xmax_cutout) &
-                                  (cutout.ymin_cutout <= cluster_objs['Y_NAME']) &
-                                  (cluster_objs['Y_NAME'] <= cutout.ymax_cutout))
+                                  (cutout.ymin_cutout <= cluster_objs['Y_IMAGE']) &
+                                  (cluster_objs['Y_IMAGE'] <= cutout.ymax_cutout))
                     cluster_objs = cluster_objs[image_objs]
 
                     # Add the units and description information from the template
