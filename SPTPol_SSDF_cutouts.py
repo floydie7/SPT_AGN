@@ -73,6 +73,10 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
     # For now we will only make cutouts of clusters that are fully contained within a single SSDF tile
     if len(tiles) == 1:
         tile_id = cluster_objs['TILE'][0]
+        if tile_id != 'SSDF4.2':
+            logger.warning('Cluster {spt_id} is located on SSDF tile {tile_id}. Skipping'.format(spt_id=spt_id, tile_id=tile_id))
+            continue
+
         logger.debug('Cluster {spt_id} is located on SSDF tile {tile_id}'.format(spt_id=spt_id, tile_id=tile_id))
 
         # Read in the appropriate SSDF tiles
