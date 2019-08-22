@@ -19,7 +19,8 @@ from astropy.nddata import Cutout2D, NoOverlapError, PartialOverlapError
 from astropy.table import Table
 from astropy.wcs import WCS
 
-logger = logging.getLogger('SPTPol_cutouts.log')
+logging.basicConfig(filename='SPTPol_cutouts.log', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
