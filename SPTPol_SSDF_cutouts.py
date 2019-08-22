@@ -12,6 +12,7 @@ from collections import defaultdict
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.nddata import Cutout2D, NoOverlapError, PartialOverlapError
@@ -28,7 +29,9 @@ huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
 huang = huang[huang['imaging'] >= 2]
 
 # Read in the SSDF photometric catalog
-ssdf_catalog = Table.read(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat', format='ascii.sextractor')
+ssdf_template = Table.read('Data/ssdf_table_template.cat', format='ascii.sextractor')
+ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat',
+                           delim_whitespace=True, skiprows=52, names=ssdf_template.colnames)
 
 # Make SkyCoords for the cluster centers and the SSDF objects
 cluster_centers = SkyCoord(huang['RA'], huang['Dec'], unit='deg')
@@ -49,7 +52,7 @@ for cluster, ssdf_obj in idx_array:
 # For each cluster, create a sub-table of the full SSDF catalog
 for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
     spt_id = huang['SPT_ID'][cluster_key]
-    cluster_objs = ssdf_catalog[ssdf_obj_keys]
+    cluster_objs = Table.from_pandas(ssdf_catalog.iloc[ssdf_obj_keys])
     tiles = np.unique(cluster_objs['TILE'])
 
     # For now we will only make cutouts of clusters that are fully contained within a single SSDF tile
