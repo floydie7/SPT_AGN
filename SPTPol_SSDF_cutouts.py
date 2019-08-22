@@ -135,8 +135,8 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                         col_cluster_objs.description = col_ssdf_template.description
 
                     # Write the catalog to disk using the standard format for the SPT-SZ cutouts
-                    cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cutout_catalogs/{spt_id}.SSDFv9.fits'
-                                       .format(spt_id=spt_id))
+                    cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cutout_catalogs/{spt_id}.SSDFv9.cat'
+                                       .format(spt_id=spt_id), format='ascii')
 
             except NoOverlapError or PartialOverlapError:
                 logger.warning('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
