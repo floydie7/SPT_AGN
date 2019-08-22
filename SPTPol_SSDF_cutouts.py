@@ -7,7 +7,7 @@ centered around the SPTPol 100d clusters in both image and catalog spaces.
 """
 
 import glob
-import warnings
+import logging
 from collections import defaultdict
 
 import astropy.units as u
@@ -19,9 +19,13 @@ from astropy.nddata import Cutout2D, NoOverlapError, PartialOverlapError
 from astropy.table import Table
 from astropy.wcs import WCS
 
+logger = logging.getLogger('SPTPol_cutouts.log')
+logger.setLevel(logging.INFO)
+
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 
+logger.info('Reading in source catalogs')
 # Read in the SPTPol 100d cluster catalog
 huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
 
@@ -33,6 +37,7 @@ ssdf_template = Table.read(hcc_prefix+'Data/ssdf_table_template.cat', format='as
 ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat',
                            delim_whitespace=True, skiprows=52, names=ssdf_template.colnames)
 
+logger.info('Performing cluster search')
 # Make SkyCoords for the cluster centers and the SSDF objects
 cluster_centers = SkyCoord(huang['RA'], huang['Dec'], unit='deg')
 ssdf_coords = SkyCoord(ssdf_catalog['ALPHA_J2000'], ssdf_catalog['DELTA_J2000'], unit='deg')
@@ -49,15 +54,18 @@ cluster_idx_dict = defaultdict(list)
 for cluster, ssdf_obj in idx_array:
     cluster_idx_dict[cluster].append(ssdf_obj)
 
+logger.info('Beginning table and image cutouts')
 # For each cluster, create a sub-table of the full SSDF catalog
 for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
     spt_id = huang['SPT_ID'][cluster_key]
+    logger.debug('Working on cluster: {}'.format(spt_id))
     cluster_objs = Table.from_pandas(ssdf_catalog.iloc[ssdf_obj_keys])
     tiles = np.unique(cluster_objs['TILE'])
 
     # For now we will only make cutouts of clusters that are fully contained within a single SSDF tile
     if len(tiles) == 1:
         tile_id = cluster_objs['TILE'][0]
+        logger.debug('Cluster {spt_id} is located on SSDF tile {tile_id}'.format(spt_id=spt_id, tile_id=tile_id))
 
         # Read in the appropriate SSDF tiles
         ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/ssdf_tiles/*{tile}*.fits'.format(tile=tile_id))
@@ -118,8 +126,8 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                                        format='ascii')
 
             except NoOverlapError or PartialOverlapError:
-                warnings.warn('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
+                logger.warning('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
                 continue
 
     else:
-        print('{spt_id} has objects on multiple SSDF tiles: {tiles}'.format(spt_id=spt_id, tiles=tiles))
+        logger.warning('{spt_id} has objects on multiple SSDF tiles: {tiles}'.format(spt_id=spt_id, tiles=tiles))
