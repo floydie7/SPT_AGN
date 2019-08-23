@@ -73,24 +73,25 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
     # For now we will only make cutouts of clusters that are fully contained within a single SSDF tile
     if len(tiles) == 1:
         tile_id = cluster_objs['TILE'][0]
-        if tile_id != 'SSDF4.2':
-            logger.warning('Cluster {spt_id} is located on SSDF tile {tile_id}. Skipping'.format(spt_id=spt_id, tile_id=tile_id))
-            continue
-
         logger.debug('Cluster {spt_id} is located on SSDF tile {tile_id}'.format(spt_id=spt_id, tile_id=tile_id))
 
         # Read in the appropriate SSDF tiles
         ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/ssdf_tiles/*{tile}*.fits'.format(tile=tile_id))
         image_dict = {}
-        for image in ssdf_tile_files:
-            if 'I1' in image and 'cov' not in image:
-                image_dict['I1_sci'] = fits.getdata(image, header=True)
-            elif 'I1' in image and 'cov' in image:
-                image_dict['I1_cov'] = fits.getdata(image, header=True)
-            elif 'I2' in image and 'cov' not in image:
-                image_dict['I2_sci'] = fits.getdata(image, header=True)
-            elif 'I2' in image and 'cov' in image:
-                image_dict['I2_cov'] = fits.getdata(image, header=True)
+        try:
+            for image in ssdf_tile_files:
+                if 'I1' in image and 'cov' not in image:
+                    image_dict['I1_sci'] = fits.getdata(image, header=True)
+                elif 'I1' in image and 'cov' in image:
+                    image_dict['I1_cov'] = fits.getdata(image, header=True)
+                elif 'I2' in image and 'cov' not in image:
+                    image_dict['I2_sci'] = fits.getdata(image, header=True)
+                elif 'I2' in image and 'cov' in image:
+                    image_dict['I2_cov'] = fits.getdata(image, header=True)
+        except TypeError:
+            logger.warning('Cluster {spt_id} is located on SSDF tile {tile_id} and raised an error. Skipping'
+                           .format(spt_id=spt_id, tile_id=tile_id))
+            continue
 
         for img_type, image_info in image_dict.items():
             data = image_info[0]
@@ -119,7 +120,7 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                             cov='_cov' if 'cov' in img_type else '')
 
                 # Write the cutout to disk
-                cutout_hdu.writeto(cutout_fname)
+                cutout_hdu.writeto(cutout_fname, overwrite=True)
 
                 if img_type == 'I2_sci':
                     # Update the x and y pixel coordinates in the catalog
@@ -140,8 +141,8 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                         col_cluster_objs.description = col_ssdf_template.description
 
                     # Write the catalog to disk using the standard format for the SPT-SZ cutouts
-                    cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cutout_catalogs/{spt_id}.SSDFv9.cat'
-                                       .format(spt_id=spt_id), format='ascii')
+                    cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/{spt_id}.SSDFv9.fits'
+                                       .format(spt_id=spt_id), overwrite=True)
 
             except NoOverlapError or PartialOverlapError:
                 logger.warning('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
