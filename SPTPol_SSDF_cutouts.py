@@ -22,7 +22,7 @@ from astropy.wcs import WCS
 logging.basicConfig(filename='SPTPol_cutouts.log', filemode='w',
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
@@ -88,9 +88,9 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                     image_dict['I2_sci'] = fits.getdata(image, header=True)
                 elif 'I2' in image and 'cov' in image:
                     image_dict['I2_cov'] = fits.getdata(image, header=True)
-        except TypeError:
-            logger.warning('Cluster {spt_id} is located on SSDF tile {tile_id} and raised an error. Skipping'
-                           .format(spt_id=spt_id, tile_id=tile_id))
+        except TypeError as e:
+            logger.warning('Cluster {spt_id} is located on SSDF tile {tile_id} and raised an {error}. Skipping'
+                           .format(spt_id=spt_id, tile_id=tile_id, error=e))
             continue
 
         for img_type, image_info in image_dict.items():
@@ -144,8 +144,9 @@ for cluster_key, ssdf_obj_keys in cluster_idx_dict.items():
                     cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/{spt_id}.SSDFv9.fits'
                                        .format(spt_id=spt_id), overwrite=True)
 
-            except NoOverlapError or PartialOverlapError:
-                logger.warning('{spt_id} raised an OverlapError for image {img}'.format(spt_id=spt_id, img=img_type))
+            except (NoOverlapError, PartialOverlapError) as e:
+                logger.warning('{spt_id} raised an {error} for image {img}'
+                               .format(spt_id=spt_id, img=img_type, error=e))
                 continue
 
     else:
