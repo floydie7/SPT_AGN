@@ -5,9 +5,16 @@ Author: Benjamin Floyd
 Integration test for the montage_mosaic.py API to see if it can complete the mosaicking process from start to finish.
 """
 
+import logging
 from itertools import chain
 
 from montage_mosaic import montage_mosaic
+
+# Set up logging
+logging.basicConfig(filename='SPTPol_mosaics.log', filemode='w',
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def make_mosaics(tile_mosaic_id):
