@@ -29,7 +29,7 @@ from mpi_logger import MPIFileHandler
 comm = MPI.COMM_WORLD
 logger = logging.getLogger('node[{:d}]'.format(comm.rank))
 logger.setLevel(logging.INFO)
-mpi_handler = MPIFileHandler('SPTPol_cutouts.log')
+mpi_handler = MPIFileHandler('SPTPol_cutouts_with_mosaics.log')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 mpi_handler.setFormatter(formatter)
 logger.addHandler(mpi_handler)
