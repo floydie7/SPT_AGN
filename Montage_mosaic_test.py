@@ -35,29 +35,29 @@ def make_mosaics(tile_mosaic_id):
     I2_cov_mosaic_name = out_dir + 'I2_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
 
     # Make the IRAC Channel 1 science mosaic
-    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir='I1_' + tile_mosaic_id + '_sci')
+    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir=out_dir + 'I1_' + tile_mosaic_id + '_sci')
 
     # Make the IRAC Channel 1 coverage mosaic
-    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir='I1_' + tile_mosaic_id + '_cov')
+    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=out_dir + 'I1_' + tile_mosaic_id + '_cov')
 
     # Make the IRAC Channel 2 science mosaic
-    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir='I2_' + tile_mosaic_id + '_sci')
+    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir=out_dir + 'I2_' + tile_mosaic_id + '_sci')
 
     # Make the IRAC Channel 2 coverage mosaic
-    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir='I2_' + tile_mosaic_id + '_cov')
+    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=out_dir + 'I2_' + tile_mosaic_id + '_cov')
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-out_dir = hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/'
+out_dir = hcc_prefix + 'SPTpol_mosaics/'
 
 # Generate a full mosaic set for the tiles. (both IRAC science images and associated coverage maps)
-tiles_to_mosaic_file = {'SSDF0.2_0.3': [['Data/SPTPol/images/ssdf_tiles/I1_SSDF0.2_mosaic.fits',
-                                         'Data/SPTPol/images/ssdf_tiles/I1_SSDF0.2_mosaic_cov.fits',
-                                         'Data/SPTPol/images/ssdf_tiles/I2_SSDF0.2_mosaic.fits',
-                                         'Data/SPTPol/images/ssdf_tiles/I2_SSDF0.2_mosaic_cov.fits'],
-                                        ['Data/SPTPol/images/ssdf_tiles/I1_SSDF0.3_mosaic.fits',
-                                         'Data/SPTPol/images/ssdf_tiles/I1_SSDF0.3_mosaic_cov.fits',
-                                         'Data/SPTPol/images/ssdf_tiles/I2_SSDF0.3_mosaic.fits',
-                                         'Data/SPTPol/images/ssdf_tiles/I2_SSDF0.3_mosaic_cov.fits']]}
+tiles_to_mosaic_file = {'SSDF0.2_0.3': [['/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I1_SSDF0.2_mosaic.fits',
+                                         '/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I1_SSDF0.2_mosaic_cov.fits',
+                                         '/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I2_SSDF0.2_mosaic.fits',
+                                         '/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I2_SSDF0.2_mosaic_cov.fits'],
+                                        ['/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I1_SSDF0.3_mosaic.fits',
+                                         '/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I1_SSDF0.3_mosaic_cov.fits',
+                                         '/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I2_SSDF0.3_mosaic.fits',
+                                         '/work/mei/bfloyd/SPT_AGN/Data/SPTPol/images/ssdf_tiles/I2_SSDF0.3_mosaic_cov.fits']]}
 
 make_mosaics('SSDF0.2_0.3')
