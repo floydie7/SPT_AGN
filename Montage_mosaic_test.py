@@ -35,16 +35,16 @@ def make_mosaics(tile_mosaic_id):
     I2_cov_mosaic_name = out_dir + 'I2_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
 
     # Make the IRAC Channel 1 science mosaic
-    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir=out_dir + 'I1_' + tile_mosaic_id + '_sci')
+    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir='I1_' + tile_mosaic_id + '_sci')
 
     # Make the IRAC Channel 1 coverage mosaic
-    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=out_dir + 'I1_' + tile_mosaic_id + '_cov')
+    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir='I1_' + tile_mosaic_id + '_cov')
 
     # Make the IRAC Channel 2 science mosaic
-    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir=out_dir + 'I2_' + tile_mosaic_id + '_sci')
+    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir='I2_' + tile_mosaic_id + '_sci')
 
     # Make the IRAC Channel 2 coverage mosaic
-    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=out_dir + 'I2_' + tile_mosaic_id + '_cov')
+    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir='I2_' + tile_mosaic_id + '_cov')
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
