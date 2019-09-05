@@ -4,7 +4,8 @@ Author: Benjamin Floyd
 
 Automates the Montage mosaicking process using the MontagePy API.
 """
-
+import datetime
+import glob
 import logging
 import os
 import shutil
@@ -12,6 +13,8 @@ import types
 from functools import wraps
 
 import MontagePy.main as m
+import numpy as np
+from astropy.io import fits
 
 # Set up logging for the module
 log = logging.getLogger(__name__)
@@ -115,6 +118,14 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     if correct_bg:
         log.debug('Background correction requested.')
 
+        # Set any boundary pixels to NaNs to avoid background fitting
+        for projected_image in glob.glob(projected_dir + '*.fits'):
+            if 'area' not in projected_image:
+                image_data, image_header = fits.getdata(projected_image, header=True)
+                image_data_nan = np.where(image_data == 0, np.nan, image_data)
+                hdu = fits.PrimaryHDU(image_data_nan, header=image_header)
+                hdu.writeto(projected_image, overwrite=True)
+
         # Determine overlaps between the tiles
         log.debug('Calculating Overlap table.')
         diff_table = workdir + '/diffs.tbl'
@@ -143,10 +154,32 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
         log.debug('Coadding images using coadd type: {}'.format(coadd_type))
         m.mAdd(corrected_dir, corrected_metatable, region_hdr, out_file, coadd=coadd_dict[coadd_type])
 
+        m.mFixNaN(out_file, out_file, boundaries=True)
+
     else:
         # Coadd the projected images without background corrections
         log.debug('No background correction requested. Coadding (uncorrected) projected images.')
         m.mAdd(projected_dir, projected_metatable, region_hdr, out_file, coadd=coadd_dict[coadd_type])
+
+    # Set any NaN values in the output file to "0" to conform with the original files.
+    out_data, out_header = fits.getdata(out_file, header=True)
+    np.nan_to_num(out_data, nan=0, copy=False)  # Replace NaN values to 0 in-place.
+
+    # Read in one of the original file's header
+    original_header = fits.getheader(glob.glob(raw_dir+'/*.fits')[0])
+
+    # Using the mosaic header, update the WCS in the original header
+    original_header.update(out_header)
+
+    # Add comments to the header
+    original_header['history'] = 'Mosaic created using MontagePy v{mpy_ver}; Montage v{m_ver}'.format(mpy_ver='1.2.0',
+                                                                                                      m_ver='6.0')
+    original_header['history'] = datetime.datetime.now().isoformat(' ', timespec='seconds')
+    original_header['comment'] = 'Created by Benjamin Floyd'
+
+    # Write modified file back to disk
+    hdu = fits.PrimaryHDU(data=out_data, header=original_header)
+    hdu.writeto(out_file, overwrite=True)
 
     # Clean up the work directory
     if clean_workdir:

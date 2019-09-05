@@ -19,7 +19,7 @@ from mpi_logger import MPIFileHandler
 
 # Set up logging
 comm = MPI.COMM_WORLD
-logger = logging.getLogger('node[{:d}]'.format(comm.rank))
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 mpi_handler = MPIFileHandler('SSDF_mosaics.log')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -60,13 +60,13 @@ def make_mosaics(tile_mosaic_id):
     montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir=out_dir+'I1_'+tile_mosaic_id+'_sci')
 
     # Make the IRAC Channel 1 coverage mosaic
-    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=out_dir+'I1_'+tile_mosaic_id+'_cov')
+    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=out_dir+'I1_'+tile_mosaic_id+'_cov', correct_bg=False)
 
     # Make the IRAC Channel 2 science mosaic
     montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir=out_dir+'I2_'+tile_mosaic_id+'_sci')
 
     # Make the IRAC Channel 2 coverage mosaic
-    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=out_dir+'I2_'+tile_mosaic_id+'_cov')
+    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=out_dir+'I2_'+tile_mosaic_id+'_cov', correct_bg=False)
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -93,6 +93,14 @@ file_names = [[glob.glob(ssdf_tile_dir + '/*{tile}*'.format(tile=tile)) for tile
               for tile_set in tiles_to_mosaic]
 tiles_to_mosaic_file = {'SSDF{}'.format('_'.join(sorted([re.search(r'\d\.\d', fname[0]).group(0) for fname in file_set]))):
                         file_set for file_set in file_names}
+
+# Skip mosaics with tile SSDF4.2 for now as the IRAC 1 coverage map is corrupted.
+tiles_to_remove = []
+for k in tiles_to_mosaic_file:
+    if '4.2' in k:
+        tiles_to_remove.append(k)
+for k in tiles_to_remove:
+    tiles_to_mosaic_file.pop(k, None)
 
 with MPIPool() as pool:
     if not pool.is_master():
