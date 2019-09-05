@@ -75,7 +75,7 @@ out_dir = hcc_prefix+'Data/SPTPol/images/mosaic_tiles/'
 # Read the cutouts log to find the tiles needed to mosaic for each cluster
 id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
 cluster_tiles = {}
-with open('Data/SPTPol_cutouts.log', 'r') as log:
+with open('SPTPol_cutouts.log', 'r') as log:
     for warnings_tiles in multiple_tiles(log):
         if 'TILE' in warnings_tiles[0]:
             cluster_id = id_pattern.search(warnings_tiles[0]).group(0)
