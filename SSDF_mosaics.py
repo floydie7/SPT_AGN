@@ -19,7 +19,7 @@ from mpi_logger import MPIFileHandler
 
 # Set up logging
 comm = MPI.COMM_WORLD
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('node[{rank:d}]: {name}'.format(rank=comm.rank, name=__name__))
 logger.setLevel(logging.INFO)
 mpi_handler = MPIFileHandler('SSDF_mosaics.log')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -99,6 +99,7 @@ tiles_to_remove = []
 for k in tiles_to_mosaic_file:
     if '4.2' in k:
         tiles_to_remove.append(k)
+logger.info('Removing mosaic tiles: {} to avoid tile 4.2'.format(tiles_to_remove))
 for k in tiles_to_remove:
     tiles_to_mosaic_file.pop(k, None)
 

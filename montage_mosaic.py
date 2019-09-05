@@ -17,7 +17,7 @@ import numpy as np
 from astropy.io import fits
 
 # Set up logging for the module
-log = logging.getLogger(__name__)
+log = logging.getLogger('montage_mosaic:{}'.format(__name__))
 
 
 # Add an exception to the Montage API by decorating the functions with a wrapper
