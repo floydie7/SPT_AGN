@@ -40,6 +40,7 @@ def multiple_tiles(f):
 
 
 def make_mosaics(tile_mosaic_id):
+    logger.info('node[{rank:d}] working on mosaic: {mosaic_id}'.format(rank=comm.rank, mosaic_id=tile_mosaic_id))
     # Get the file lists
     file_set = tiles_to_mosaic_file[tile_mosaic_id]
 
