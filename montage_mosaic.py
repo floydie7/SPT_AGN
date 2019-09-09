@@ -185,7 +185,6 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     original_header['history'] = 'Mosaic created using MontagePy v{mpy_ver}; Montage v{m_ver}'.format(mpy_ver='1.2.0',
                                                                                                       m_ver='6.0')
     original_header['history'] = datetime.datetime.now().isoformat(' ', timespec='seconds')
-    original_header['history'] = 'Created by Benjamin Floyd'
     original_header['history'] = 'Mosaic created by Benjamin Floyd'
 
     # Write modified file back to disk

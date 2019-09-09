@@ -41,9 +41,9 @@ def multiple_tiles(f):
 
 def make_mosaics(mosaic_label):
     logger.info('node[{rank:d}] working on mosaic: {mosaic_id}'.format(rank=comm.rank, mosaic_id=mosaic_label))
-    tile_list, out_file, workdir, bkg_correction = mosaic_tasks[mosaic_label]
+    tile_list, out_file, bkg_correction = mosaic_tasks[mosaic_label]
 
-    montage_mosaic(tile_list, out_file=out_file, workdir=temp_work_dir+workdir, correct_bg=bkg_correction)
+    montage_mosaic(tile_list, out_file=out_file, workdir=temp_work_dir+mosaic_label, correct_bg=bkg_correction)
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -53,7 +53,7 @@ temp_work_dir = out_dir + 'temp_work_dirs/'
 # Read the cutouts log to find the tiles needed to mosaic for each cluster
 id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
 cluster_tiles = {}
-with open('Data/SPTPol_cutouts.log', 'r') as log:
+with open('SPTPol_cutouts.log', 'r') as log:
     for warnings_tiles in multiple_tiles(log):
         if 'TILE' in warnings_tiles[0]:
             cluster_id = id_pattern.search(warnings_tiles[0]).group(0)
