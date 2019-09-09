@@ -15,9 +15,18 @@ from functools import wraps
 import MontagePy.main as m
 import numpy as np
 from astropy.io import fits
+from mpi4py import MPI
+
+from mpi_logger import MPIFileHandler
 
 # Set up logging for the module
-log = logging.getLogger('montage_mosaic:{}'.format(__name__))
+comm = MPI.COMM_WORLD
+log = logging.getLogger('node[{rank:d}]: montage_mosaic: {name}'.format(rank=comm.rank, name=__name__))
+log.setLevel(logging.DEBUG)
+mpi_handler = MPIFileHandler('SSDF_mosaics_funcs.log')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+mpi_handler.setFormatter(formatter)
+log.addHandler(mpi_handler)
 
 
 # Add an exception to the Montage API by decorating the functions with a wrapper
@@ -175,11 +184,8 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     original_header['history'] = 'Mosaic created using MontagePy v{mpy_ver}; Montage v{m_ver}'.format(mpy_ver='1.2.0',
                                                                                                       m_ver='6.0')
     original_header['history'] = datetime.datetime.now().isoformat(' ', timespec='seconds')
-<<<<<<< HEAD
     original_header['history'] = 'Created by Benjamin Floyd'
-=======
     original_header['history'] = 'Mosaic created by Benjamin Floyd'
->>>>>>> 19a4cf298aa99464fb582ceb526f474dfb65aa51
 
     # Write modified file back to disk
     hdu = fits.PrimaryHDU(data=out_data, header=original_header)

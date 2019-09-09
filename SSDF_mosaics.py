@@ -109,9 +109,11 @@ logger.info('Removing mosaic tiles: {} to avoid tile 4.2'.format(tiles_to_remove
 for k in tiles_to_remove:
     tiles_to_mosaic_file.pop(k, None)
 
+tiles_to_mosaic_file_test = {k: tiles_to_mosaic_file.get(k) for k in ['SSDF0.0_0.1_1.0_1.1', 'SSDF0.2_0.3']}
+
 with MPIPool() as pool:
     if not pool.is_master():
         pool.wait()
         sys.exit(0)
 
-    pool.map(make_mosaics, tiles_to_mosaic_file)
+    pool.map(make_mosaics, tiles_to_mosaic_file_test)
