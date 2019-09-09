@@ -20,7 +20,7 @@ from mpi_logger import MPIFileHandler
 # Set up logging
 comm = MPI.COMM_WORLD
 logger = logging.getLogger('node[{rank:d}]: {name}'.format(rank=comm.rank, name=__name__))
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 mpi_handler = MPIFileHandler('SSDF_mosaics.log')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 mpi_handler.setFormatter(formatter)
@@ -58,20 +58,25 @@ def make_mosaics(tile_mosaic_id):
     I2_cov_mosaic_name = out_dir+'I2_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
 
     # Make the IRAC Channel 1 science mosaic
-    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir=out_dir+'I1_'+tile_mosaic_id+'_sci')
+    logger.debug('Making IRAC 1 science mosaic')
+    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir=temp_work_dir+'I1_'+tile_mosaic_id+'_sci')
 
     # Make the IRAC Channel 1 coverage mosaic
-    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=out_dir+'I1_'+tile_mosaic_id+'_cov', correct_bg=False)
+    logger.debug('Making IRAC 1 coverage mosaic')
+    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=temp_work_dir+'I1_'+tile_mosaic_id+'_cov', correct_bg=False)
 
     # Make the IRAC Channel 2 science mosaic
-    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir=out_dir+'I2_'+tile_mosaic_id+'_sci')
+    logger.debug('Making IRAC 2 science mosaic')
+    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir=temp_work_dir+'I2_'+tile_mosaic_id+'_sci')
 
     # Make the IRAC Channel 2 coverage mosaic
-    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=out_dir+'I2_'+tile_mosaic_id+'_cov', correct_bg=False)
+    logger.debug('Making IRAC 2 coverage mosaic')
+    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=temp_work_dir+'I2_'+tile_mosaic_id+'_cov', correct_bg=False)
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 out_dir = hcc_prefix+'Data/SPTPol/images/mosaic_tiles/'
+temp_work_dir = out_dir + 'temp_work_dirs/'
 
 # Read the cutouts log to find the tiles needed to mosaic for each cluster
 id_pattern = re.compile(r'SPT-CLJ\d+-\d+')

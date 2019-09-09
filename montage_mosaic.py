@@ -154,17 +154,17 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
         log.debug('Coadding images using coadd type: {}'.format(coadd_type))
         m.mAdd(corrected_dir, corrected_metatable, region_hdr, out_file, coadd=coadd_dict[coadd_type])
 
-        m.mFixNaN(out_file, out_file, boundaries=True)
-
     else:
         # Coadd the projected images without background corrections
         log.debug('No background correction requested. Coadding (uncorrected) projected images.')
         m.mAdd(projected_dir, projected_metatable, region_hdr, out_file, coadd=coadd_dict[coadd_type])
 
+    log.debug('Setting NaN values in mosaic to 0.')
     # Set any NaN values in the output file to "0" to conform with the original files.
     out_data, out_header = fits.getdata(out_file, header=True)
     np.nan_to_num(out_data, nan=0, copy=False)  # Replace NaN values to 0 in-place.
 
+    log.debug('Updating header with data from original header')
     # Read in one of the original file's header
     original_header = fits.getheader(glob.glob(raw_dir+'/*.fits')[0])
 
@@ -175,7 +175,7 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     original_header['history'] = 'Mosaic created using MontagePy v{mpy_ver}; Montage v{m_ver}'.format(mpy_ver='1.2.0',
                                                                                                       m_ver='6.0')
     original_header['history'] = datetime.datetime.now().isoformat(' ', timespec='seconds')
-    original_header['comment'] = 'Created by Benjamin Floyd'
+    original_header['history'] = 'Created by Benjamin Floyd'
 
     # Write modified file back to disk
     hdu = fits.PrimaryHDU(data=out_data, header=original_header)
