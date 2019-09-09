@@ -171,7 +171,7 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     log.debug('Setting NaN values in mosaic to 0.')
     # Set any NaN values in the output file to "0" to conform with the original files.
     out_data, out_header = fits.getdata(out_file, header=True)
-    np.nan_to_num(out_data, nan=0, copy=False)  # Replace NaN values to 0 in-place.
+    # np.nan_to_num(out_data, nan=0, copy=False)  # Replace NaN values to 0 in-place.
 
     log.debug('Updating header with data from original header')
     # Read in one of the original file's header
