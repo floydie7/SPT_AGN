@@ -39,39 +39,11 @@ def multiple_tiles(f):
     yield buffer
 
 
-def make_mosaics(tile_mosaic_id):
-    logger.info('node[{rank:d}] working on mosaic: {mosaic_id}'.format(rank=comm.rank, mosaic_id=tile_mosaic_id))
-    # Get the file lists
-    file_set = tiles_to_mosaic_file[tile_mosaic_id]
+def make_mosaics(mosaic_label):
+    logger.info('node[{rank:d}] working on mosaic: {mosaic_id}'.format(rank=comm.rank, mosaic_id=mosaic_label))
+    tile_list, out_file, workdir, bkg_correction = mosaic_tasks[mosaic_label]
 
-    # Group the files into the four mosaic types we will make
-    all_files = list(chain(*file_set))
-    I1_sci_imgs = [img_name for img_name in all_files if 'I1' in img_name and 'cov' not in img_name]
-    I1_cov_imgs = [img_name for img_name in all_files if 'I1' in img_name and 'cov' in img_name]
-    I2_sci_imgs = [img_name for img_name in all_files if 'I2' in img_name and 'cov' not in img_name]
-    I2_cov_imgs = [img_name for img_name in all_files if 'I2' in img_name and 'cov' in img_name]
-
-    # Mosaic file names
-    I1_sci_mosaic_name = out_dir+'I1_{mosaic_id}_mosaic.fits'.format(mosaic_id=tile_mosaic_id)
-    I1_cov_mosaic_name = out_dir+'I1_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
-    I2_sci_mosaic_name = out_dir+'I2_{mosaic_id}_mosaic.fits'.format(mosaic_id=tile_mosaic_id)
-    I2_cov_mosaic_name = out_dir+'I2_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
-
-    # Make the IRAC Channel 1 science mosaic
-    logger.debug('Making IRAC 1 science mosaic')
-    montage_mosaic(I1_sci_imgs, out_file=I1_sci_mosaic_name, workdir=temp_work_dir+'I1_'+tile_mosaic_id+'_sci')
-
-    # Make the IRAC Channel 1 coverage mosaic
-    logger.debug('Making IRAC 1 coverage mosaic')
-    montage_mosaic(I1_cov_imgs, out_file=I1_cov_mosaic_name, workdir=temp_work_dir+'I1_'+tile_mosaic_id+'_cov', correct_bg=False)
-
-    # Make the IRAC Channel 2 science mosaic
-    logger.debug('Making IRAC 2 science mosaic')
-    montage_mosaic(I2_sci_imgs, out_file=I2_sci_mosaic_name, workdir=temp_work_dir+'I2_'+tile_mosaic_id+'_sci')
-
-    # Make the IRAC Channel 2 coverage mosaic
-    logger.debug('Making IRAC 2 coverage mosaic')
-    montage_mosaic(I2_cov_imgs, out_file=I2_cov_mosaic_name, workdir=temp_work_dir+'I2_'+tile_mosaic_id+'_cov', correct_bg=False)
+    montage_mosaic(tile_list, out_file=out_file, workdir=temp_work_dir+workdir, correct_bg=bkg_correction)
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -81,7 +53,7 @@ temp_work_dir = out_dir + 'temp_work_dirs/'
 # Read the cutouts log to find the tiles needed to mosaic for each cluster
 id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
 cluster_tiles = {}
-with open('SPTPol_cutouts.log', 'r') as log:
+with open('Data/SPTPol_cutouts.log', 'r') as log:
     for warnings_tiles in multiple_tiles(log):
         if 'TILE' in warnings_tiles[0]:
             cluster_id = id_pattern.search(warnings_tiles[0]).group(0)
@@ -111,9 +83,39 @@ for k in tiles_to_remove:
 
 tiles_to_mosaic_file_test = {k: tiles_to_mosaic_file.get(k) for k in ['SSDF0.0_0.1_1.0_1.1', 'SSDF0.2_0.3']}
 
+mosaic_tasks = {}
+for tile_mosaic_id in tiles_to_mosaic_file_test:
+    file_set = tiles_to_mosaic_file[tile_mosaic_id]
+
+    # Group the files into the four mosaic types we will make
+    all_files = list(chain(*file_set))
+    I1_sci_imgs = [img_name for img_name in all_files if 'I1' in img_name and 'cov' not in img_name]
+    I1_cov_imgs = [img_name for img_name in all_files if 'I1' in img_name and 'cov' in img_name]
+    I2_sci_imgs = [img_name for img_name in all_files if 'I2' in img_name and 'cov' not in img_name]
+    I2_cov_imgs = [img_name for img_name in all_files if 'I2' in img_name and 'cov' in img_name]
+    image_list = [I1_sci_imgs, I1_cov_imgs, I2_sci_imgs, I2_cov_imgs]
+
+    # Mosaic file names
+    I1_sci_mosaic_name = out_dir + 'I1_{mosaic_id}_mosaic.fits'.format(mosaic_id=tile_mosaic_id)
+    I1_cov_mosaic_name = out_dir + 'I1_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
+    I2_sci_mosaic_name = out_dir + 'I2_{mosaic_id}_mosaic.fits'.format(mosaic_id=tile_mosaic_id)
+    I2_cov_mosaic_name = out_dir + 'I2_{mosaic_id}_mosaic_cov.fits'.format(mosaic_id=tile_mosaic_id)
+    mosaic_filenames = [I1_sci_mosaic_name, I1_cov_mosaic_name, I2_sci_mosaic_name, I2_cov_mosaic_name]
+
+    # Mosaic labels
+    I1_sci_label = 'I1_'+tile_mosaic_id+'_sci'
+    I1_cov_label = 'I1_'+tile_mosaic_id+'_cov'
+    I2_sci_label = 'I2_'+tile_mosaic_id+'_sci'
+    I2_cov_label = 'I2_'+tile_mosaic_id+'_cov'
+    labels = [I1_sci_label, I1_cov_label, I2_sci_label, I2_cov_label]
+
+    mosaic_tasks.update({lbl: [img_list, mosaic_name, False if '_cov' in lbl else True]
+                         for lbl, img_list, mosaic_name in zip(labels, image_list, mosaic_filenames)})
+
+
 with MPIPool() as pool:
     if not pool.is_master():
         pool.wait()
         sys.exit(0)
 
-    pool.map(make_mosaics, tiles_to_mosaic_file_test)
+    pool.map(make_mosaics, mosaic_tasks)
