@@ -81,8 +81,6 @@ logger.info('Removing mosaic tiles: {} to avoid tile 4.2'.format(tiles_to_remove
 for k in tiles_to_remove:
     tiles_to_mosaic_file.pop(k, None)
 
-tiles_to_mosaic_file_test = {k: tiles_to_mosaic_file.get(k) for k in ['SSDF0.0_0.1_1.0_1.1', 'SSDF0.2_0.3']}
-
 mosaic_tasks = {}
 for tile_mosaic_id in tiles_to_mosaic_file_test:
     file_set = tiles_to_mosaic_file[tile_mosaic_id]
