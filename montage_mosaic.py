@@ -4,7 +4,6 @@ Author: Benjamin Floyd
 
 Automates the Montage mosaicking process using the MontagePy API.
 """
-import tracemalloc; tracemalloc.start()
 import datetime
 import glob
 import logging
@@ -116,9 +115,6 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     region_hdr = workdir + '/region.hdr'
     m.mMakeHdr(raw_metatable, region_hdr)
 
-    snapshot1 = tracemalloc.take_snapshot()
-    snapshot1.dump('montage_mosaic1.snapshot')
-
     # Perform reprojectioning
     log.debug('Performing reprojectioning. Quick Look is set to: {}'.format(quick_proj))
     m.mProjExec(raw_dir, raw_metatable, region_hdr, projdir=projected_dir, quickMode=quick_proj)
@@ -127,9 +123,6 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     log.debug('Generating projected image metatable.')
     projected_metatable = workdir + '/pImages.tbl'
     m.mImgtbl(projected_dir, projected_metatable)
-
-    snapshot2 = tracemalloc.take_snapshot()
-    snapshot2.dump('montage_mosaic2.snapshot')
 
     if correct_bg:
         log.debug('Background correction requested.')
@@ -175,9 +168,6 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
         log.debug('No background correction requested. Coadding (uncorrected) projected images.')
         m.mAdd(projected_dir, projected_metatable, region_hdr, out_file, coadd=coadd_dict[coadd_type])
 
-    snapshot3 = tracemalloc.take_snapshot()
-    snapshot3.dump('montage_mosaic3.snapshot')
-
     log.info('Performing post-mosaicking processes.')
     # log.debug('Setting NaN values in mosaic to 0.')
     # Set any NaN values in the output file to "0" to conform with the original files.
@@ -200,9 +190,6 @@ def montage_mosaic(tiles, out_file, quick_proj=False, coadd_type='average', corr
     # Write modified file back to disk
     hdu = fits.PrimaryHDU(data=out_data, header=original_header)
     hdu.writeto(out_file, overwrite=True)
-
-    snapshot4 = tracemalloc.take_snapshot()
-    snapshot4.dump('montage_mosaic4.snapshot')
 
     # Clean up the work directory
     if clean_workdir:
