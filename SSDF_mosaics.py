@@ -4,7 +4,6 @@ Author: Benjamin Floyd
 
 Generates mosaics using Montage from the SSDF tiles where SPTPol 100d clusters are located within the tile boundaries.
 """
-
 import glob
 import logging
 import re
@@ -71,15 +70,6 @@ file_names = [[glob.glob(ssdf_tile_dir + '/*{tile}*'.format(tile=tile)) for tile
               for tile_set in tiles_to_mosaic]
 tiles_to_mosaic_file = {'SSDF{}'.format('_'.join(sorted([re.search(r'\d\.\d', fname[0]).group(0) for fname in file_set]))):
                         file_set for file_set in file_names}
-
-# Skip mosaics with tile SSDF4.2 for now as the IRAC 1 coverage map is corrupted.
-tiles_to_remove = []
-for k in tiles_to_mosaic_file:
-    if '4.2' in k:
-        tiles_to_remove.append(k)
-logger.info('Removing mosaic tiles: {} to avoid tile 4.2'.format(tiles_to_remove))
-for k in tiles_to_remove:
-    tiles_to_mosaic_file.pop(k, None)
 
 mosaic_tasks = {}
 for tile_mosaic_id in tiles_to_mosaic_file:

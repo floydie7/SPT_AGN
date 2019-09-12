@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
-from astropy.nddata import Cutout2D, NoOverlapError, PartialOverlapError
+from astropy.nddata import Cutout2D
 from astropy.table import Table, setdiff
 from astropy.wcs import WCS
 from mpi4py import MPI
@@ -59,7 +59,7 @@ def make_cutout(cluster_key):
                     .format(spt_id=spt_id, tiles=list(tiles['TILE'])))
         tile_id = 'SSDF{}'.format('_'.join(sorted([re.search(r'\d\.\d', tile_id).group(0) for tile_id in tiles['TILE']])))
 
-        ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/*{tile}*.fits'.format(tile=tile_id))
+        ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/completed/*{tile}*.fits'.format(tile=tile_id))
 
     image_dict = {}
     try:
@@ -86,51 +86,45 @@ def make_cutout(cluster_key):
         cutout_size = 16.0 * u.arcmin
 
         # Make the cutout
-        try:
-            cutout = Cutout2D(data, position, cutout_size, wcs=wcs, mode='strict')
+        cutout = Cutout2D(data, position, cutout_size, wcs=wcs, mode='partial')
 
-            # Update the header from the original image
-            header.update(cutout.wcs.to_header())
+        # Update the header from the original image
+        header.update(cutout.wcs.to_header())
 
-            # Create the HDU
-            cutout_hdu = fits.PrimaryHDU(cutout.data, header=header)
+        # Create the HDU
+        cutout_hdu = fits.PrimaryHDU(cutout.data, header=header)
 
-            # The cutout names use the standard format used for the SPT-SZ cutouts
-            cutout_fname = hcc_prefix + 'Data/SPTPol/images/cluster_cutouts/' \
-                                        '{band}_{spt_id}_mosaic{cov}.cutout.fits' \
-                .format(band='I1' if 'I1' in img_type else 'I2',
-                        spt_id=spt_id,
-                        cov='_cov' if 'cov' in img_type else '')
+        # The cutout names use the standard format used for the SPT-SZ cutouts
+        cutout_fname = hcc_prefix + 'Data/SPTPol/images/cluster_cutouts/' \
+                                    '{band}_{spt_id}_mosaic{cov}.cutout.fits' \
+            .format(band='I1' if 'I1' in img_type else 'I2',
+                    spt_id=spt_id,
+                    cov='_cov' if 'cov' in img_type else '')
 
-            # Write the cutout to disk
-            cutout_hdu.writeto(cutout_fname, overwrite=True)
+        # Write the cutout to disk
+        cutout_hdu.writeto(cutout_fname, overwrite=True)
 
-            if img_type == 'I2_sci':
-                # Update the x and y pixel coordinates in the catalog
-                new_xy_image = cutout.to_cutout_position((cluster_objs['X_IMAGE'], cluster_objs['Y_IMAGE']))
-                cluster_objs['X_IMAGE'] = new_xy_image[0]
-                cluster_objs['Y_IMAGE'] = new_xy_image[1]
+        if img_type == 'I2_sci':
+            # Update the x and y pixel coordinates in the catalog
+            new_xy_image = cutout.to_cutout_position((cluster_objs['X_IMAGE'], cluster_objs['Y_IMAGE']))
+            cluster_objs['X_IMAGE'] = new_xy_image[0]
+            cluster_objs['Y_IMAGE'] = new_xy_image[1]
 
-                # Trim the catalog to only include objects within the image
-                image_objs = ((cutout.xmin_cutout <= cluster_objs['X_IMAGE']) &
-                              (cluster_objs['X_IMAGE'] <= cutout.xmax_cutout) &
-                              (cutout.ymin_cutout <= cluster_objs['Y_IMAGE']) &
-                              (cluster_objs['Y_IMAGE'] <= cutout.ymax_cutout))
-                cluster_objs = cluster_objs[image_objs]
+            # Trim the catalog to only include objects within the image
+            image_objs = ((cutout.xmin_cutout <= cluster_objs['X_IMAGE']) &
+                          (cluster_objs['X_IMAGE'] <= cutout.xmax_cutout) &
+                          (cutout.ymin_cutout <= cluster_objs['Y_IMAGE']) &
+                          (cluster_objs['Y_IMAGE'] <= cutout.ymax_cutout))
+            cluster_objs = cluster_objs[image_objs]
 
-                # Add the units and description information from the template
-                for col_cluster_objs, col_ssdf_template in zip(cluster_objs.itercols(), ssdf_template.itercols()):
-                    col_cluster_objs.unit = col_ssdf_template.unit
-                    col_cluster_objs.description = col_ssdf_template.description
+            # Add the units and description information from the template
+            for col_cluster_objs, col_ssdf_template in zip(cluster_objs.itercols(), ssdf_template.itercols()):
+                col_cluster_objs.unit = col_ssdf_template.unit
+                col_cluster_objs.description = col_ssdf_template.description
 
-                # Write the catalog to disk using the standard format for the SPT-SZ cutouts
-                cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/{spt_id}.SSDFv9.fits'
-                                   .format(spt_id=spt_id), overwrite=True)
-
-        except (NoOverlapError, PartialOverlapError) as e:
-            logger.warning('{spt_id} raised an Error: {error} for image {img}'
-                           .format(spt_id=spt_id, img=img_type, error=e))
-            continue
+            # Write the catalog to disk using the standard format for the SPT-SZ cutouts
+            cluster_objs.write(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/{spt_id}.SSDFv9.fits'
+                               .format(spt_id=spt_id), overwrite=True)
 
 
 logger.info('Reading in source catalogs')
