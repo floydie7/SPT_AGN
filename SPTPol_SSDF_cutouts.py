@@ -140,6 +140,12 @@ huang = setdiff(huang, bocquet, keys=['SPT_ID'])
 # Select only clusters with IR imaging
 huang = huang[huang['imaging'] >= 2]
 
+# Remove any clusters that we've already processed
+cluster_id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
+completed_filenames = glob.glob(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/*.SSDFv9.fits')
+completed_ids = Table([[cluster_id_pattern.search(f).group(0) for f in completed_filenames]], names=['SPT_ID'])
+huang = setdiff(huang, completed_ids, keys='SPT_ID')
+
 # Read in the SSDF photometric catalog
 ssdf_template = Table.read(hcc_prefix + 'Data/ssdf_table_template.cat', format='ascii.sextractor')
 ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat',
