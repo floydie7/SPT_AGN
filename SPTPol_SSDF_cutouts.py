@@ -9,7 +9,6 @@ centered around the SPTPol 100d clusters in both image and catalog spaces.
 import glob
 import logging
 import re
-import sys
 from collections import defaultdict
 
 import astropy.units as u
@@ -21,14 +20,14 @@ from astropy.nddata import Cutout2D
 from astropy.table import Table, setdiff
 from astropy.wcs import WCS
 from mpi4py import MPI
-from schwimmbad import MPIPool
+from mpipool import Pool
 
 from mpi_logger import MPIFileHandler
 
 # Set up logging
 comm = MPI.COMM_WORLD
 logger = logging.getLogger('node[{:d}]'.format(comm.rank))
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 mpi_handler = MPIFileHandler('SPTPol_cutouts_with_mosaics.log')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 mpi_handler.setFormatter(formatter)
@@ -169,9 +168,9 @@ for cluster, ssdf_obj in idx_array:
     cluster_idx_dict[cluster].append(ssdf_obj)
 
 logger.info('Beginning table and image cutouts')
-with MPIPool() as pool:
-    if not pool.is_master():
-        pool.wait()
-        sys.exit(0)
+with Pool() as pool:
+    # if not pool.is_master():
+    #     pool.wait()
+    #     sys.exit(0)
 
     pool.map(make_cutout, cluster_idx_dict)
