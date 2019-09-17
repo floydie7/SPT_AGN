@@ -56,8 +56,8 @@ def make_cutout(cluster_key):
 
     else:
         logger.info('{spt_id} has objects on multiple SSDF tiles: {tiles}. Switching to mosaics.'
-                    .format(spt_id=spt_id, tiles=list(tiles['TILE'])))
-        tile_id = 'SSDF{}'.format('_'.join(sorted([re.search(r'\d\.\d', tile_id).group(0) for tile_id in tiles['TILE']])))
+                    .format(spt_id=spt_id, tiles=list(tiles)))
+        tile_id = 'SSDF{}'.format('_'.join(sorted([re.search(r'\d\.\d', tile_id).group(0) for tile_id in tiles])))
 
         ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/completed/*{tile}*.fits'.format(tile=tile_id))
 
