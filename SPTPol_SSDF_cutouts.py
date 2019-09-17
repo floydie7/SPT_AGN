@@ -60,6 +60,11 @@ def make_cutout(cluster_key):
 
         ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/completed/*{tile}*.fits'.format(tile=tile_id))
 
+        if not ssdf_tile_files:
+            tile_id_nums = [re.search(r'\d\.\d', tile_id).group(0) for tile_id in tiles]
+            ssdf_tile_files = [f for f in glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/completed/*.fits')
+                               if all(id_num in f for id_num in tile_id_nums)]
+
     image_dict = {}
     try:
         for image in ssdf_tile_files:
