@@ -144,6 +144,9 @@ huang = setdiff(huang, bocquet, keys=['SPT_ID'])
 # Select only clusters with IR imaging
 huang = huang[huang['imaging'] >= 2]
 
+# Select only clusters with redshift and mass information (confirmed clusters)
+huang = huang[huang['redshift'] > 0]
+
 # Remove any clusters that we've already processed
 # cluster_id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
 # completed_filenames = glob.glob(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/*.SSDFv9.fits')
