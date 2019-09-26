@@ -87,7 +87,7 @@ def make_cutout(cluster_key):
 
         # Our cutout will be centered on the cluster center and have an angular size of 16' x 16'
         position = cluster_centers[cluster_key]
-        cutout_size = 16.0 * u.arcmin
+        cutout_size = 5.0 * u.arcmin
 
         # Make the cutout
         cutout = Cutout2D(data, position, cutout_size, wcs=wcs, mode='partial')
@@ -110,7 +110,7 @@ def make_cutout(cluster_key):
 
         if img_type == 'I2_sci':
             # Update the x and y pixel coordinates in the catalog
-            new_xy_image = cutout.to_cutout_position((cluster_objs['X_IMAGE'], cluster_objs['Y_IMAGE']))
+            new_xy_image = cutout.wcs.wcs_world2pix(cluster_objs['ALPHA_J2000'], cluster_objs['DELTA_J2000'], 0)
             cluster_objs['X_IMAGE'] = new_xy_image[0]
             cluster_objs['Y_IMAGE'] = new_xy_image[1]
 
@@ -145,10 +145,10 @@ huang = setdiff(huang, bocquet, keys=['SPT_ID'])
 huang = huang[huang['imaging'] >= 2]
 
 # Remove any clusters that we've already processed
-cluster_id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
-completed_filenames = glob.glob(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/*.SSDFv9.fits')
-completed_ids = Table([[cluster_id_pattern.search(f).group(0) for f in completed_filenames]], names=['SPT_ID'])
-huang = setdiff(huang, completed_ids, keys='SPT_ID')
+# cluster_id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
+# completed_filenames = glob.glob(hcc_prefix + 'Data/SPTPol/catalogs/cluster_cutouts/*.SSDFv9.fits')
+# completed_ids = Table([[cluster_id_pattern.search(f).group(0) for f in completed_filenames]], names=['SPT_ID'])
+# huang = setdiff(huang, completed_ids, keys='SPT_ID')
 
 # Read in the SSDF photometric catalog
 ssdf_template = Table.read(hcc_prefix + 'Data/ssdf_table_template.cat', format='ascii.sextractor')
@@ -161,8 +161,8 @@ cluster_centers = SkyCoord(huang['RA'], huang['Dec'], unit='deg')
 ssdf_coords = SkyCoord(ssdf_catalog['ALPHA_J2000'], ssdf_catalog['DELTA_J2000'], unit='deg')
 
 # Search around each cluster to find the subset of objects nearby
-idx_cluster, idx_ssdf_objs, sep, _ = ssdf_coords.search_around_sky(cluster_centers, 12 * u.arcmin)
-assert np.all(sep < 12 * u.arcmin)
+idx_cluster, idx_ssdf_objs, sep, _ = ssdf_coords.search_around_sky(cluster_centers, 5 * u.arcmin)
+assert np.all(sep < 5 * u.arcmin)
 
 # Combine the idx arrays
 idx_array = np.array([idx_cluster, idx_ssdf_objs]).T
