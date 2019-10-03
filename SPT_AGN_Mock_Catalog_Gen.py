@@ -16,7 +16,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
-from astropy.table import Table, vstack
+from astropy.table import Table, join, unique, vstack
 from astropy.wcs import WCS
 from scipy import stats
 from scipy.interpolate import interp1d
@@ -149,11 +149,11 @@ start_time = time()
 # <editor-fold desc="Parameter Set up">
 
 # Number of clusters to generate
-n_cl = 238
+n_cl = 238 + 56
 
 # Set parameter values
 # theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
-theta_list = [0.037, 0.107, 0.2, 0.4]
+theta_list = [0.037, 0.046, 0.107, 0.153, 0.2, 0.4]
 # theta_true = 12     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
@@ -161,6 +161,7 @@ beta_true = 0.5      # Radial slope
 C_true = 0.371       # Background AGN surface density
 
 for theta_true in theta_list:
+    catalog_start_time = time()
     params_true = (theta_true, eta_true, zeta_true, beta_true)
 
     # Set the maximum radius we will generate objects to as a factor of r500
@@ -177,32 +178,54 @@ for theta_true in theta_list:
     # bocquet = bocquet[bocquet['REDSHIFT'] >= 0.5]
     bocquet['M500'] *= 1e14  # So that our masses are in Msun instead of 1e14*Msun
 
+    # Read in the SPTpol 100d cluster catalog to include those clusters.
+    huang = Table.read('Data/sptpol100d_catalog_huang19.fits')
+    huang = huang[huang['M500'] > 0.0]  # Nick uses a '-1.0' for non-confirmations for redshift and mass.
+    huang['M500'] *= 1e14  # Same reason as Bocquet's catalog.
+
+    # Standardize the column names in the Huang catalog to match the Bocquet catalog
+    huang.rename_column('Dec', 'DEC')
+    huang.rename_column('redshift', 'REDSHIFT')
+    huang.rename_column('redshift_unc', 'REDSHIFT_UNC')
+    huang.rename_column('xi', 'XI')
+    huang.rename_column('theta_core', 'THETA_CORE')
+
+    # Merge the two catalogs
+    full_spt_catalog = join(bocquet, huang, join_type='outer')
+    full_spt_catalog.sort(keys=['SPT_ID', 'field'])  # Sub-sorting by 'field' puts Huang entries first
+    full_spt_catalog = unique(full_spt_catalog, keys='SPT_ID', keep='last')  # Keeping Bocquet entries over Huang
+    full_spt_catalog.sort(keys='SPT_ID')  # Resort by ID.
+
     # For our masks, we will co-op the masks for the real clusters.
     mask_dir = 'Data/Masks/'
-    masks_files = glob.glob('/Users/btfkwd/Documents/SPT_AGN/Data/Masks/*.fits')
+    masks_files = [*glob.glob('Data/Masks/*.fits'),
+                   *glob.glob('Data/SPTPol/masks/*.fits')]
 
     # Make sure all the masks have matches in the catalog
-    masks_files = [f for f in masks_files if re.search(r'SPT-CLJ\d+-\d+', f).group(0) in bocquet['SPT_ID']]
+    masks_files = [f for f in masks_files if re.search(r'SPT-CLJ\d+-\d+', f).group(0) in full_spt_catalog['SPT_ID']]
 
-    # Select a number of masks at random
-    masks_bank = np.sort([masks_files[i] for i in np.random.choice(n_cl, size=n_cl, replace=False)])
+    # Select a number of masks at random, sorted to match the order in `full_spt_catalog`.
+    masks_bank = sorted([masks_files[i] for i in np.random.choice(n_cl, size=n_cl, replace=False)],
+                        key=lambda x: re.search(r'SPT-CLJ\d+-\d+', x).group(0))
 
-    # Find the corresponding cluster IDs in Bocquet that match the masks we chose
-    bocquet_ids = [re.search(r'SPT-CLJ\d+-\d+', mask_name).group(0) for mask_name in masks_bank]
-    bocquet_idx = np.any([bocquet['SPT_ID'] == b_id for b_id in bocquet_ids], axis=0)
-    selected_clusters = bocquet['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT'][bocquet_idx]
+    # Find the corresponding cluster IDs in the SPT catalog that match the masks we chose
+    spt_catalog_ids = [re.search(r'SPT-CLJ\d+-\d+', mask_name).group(0) for mask_name in masks_bank]
+    spt_catalog_idx = np.any([full_spt_catalog['SPT_ID'] == catalog_id for catalog_id in spt_catalog_ids], axis=0)
+    selected_clusters = full_spt_catalog['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT'][spt_catalog_idx]
 
     # We'll need the r500 radius for each cluster too.
     selected_clusters['r500'] = (3 * selected_clusters['M500'] * u.Msun /
                                  (4 * np.pi * 500 *
-                                  cosmo.critical_density(selected_clusters['REDSHIFT']).to(u.Msun / u.Mpc**3)))**(1/3)
+                                  cosmo.critical_density(selected_clusters['REDSHIFT']).to(u.Msun / u.Mpc ** 3))) ** (
+                                        1 / 3)
 
     # Create cluster names
     name_bank = ['SPT_Mock_{:03d}'.format(i) for i in range(n_cl)]
 
     # Combine our data into a catalog
     SPT_data = Table([name_bank, selected_clusters['RA'], selected_clusters['DEC'], selected_clusters['M500'],
-                      selected_clusters['r500'], selected_clusters['REDSHIFT'], masks_bank, selected_clusters['SPT_ID']],
+                      selected_clusters['r500'], selected_clusters['REDSHIFT'], masks_bank,
+                      selected_clusters['SPT_ID']],
                      names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'r500', 'REDSHIFT', 'MASK_NAME', 'orig_SPT_ID'])
 
     # Check that we have the correct mask and cluster data matched up. If so, we can drop the original SPT_ID column
@@ -212,7 +235,7 @@ for theta_true in theta_list:
     # Set up grid of radial positions to place AGN on (normalized by r500)
     r_dist_r500 = np.linspace(0, max_radius, num=200)
     # </editor-fold>
-    #%%
+    # %%
     cluster_sample = SPT_data
 
     hist_heights = {}
@@ -237,7 +260,8 @@ for theta_true in theta_list:
         # Also get the mask's image size (- 1 to account for the shift between index and length)
         mask_size_x = w.pixel_shape[0] - 1
         mask_size_y = w.pixel_shape[1] - 1
-        mask_radius_pix = (max_radius * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(u.deg/u.Mpc) / mask_pixel_scale).value
+        mask_radius_pix = (
+                max_radius * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(u.deg / u.Mpc) / mask_pixel_scale).value
 
         # Find the SZ Center for the cluster we are mimicking
         SZ_center_skycoord = SkyCoord(SZ_center['SZ_RA'], SZ_center['SZ_DEC'], unit='deg')
@@ -248,8 +272,8 @@ for theta_true in theta_list:
         # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
         # the cluster.
         max_rate = np.max(model_cluster_agn)  # r500^-2 units
-        max_rate_inv_pix2 = ((max_rate / r500_cl**2) * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin)**2
-                             * mask_pixel_scale.to(u.arcmin)**2)
+        max_rate_inv_pix2 = ((max_rate / r500_cl ** 2) * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) ** 2
+                             * mask_pixel_scale.to(u.arcmin) ** 2)
 
         # Set the bounding box for the object placement
         SZ_center_pix = SZ_center_skycoord.to_pixel(wcs=w, origin=0, mode='wcs')
@@ -266,7 +290,7 @@ for theta_true in theta_list:
         cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1],
                                                    wcs=w, origin=0, mode='wcs')
         radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
-        radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc/u.arcmin) / r500_cl
+        radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
 
         # Filter the candidates through the model to establish the radial trend in the data.
         rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
@@ -282,7 +306,7 @@ for theta_true in theta_list:
         cluster_agn_final_pix = np.array(cluster_agn_final.to_pixel(w, origin=0, mode='wcs'))
 
         # Generate background sources
-        background_rate = C_true / u.arcmin**2 * mask_pixel_scale.to(u.arcmin)**2
+        background_rate = C_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
         background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
                                                    lower_dx=lower_x, lower_dy=lower_y)
 
@@ -363,7 +387,7 @@ for theta_true in theta_list:
                                                 AGN_list['x_pixel'].round().astype(int)] == 1)]
 
         AGN_cats.append(AGN_list)
-    #%%
+        # %%
         # <editor-fold desc="Diagnostics">
         # ------- The rest of this loop is dedicated to diagnostics of the sample --------
         # Create a histogram of the objects in the cluster using evenly spaced bins on radius
@@ -383,13 +407,15 @@ for theta_true in theta_list:
         scaled_area = area * gpf
 
         # Use small-N Poisson error of counts in each bin normalized by the area of the bin
-        count_err = small_poisson(hist)
-        err = [count_err_ul / scaled_area for count_err_ul in count_err]
-        np.nan_to_num(err, copy=False)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            count_err = small_poisson(hist)
+            err = [count_err_ul / scaled_area for count_err_ul in count_err]
+            np.nan_to_num(err, copy=False)
 
         # Calculate the model for this cluster
         rall = np.linspace(0, np.max(bin_edges), num=200)
-        background_rate_r500 = C_true / u.arcmin**2 * cosmo.arcsec_per_kpc_proper(z_cl).to(u.arcmin / u.Mpc)**2 * r500_cl**2
+        background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(
+            u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
         model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
         gpf_intep_func = interp1d(bin_edges, np.insert(gpf, 0, 1.), kind='cubic')
         gpf_rall = gpf_intep_func(rall)
@@ -406,7 +432,7 @@ for theta_true in theta_list:
         hist_errors[spt_id] = err
         hist_models[spt_id] = model_cl
         # </editor-fold>
-    #%%
+    # %%
     # Stack the individual cluster catalogs into a single master catalog
     outAGN = vstack(AGN_cats)
 
@@ -416,23 +442,24 @@ for theta_true in theta_list:
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-    outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/theta_varied/'
+    outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/'
                  'mock_AGN_catalog_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-                 '_maxr{maxr:.2f}_seed{seed}_all_redshifts.cat'
+                 '_maxr{maxr:.2f}_seed{seed}_full_spt.cat'
                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                          maxr=max_radius, nbins=num_bins, seed=rand_seed),
                  format='ascii', overwrite=True)
-    #%%
+    # %%
     # <editor-fold desc="Diagnostic Plots">
     # -------- Diagnostic Plots --------
     # Average the cluster histograms
-    stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
-    stacked_areas = np.nansum(np.array(list(hist_scaled_areas.values())), axis=0)
-    stacked_hist = stacked_heights / stacked_areas
+    with np.errstate(divide='ignore', invalid='ignore'):
+        stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
+        stacked_areas = np.nansum(np.array(list(hist_scaled_areas.values())), axis=0)
+        stacked_hist = stacked_heights / stacked_areas
 
-    # Find the errors using the fractional Poisson error in the bin.
-    frac_err = np.sqrt(stacked_heights) / stacked_heights
-    stacked_err = frac_err * stacked_hist
+        # Find the errors using the fractional Poisson error in the bin.
+        frac_err = np.sqrt(stacked_heights) / stacked_heights
+        stacked_err = frac_err * stacked_hist
 
     # Average the cluster models
     stacked_model = np.nanmean(list(hist_models.values()), axis=0)
@@ -442,7 +469,7 @@ for theta_true in theta_list:
 
     # A grid of radii for the data to be plotted on
     bin_edges = np.linspace(0, max_radius, num=num_bins)
-    bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges)-1]) / 2. + bin_edges[0:len(bin_edges)-1]
+    bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges) - 1]) / 2. + bin_edges[0:len(bin_edges) - 1]
 
     # A grid of radii for the model to be plotted on
     rall = np.linspace(0, np.max(bin_edges), num=200)
@@ -462,7 +489,8 @@ for theta_true in theta_list:
     ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
                 label='Mock AGN Candidate Surface Density')
     ax.plot(rall, stacked_model, color='C0', label='Model Rate')
-    ax.fill_between(rall, y1=stacked_model+stacked_model_err, y2=stacked_model-stacked_model_err, color='C0', alpha=0.2)
+    ax.fill_between(rall, y1=stacked_model + stacked_model_err, y2=stacked_model - stacked_model_err, color='C0',
+                    alpha=0.2)
     ax.set(title=r'Comparison of Sampled Points to Model $\theta$ = {theta}'.format(theta=theta_true),
            xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
     ax.legend()
@@ -472,9 +500,9 @@ for theta_true in theta_list:
     #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
     #                     maxr=max_radius, seed=rand_seed), format='pdf')
     ax.set(xlim=[0, 3.0])
-    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/theta_varied/'
+    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/'
                 'mock_AGN_binned_check_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}'
-                '_all_redshifts_zoom.pdf'
+                '_full_spt_zoom.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                         maxr=max_radius, seed=rand_seed), format='pdf')
 
@@ -499,4 +527,5 @@ for theta_true in theta_list:
     plt.show()
     # </editor-fold>
 
-    print('Run time: {:.2f}s'.format(time() - start_time))
+    print('Run time: {:.2f}s'.format(time() - catalog_start_time))
+print('Total run time: {:.2f}s'.format(time() - start_time))

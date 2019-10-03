@@ -234,9 +234,9 @@ tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # tusker_prefix = ''
 theta_input = sys.argv[1]
 # Read in the mock catalog
-mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/theta_varied/'
+mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/'
                                         'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
-                                        '_maxr5.00_seed890_all_redshifts.cat'.format(theta=theta_input),
+                                        '_maxr5.00_seed890_full_spt.cat'.format(theta=theta_input),
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -322,11 +322,10 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_snr_tests.h5'\
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_full_spt_snr_tests.h5'\
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file, name='snr_test_{theta:.3f}_bkg_free_rc_fixed_'
-                                                         'all_redshifts'.format(theta=theta_true))
+    backend = emcee.backends.HDFBackend(chain_file, name='snr_test_{theta:.3f}_bkg_free_rc_fixed'.format(theta=theta_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
