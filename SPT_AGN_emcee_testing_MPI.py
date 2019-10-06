@@ -10,25 +10,19 @@ from __future__ import print_function, division
 
 import sys
 from itertools import product
-from multiprocessing import Pool, cpu_count
 from time import time
 
 import astropy.units as u
-import corner
 import emcee
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
-import os
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from custom_math import trap_weight  # Custom trapezoidal integration
-from matplotlib.ticker import MaxNLocator
-from scipy.spatial.distance import cdist
 from schwimmbad import MPIPool
-
+from scipy.spatial.distance import cdist
 
 # Set matplotlib parameters
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -193,7 +187,7 @@ def lnpost(param):
 
 
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
-# tusker_prefix = ''
+# hcc_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
                                         'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_removed072.cat',

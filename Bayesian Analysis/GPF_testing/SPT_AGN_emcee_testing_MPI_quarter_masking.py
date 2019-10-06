@@ -223,7 +223,7 @@ def lnpost(param):
 
 
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
-# tusker_prefix = ''
+# hcc_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/refresh/'
                                         'mock_AGN_catalog_t12.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890_quarter_mask_refresh.cat',

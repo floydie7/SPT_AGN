@@ -5,6 +5,7 @@ Author: Benjamin Floyd
 Restarts the MCMC chains.
 """
 
+import os
 from itertools import product
 from multiprocessing import Pool, cpu_count
 from time import time
@@ -12,7 +13,6 @@ from time import time
 import astropy.units as u
 import emcee
 import numpy as np
-import os
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
@@ -179,7 +179,7 @@ def lnpost(param):
 
 
 tusker_prefix = '/work/mei/bfloyd/SPT_AGN/'
-# tusker_prefix = ''
+# hcc_prefix = ''
 # Read in the mock catalog
 mock_catalog = Table.read(tusker_prefix+'Data/MCMC/Mock_Catalog/Catalogs/pre-final_tests/'
                                         'mock_AGN_catalog_t12000.00_e1.20_z-1.00_b0.50_C0.371_maxr5.00_seed890'
