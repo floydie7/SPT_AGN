@@ -7,6 +7,7 @@ a JSON file for later use.
 """
 
 import json
+import sys
 from itertools import product
 from time import time
 
@@ -16,6 +17,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
+from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
@@ -42,6 +44,11 @@ def rebin(a, rebin_factor, wcs=None):
         new_wcs = wcs.deepcopy()
         new_wcs.pixel_shape = new_image.shape  # Update the NAXIS1/2 values
         new_wcs.wcs.cd /= rebin_factor  # Update the pixel scale
+
+        # Check if the WCS has a PC matrix which is what AstroPy generates. If it exists, just delete it and stick with
+        # the CD matrix as the majority of the images have that natively.
+        if new_wcs.wcs.has_pc():
+            del new_wcs.wcs.pc
 
         # Transform the reference pixel coordinate
         old_crpix = wcs.wcs.crpix
@@ -105,28 +112,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
     return good_pix_frac
 
 
-theta_input = '0.153'
-# max_radius = 5.0  # Maximum integration radius in r500 units
-
-rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
-
-# Read in the mock catalog
-mock_catalog = Table.read('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/'
-                          'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
-                          '_maxr5.00_seed890_full_spt.cat'.format(theta=theta_input),
-                          format='ascii')
-
-# Read in the mask files for each cluster
-mock_catalog_grp = mock_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id[0]: fits.getdata(mask_file, header=True) for cluster_id, mask_file
-             in zip(mock_catalog_grp.groups.keys.as_array(),
-                    mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
-
-# Compute the good pixel fractions for each cluster and store the array in the catalog.
-print('Generating Good Pixel Fractions.')
-start_gpf_time = time()
-catalog_dict = {}
-for cluster in mock_catalog_grp.groups:
+def generate_catalog_dict(cluster):
     cluster_id = cluster['SPT_ID'][0]
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
@@ -160,6 +146,37 @@ for cluster in mock_catalog_grp.groups:
 
     # Store the cluster dictionary in the master catalog dictionary
     catalog_dict[cluster_id] = cluster_dict
+
+
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+theta_input = '0.153'
+# max_radius = 5.0  # Maximum integration radius in r500 units
+
+rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
+
+# Read in the mock catalog
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/'
+                          'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
+                          '_maxr5.00_seed890_full_spt.cat'.format(theta=theta_input),
+                          format='ascii')
+
+# Read in the mask files for each cluster
+mock_catalog_grp = mock_catalog.group_by('SPT_ID')
+mask_dict = {cluster_id[0]: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
+             in zip(mock_catalog_grp.groups.keys.as_array(),
+                    mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
+
+# Compute the good pixel fractions for each cluster and store the array in the catalog.
+print('Generating Good Pixel Fractions.')
+start_gpf_time = time()
+catalog_dict = {}
+with MPIPool() as pool:
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
+
+    pool.map(generate_catalog_dict, mock_catalog_grp.groups)
+
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Recast some of the values to types that can be serialized by JSON
@@ -169,5 +186,6 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-with open('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/full_spt_preprocessing.json', 'w') as f:
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/full_spt_preprocessing.json'
+with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)

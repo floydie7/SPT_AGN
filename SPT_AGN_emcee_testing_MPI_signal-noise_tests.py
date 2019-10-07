@@ -13,10 +13,10 @@ import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
-from astropy.io import fits
 from astropy.table import Table
-from custom_math import trap_weight  # Custom trapezoidal integration
 from schwimmbad import MPIPool
+
+from custom_math import trap_weight  # Custom trapezoidal integration
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
@@ -149,9 +149,6 @@ mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-N
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id[0]: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
-             in zip(mock_catalog_grp.groups.keys.as_array(),
-                    mock_catalog_grp['MASK_NAME'][mock_catalog_grp.groups.indices[:-1]])}
 
 # Set parameter values
 theta_true = float(theta_input)     # Amplitude.
