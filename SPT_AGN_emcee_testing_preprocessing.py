@@ -144,8 +144,7 @@ def generate_catalog_dict(cluster):
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
                     'gpf_rall': cluster_gpf_all, 'rall': rall}
 
-    # Store the cluster dictionary in the master catalog dictionary
-    catalog_dict[cluster_id] = cluster_dict
+    return cluster_id, cluster_dict
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -169,13 +168,14 @@ mask_dict = {cluster_id[0]: fits.getdata(hcc_prefix + mask_file, header=True) fo
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
-catalog_dict = {}
 with MPIPool() as pool:
     if not pool.is_master():
         pool.wait()
         sys.exit(0)
+    pool_results = pool.map(generate_catalog_dict, mock_catalog_grp.groups)
 
-    pool.map(generate_catalog_dict, mock_catalog_grp.groups)
+    if pool.is_master():
+        catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in pool_results}
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
