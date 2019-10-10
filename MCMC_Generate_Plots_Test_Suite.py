@@ -24,7 +24,7 @@ max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Our file storing the full test suite
 filename = 'Data/MCMC/Mock_Catalog/Chains/signal-noise_tests/' \
-           'emcee_run_w30_s1000000_mock_tvariable_e1.2_z-1.0_b0.5_C0.371_snr_tests.h5'
+           'emcee_run_w30_s1000000_mock_tvariable_e1.2_z-1.0_b0.5_C0.371_full_spt_snr_tests.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
@@ -64,7 +64,7 @@ for chain_name, sampler in sampler_dict.items():
     axes[-1].set(xlabel='Steps')
 
     fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/theta_varied/mcmc_results/'
-                'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_{chain_name}.pdf'
+                'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_{chain_name}_full_spt.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                         chain_name=chain_name),
                 format='pdf')
@@ -97,7 +97,7 @@ for chain_name, sampler in sampler_dict.items():
     fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
     fig.suptitle(chain_name)
     fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/theta_varied/mcmc_results/'
-                'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_{chain_name}.pdf'
+                'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_{chain_name}_full_spt.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                         chain_name=chain_name), format='pdf')
 

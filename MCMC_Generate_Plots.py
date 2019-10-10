@@ -12,7 +12,7 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator
 
 # True parameter values
-theta_true = 12.     # Amplitude.
+theta_true = 0.2     # Amplitude.
 eta_true = 1.2       # Redshift slope
 beta_true = 0.5      # Radial slope
 zeta_true = -1.0     # Mass slope
@@ -21,8 +21,8 @@ C_true = 0.371       # Background AGN surface density
 max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Read in the chain file
-filename = 'Data/MCMC/Mock_Catalog/Chains/pre-final_tests/emcee_run_w24_s1000000_mock_t12.0_e1.2_z-1.0_b0.5_C0.371_maxr0.39_data_to_5r500_flat_mask_applied_test_rebin_gpf.h5'
-sampler = emcee.backends.HDFBackend(filename, name='bkg_fixed_rebin_arange_0_maxr')
+filename = 'emcee_run_w30_s1000000_mock_tvariable_e1.2_z-1.0_b0.5_C0.371_snr_tests.h5'
+sampler = emcee.backends.HDFBackend(filename, name='snr_test_0.200_bkg_free_rc_fixed')
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
@@ -33,17 +33,17 @@ nsteps, nwalkers, ndim = samples.shape
 labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
 truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
 
-# Plot the chains
-fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
-for i in range(ndim):
-    ax = axes[i]
-    ax.plot(samples[:, :, i], color='k', alpha=0.3)
-    ax.axhline(truths[i], color='b')
-    ax.yaxis.set_major_locator(MaxNLocator(5))
-    ax.set(xlim=[0, len(samples)], ylabel=labels[i])
-
-axes[0].set(title='MCMC Chains')
-axes[-1].set(xlabel='Steps')
+# # Plot the chains
+# fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
+# for i in range(ndim):
+#     ax = axes[i]
+#     ax.plot(samples[:, :, i], color='k', alpha=0.3)
+#     ax.axhline(truths[i], color='b')
+#     ax.yaxis.set_major_locator(MaxNLocator(5))
+#     ax.set(xlim=[0, len(samples)], ylabel=labels[i])
+#
+# axes[0].set(title='MCMC Chains')
+# axes[-1].set(xlabel='Steps')
 
 # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
 #             'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}'
@@ -76,12 +76,18 @@ flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 # labels[-1] = r'$\ln(Post)$'
 
 # Produce the corner plot
-fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
+fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True,
+                    title_fmt='.3f', smooth=1, plot_datapoints=False)
+axes = np.array(fig.axes).reshape((ndim, ndim))
+for ax in axes[:, 0]:
+    ax.set(xlim=[0, 1])
 # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
 #             'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_maxr{maxr}'
 #             '_data_to_5r500_no_mask_background_fixed_int_to_0.5r500.pdf'
 #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, maxr=max_radius),
 #             format='pdf')
+# fig.savefig('Corner_plot_mock_t0.2_e1.2_z-1.0_b0.5_C0.371_snr_test_adjusted_t_plot.pdf', format='pdf')
+
 
 print('Iterations ran: {}'.format(sampler.iteration))
 for i in range(ndim):
