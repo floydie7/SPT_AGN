@@ -8,7 +8,6 @@ a JSON file for later use.
 
 import json
 import sys
-from itertools import product
 from time import time
 
 import astropy.units as u
@@ -37,7 +36,7 @@ def rebin(a, rebin_factor, wcs=None):
 
     slices = [slice(0, old, float(old) / new) for old, new in zip(a.shape, newshape)]
     coordinates = np.mgrid[slices]
-    indices = coordinates.astype('i')  # choose the biggest smaller integer index
+    indices = coordinates.astype('i')  # recast the coordinates to int32
     new_image = a[tuple(indices)]
 
     if wcs is not None:
@@ -69,13 +68,13 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
         image, image_wcs = rebin(image, rescale_factor, wcs=image_wcs)
 
     # From the WCS get the pixel scale
-    pix_scale = image_wcs.pixel_scale_matrix[1, 1] * u.deg
+    pix_scale = image_wcs.pixel_scale_matrix[1, 1] * image_wcs.wcs.cunit[1]
 
     # Convert our center into pixel units
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
 
     # Convert our radius to pixels
-    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(u.deg / u.Mpc) / pix_scale
+    r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(pix_scale.unit / u.Mpc) / pix_scale
     r_pix = r_pix.value
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
@@ -91,8 +90,8 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
 
     large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
 
-    # find the distances from center pixel to all other pixels
-    image_coords = np.array(list(product(range(large_image.shape[0]), range(large_image.shape[1]))))
+    # Generate a list of all pixel coordinates in the padded image
+    image_coords = np.dstack(np.mgrid[0:large_image.shape[0], 0:large_image.shape[1]]).reshape(-1, 2)
 
     # The center pixel's coordinate needs to be transformed into the large image system
     center_coord = np.array(center_pix) + np.array([width[1][0], width[0][0]])
@@ -118,22 +117,15 @@ def generate_catalog_dict(cluster):
     cluster_m500 = cluster['M500'][0] * u.Msun
     cluster_r500 = cluster['r500'][0] * u.Mpc
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
-    # cluster_sz_cent = cluster_sz_cent.as_void()
 
-    # Determine the maximum radius we can integrate to while remaining completely on image.
-    mask_image, mask_header = mask_dict[cluster_id]
-    mask_wcs = WCS(mask_header)
-    pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * u.deg
-    cluster_sz_cent_pix = mask_wcs.wcs_world2pix(cluster_sz_cent['SZ_RA'], cluster_sz_cent['SZ_DEC'], 0)
-    max_radius_pix = np.min([cluster_sz_cent_pix[0], cluster_sz_cent_pix[1],
-                             np.abs(cluster_sz_cent_pix[0] - mask_wcs.pixel_shape[0]),
-                             np.abs(cluster_sz_cent_pix[1] - mask_wcs.pixel_shape[1])])
-    max_radius_r500 = max_radius_pix * pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(
-        u.Mpc / u.deg) / cluster_r500
+    # Determine the maximum integration radius for the cluster in terms of r500 units.
+    mask_wcs = WCS(mask_dict[cluster_id][1])
+    pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * mask_wcs.wcs.cunit[1]
+    max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.arcmin) / cluster_r500
 
     # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
     # r500/pix.
-    pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.deg) / cluster_r500
+    pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / pix_scale.unit) / cluster_r500
 
     # Generate a radial integration mesh.
     rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
@@ -149,7 +141,7 @@ def generate_catalog_dict(cluster):
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 theta_input = '0.153'
-# max_radius = 5.0  # Maximum integration radius in r500 units
+max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 

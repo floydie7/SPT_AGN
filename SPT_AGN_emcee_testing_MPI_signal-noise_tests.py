@@ -40,8 +40,6 @@ def model_rate_opted(params, cluster_id, r_r500):
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
 
-    # theta = theta / u.Mpc**2 * cosmo.kpc_proper_per_arcmin(z).to(u.Mpc/u.arcmin)**2
-
     # Convert our background surface density from angular units into units of r500^-2
     background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
@@ -60,7 +58,7 @@ def model_rate_opted(params, cluster_id, r_r500):
 # Set our log-likelihood
 def lnlike(param):
     lnlike_list = []
-    for cluster_id in catalog_dict.keys():
+    for cluster_id in catalog_dict:
         # Get the good pixel fraction for this cluster
         gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
@@ -198,7 +196,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed'.format(theta=theta_true))
+                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed_trial2'.format(theta=theta_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
