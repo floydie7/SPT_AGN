@@ -28,12 +28,14 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 # Generate a random seed
-# rand_seed = np.random.randint(1024)
-rand_seed = 890
-print('Random Seed: {}'.format(rand_seed))
+# cluster_seed, object_seed = np.random.default_rng().integers(1024, size=2)
+cluster_seed = 890
+object_seed = 930
+print(f'Cluster Seed: {cluster_seed}\t Object Seed: {object_seed}')
 
-# Set our random seed
-np.random.seed(rand_seed)  # Previously 123
+# Set our random number generators
+cluster_rng = np.random.default_rng(cluster_seed)  # Previously 123
+object_rng = np.random.default_rng(object_seed)
 
 
 def poisson_point_process(model, dx, dy=None, lower_dx=None, lower_dy=None):
@@ -58,8 +60,8 @@ def poisson_point_process(model, dx, dy=None, lower_dx=None, lower_dy=None):
     p = stats.poisson(model * np.abs(dx - lower_dx) * np.abs(dy - lower_dy)).rvs()
 
     # Drop `p` points with uniform x and y coordinates
-    x = np.random.uniform(lower_dx, dx, size=p)
-    y = np.random.uniform(lower_dy, dy, size=p)
+    x = object_rng.uniform(lower_dx, dx, size=p)
+    y = object_rng.uniform(lower_dy, dy, size=p)
 
     # Combine the x and y coordinates.
     coord = np.vstack((x, y))
@@ -197,13 +199,14 @@ masks_files = [*glob.glob('Data/Masks/*.fits'),
 masks_files = [f for f in masks_files if re.search(r'SPT-CLJ\d+-\d+', f).group(0) in full_spt_catalog['SPT_ID']]
 
 # Select a number of masks at random, sorted to match the order in `full_spt_catalog`.
-masks_bank = sorted([masks_files[i] for i in np.random.choice(n_cl, size=n_cl, replace=False)],
+masks_bank = sorted([masks_files[i] for i in cluster_rng.choice(n_cl, size=n_cl)],
                     key=lambda x: re.search(r'SPT-CLJ\d+-\d+', x).group(0))
 
 # Find the corresponding cluster IDs in the SPT catalog that match the masks we chose
 spt_catalog_ids = [re.search(r'SPT-CLJ\d+-\d+', mask_name).group(0) for mask_name in masks_bank]
 # spt_catalog_idx = np.any([full_spt_catalog['SPT_ID'] == catalog_id for catalog_id in spt_catalog_ids], axis=0)
-spt_catalog_mask = np.isin(full_spt_catalog['SPT_ID'], spt_catalog_ids, assume_unique=True)
+# spt_catalog_mask = np.isin(full_spt_catalog['SPT_ID'], spt_catalog_ids, assume_unique=True)
+spt_catalog_mask = [np.where(full_spt_catalog['SPT_ID'] == spt_id)[0][0] for spt_id in spt_catalog_ids]
 selected_clusters = full_spt_catalog['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT'][spt_catalog_mask]
 
 # We'll need the r500 radius for each cluster too.
@@ -295,7 +298,7 @@ for theta_true in theta_list:
         prob_reject = rate_at_rad / max_rate
 
         # Draw a random number for each candidate
-        alpha = np.random.uniform(0, 1, len(rate_at_rad))
+        alpha = object_rng.uniform(0, 1, len(rate_at_rad))
 
         # Perform the rejection sampling
         cluster_agn_final = cluster_agn_skycoord[np.where(prob_reject >= alpha)]
@@ -438,11 +441,11 @@ for theta_true in theta_list:
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true, cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-    outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_2/'
+    outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/'
                  'mock_AGN_catalog_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}'
-                 '_maxr{maxr:.2f}_seed{seed}_full_spt.cat'
+                 '_maxr{maxr:.2f}_clseed{cluster_seed}_objseed{object_seed}_full_spt.cat'
                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-                         maxr=max_radius, nbins=num_bins, seed=rand_seed),
+                         maxr=max_radius, nbins=num_bins, cluster_seed=cluster_seed, object_seed=object_seed),
                  format='ascii', overwrite=True)
     # # <editor-fold desc="Diagnostic Plots">
     # # -------- Diagnostic Plots --------

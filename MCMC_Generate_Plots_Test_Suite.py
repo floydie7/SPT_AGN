@@ -30,7 +30,7 @@ filename = 'Data/MCMC/Mock_Catalog/Chains/signal-noise_tests/' \
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-# chain_names = [chain_name for chain_name in chain_names if '_all_redshifts' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'trial2' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}

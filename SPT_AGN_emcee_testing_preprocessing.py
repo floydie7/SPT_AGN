@@ -146,9 +146,9 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/'
-                          'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
-                          '_maxr5.00_seed890_full_spt.cat'.format(theta=theta_input),
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/'
+                                       'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
+                                       '_maxr5.00_clseed890_objseed930_full_spt.cat'.format(theta=theta_input),
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -178,6 +178,6 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/full_spt_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/full_spt_preprocessing.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)

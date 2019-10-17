@@ -140,9 +140,9 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 theta_input = sys.argv[1]
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/'
                                        'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
-                                       '_maxr5.00_seed890_full_spt.cat'.format(theta=theta_input),
+                                       '_maxr5.00_clseed890_objseed930_full_spt.cat'.format(theta=theta_input),
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -156,7 +156,7 @@ zeta_true = -1.0                    # Mass slope
 C_true = 0.371                      # Background AGN surface density
 
 # Load in the preprocssing file
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/full_spt_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/full_spt_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -196,7 +196,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed_trial2'.format(theta=theta_true))
+                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed_trial3'.format(theta=theta_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.

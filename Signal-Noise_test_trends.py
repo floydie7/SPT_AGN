@@ -11,6 +11,7 @@ import emcee
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import AutoMinorLocator
 
 
 def keyfunct(n):
@@ -24,6 +25,7 @@ filename = 'Data/MCMC/Mock_Catalog/Chains/signal-noise_tests/' \
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
+chain_names = [chain_name for chain_name in chain_names if 'trial2' in chain_name]
 # orig_chain_names = [chain_name for chain_name in chain_names if '_theta_prior_pm0.5theta_true' not in chain_name]
 # narrow_chain_names = [chain_name for chain_name in chain_names if '_theta_prior_pm0.5theta_true' in chain_name]
 #
@@ -96,14 +98,16 @@ for fit in mcmc_fits.values():
 eta_errors = [lower_err, upper_err]
 
 fig, ax = plt.subplots()
-ax.errorbar(theta_list, eta_values, yerr=eta_errors, fmt='o')
+ax.errorbar(range(len(theta_list)), eta_values, yerr=eta_errors, fmt='o')
 ax.axhline(y=1.2, ls='--', label=r'True $\eta = 1.2$')
 ax.set(xlabel=r'$\theta$', ylabel=r'$\eta$')
+ax.set_xticklabels([0, *theta_list])
+ax.yaxis.set_minor_locator(AutoMinorLocator())
 ax.legend()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/eta_trend.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/eta_trend_trial2.pdf', format='pdf')
 
 # zeta plot
-zeta_values = [fit['zeta'][2] for fit in mcmc_fits.values()]
+zeta_values = [fit['zeta'][1] for fit in mcmc_fits.values()]
 lower_err, upper_err = [], []
 for fit in mcmc_fits.values():
     q = np.diff(fit['zeta'])
@@ -112,8 +116,10 @@ for fit in mcmc_fits.values():
 zeta_errors = [lower_err, upper_err]
 
 fig, ax = plt.subplots()
-ax.errorbar(theta_list, zeta_values, yerr=zeta_errors, fmt='o')
+ax.errorbar(range(len(theta_list)), zeta_values, yerr=zeta_errors, fmt='o')
 ax.axhline(y=-1.0, ls='--', label=r'True $\zeta =-1.0$')
 ax.set(xlabel=r'$\theta$', ylabel=r'$\zeta$')
+ax.set_xticklabels([0, *theta_list])
+ax.yaxis.set_minor_locator(AutoMinorLocator())
 ax.legend()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/zeta_trend.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/zeta_trend_trial2.pdf', format='pdf')
