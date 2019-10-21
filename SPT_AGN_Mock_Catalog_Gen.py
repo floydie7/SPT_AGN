@@ -152,7 +152,8 @@ n_cl = 238 + 56
 
 # Set parameter values
 # theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
-theta_list = [0.037, 0.046, 0.107, 0.153, 0.2, 0.4]
+# theta_list = [0.037, 0.046, 0.107, 0.153, 0.2, 0.4]
+theta_list = [1.0, 2.0]
 # theta_true = 12     # Amplitude.
 eta_true = 1.2       # Redshift slope
 zeta_true = -1.0     # Mass slope
