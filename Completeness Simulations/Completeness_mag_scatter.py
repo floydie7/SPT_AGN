@@ -7,15 +7,15 @@ Completeness_Simulation_Functions.py
 
 from __future__ import print_function, division
 
+import glob
+
 import astropy.units as u
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from Completeness_Simulation_Functions import *
-from Pipeline_functions import file_pairing, catalog_image_match
 from astropy.coordinates import SkyCoord
 from astropy.io import ascii
-from astropy.table import Table
 from astropy.wcs import WCS
 
 matplotlib.rcParams['lines.linewidth'] = 1.0
@@ -24,23 +24,14 @@ matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
 # Magnitude bins
 bins = np.arange(10.0, 23.0, 0.5)
 
-# Image list
-# Pair the files together
-print('Pairing Files.')
-cluster_list = file_pairing('Data/Catalogs/', 'Data/Images/')
-
-# Read in the Bleem catalog
-Bleem = Table(fits.getdata('Data/2500d_cluster_sample_fiducial_cosmology.fits'))
-
-# Match the clusters to the catalog requiring the cluster centers be within 1 arcminute of the Bleem center.
-print('Matching catalogs.')
-matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC')
+# Image directory
+image_dir = 'Data/SPTPol/images/cluster_cutouts'
 
 # Channel 1 science images
-ch1_images = [matched_list[k]['ch1_sci_path'] for k in range(len(matched_list))]
+ch1_images = glob.glob(image_dir + '/I1*_mosaic.cutout.fits')
 
 # Channel 2 science images
-ch2_images = [matched_list[k]['ch2_sci_path'] for k in range(len(matched_list))]
+ch2_images = glob.glob(image_dir + '/I2*_mosaic.cutout.fits')
 
 # Select a number of images randomly from the I2_img_list up to the number of magnitude bins.
 # image_list = [ch1_images[i] for i in np.random.random_integers(len(ch1_images)-1, size=len(bins))]
@@ -48,7 +39,7 @@ image_list = [ch2_images[i] for i in np.random.random_integers(len(ch2_images)-1
 
 print(image_list)
 
-mag_zero = 17.997
+mag_zero = 18.316
 
 # for fwhm in [1.95]:  # Warm mission Ch1 psf
 for fwhm in [2.02]:  # Warm mission Ch2 psf
@@ -74,11 +65,11 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
         param_file = 'Data/Comp_Sim/sex_configs/default.param'
 
         # Image parameters
-        output_image = 'Data/Comp_Sim/Images/{image_name}_stars.fits'.format(image_name=image_name[-38:-19])
-        starlist_dir = 'Data/Comp_Sim/Starlists'
+        output_image = 'Data/Comp_Sim/SPTpol/Images/{image_name}_stars.fits'.format(image_name=image_name[-38:-19])
+        starlist_dir = 'Data/Comp_Sim/SPTpol/Starlists'
 
         # Altered image catalog
-        alt_out_cat = 'Data/Comp_Sim/sex_catalogs/{image_name}_stars.cat'.format(image_name=image_name[-38:-19])
+        alt_out_cat = 'Data/Comp_Sim/SPTpol/sex_catalogs/{image_name}_stars.cat'.format(image_name=image_name[-38:-19])
 
         # Generate the image with artificial stars.
         make_stars(image, output_image, starlist_dir, model='gaussian', fwhm=fwhm, mag_zero=mag_zero, min_mag=min_mag,
@@ -123,7 +114,7 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
     for j in range(len(bins)-1):
         ax.scatter(true_mag[j], mag_aper_diff[j], c='k', edgecolors='face')
     ax.set(title='Randomly selected Ch2 stamps', xlabel='true_mag (Vega)', ylabel='true_mag - mag_aper(4",uncorrected)')
-    fig.savefig('Data/Comp_Sim/Plots/I2_true_mag_aper_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss.pdf', format='pdf')
+    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_true_mag_aper_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss.pdf', format='pdf')
     # plt.show()
     #
     fig, ax = plt.subplots()
@@ -131,7 +122,7 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
     for j in range(len(bins)-1):
         ax.scatter(true_mag[j], mag_auto_diff[j], c='k', edgecolors='face')
     ax.set(title='Randomly selected Ch2 stamps', xlabel='true_mag (Vega)', ylabel='true_mag - mag_auto')
-    fig.savefig('Data/Comp_Sim/Plots/I2_true_mag_auto_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss.pdf', format='pdf')
+    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_true_mag_auto_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss.pdf', format='pdf')
     # plt.show()
 
     # fig, ax = plt.subplots()
@@ -151,7 +142,7 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
     ax.plot([10.0,23.0], [-0.40, -0.40], 'b-')
     ax.set(title='Randomly selected Ch2 stamps', xlabel='mag_auto (Vega)', ylabel='mag_auto - mag_aper(4",uncorrected)',
            xlim=[10.0, 14.0], ylim=[-0.45,0.0])
-    fig.savefig('Data/Comp_Sim/Plots/I2_mag_auto_aper_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss_zoom.pdf', format='pdf')
+    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_mag_auto_aper_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss_zoom.pdf', format='pdf')
     # plt.show()
 
     # Corrected aperture photometry

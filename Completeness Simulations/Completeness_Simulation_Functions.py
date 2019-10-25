@@ -9,7 +9,8 @@ from __future__ import print_function, division
 import os
 from subprocess import Popen, PIPE
 
-from astropy.io import fits
+import astropy.units as u
+from astropy.wcs import WCS
 from pyraf import iraf
 
 
@@ -45,7 +46,7 @@ def run_sex(image, output_catalog, mag_zero, seeing_fwhm, sex_config='default.se
     proj_cwd = os.getcwd()
 
     # Define locations of files in absolute paths.
-    se_executable = '/opt/local/bin/sex'
+    se_executable = '/home/mei/bfloyd/bin/sex'
     sex_config = os.path.abspath(sex_config)
     param_file = os.path.abspath(param_file)
     image = os.path.abspath(image)
@@ -130,26 +131,20 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
     # Load artdata subpackage
     iraf.artdata(_doprint=0)
 
-    # Get the pixel scale as well for single value conversions.
-    try:
-        pix_scale = fits.getval(image, 'PXSCAL2')
-    except KeyError:  # Just in case the file doesn't have 'PXSCAL2'
-        try:
-            pix_scale = fits.getval(image, 'CDELT2') * 3600
-        except KeyError:  # If both cases fail report the cluster and the problem
-            print("Header is missing both 'PXSCAL2' and 'CDELT2'. Please check the header of: {file}"
-                  .format(file=image))
-            raise
+    # Load the image WCS
+    w = WCS(image)
+
+    # Get the pixel scale
+    pix_scale = w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]
 
     # # Get the zero point magnitude from the image.
     # zpoint = fits.getval(image, 'ZEROPT')
 
     # Get the bounds of the image.
-    xlen = fits.getval(image, 'NAXIS1')
-    ylen = fits.getval(image, 'NAXIS2')
+    xlen, ylen = w.pixel_shape
 
     # Radius used in gaussian of mkobjects is half of the FWHM of the PSF in pixels.
-    radius = fwhm * 0.5 / pix_scale
+    radius = fwhm * 0.5 / pix_scale.to(u.arcsec)
 
     # Move to the Starlist directory to run the IRAF tasks.
     os.chdir(starlist_dir)

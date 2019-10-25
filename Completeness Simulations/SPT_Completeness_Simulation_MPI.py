@@ -24,17 +24,27 @@ for each magnitude bin and stored in a dictionary with the image name used as th
 
 from __future__ import print_function, division
 
-from multiprocessing import Pool, cpu_count
+import glob
+import json
 from time import time
 
 import astropy.units as u
 import numpy as np
 from Completeness_Simulation_Functions import *
-from Pipeline_functions import file_pairing, catalog_image_match
 from astropy.coordinates import SkyCoord
-from astropy.io import ascii
 from astropy.table import Table
 from astropy.wcs import WCS
+import re
+
+from schwimmbad import MPIPool
+
+try:
+    import sys
+    assert sys.version_info() == (2, 7)
+except AssertionError:
+    raise AssertionError('This script must be ran on Python 2.7')
+
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 
 
 def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0.2, model='gaussian'):
@@ -71,16 +81,19 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
 
     # Paths to files
     image = image_name
-    sex_conf = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/sex_configs/default.sex'
-    param_file = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/sex_configs/default.param'
+    sex_conf = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/SPTpol/sex_configs/default.sex'
+    param_file = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/SPTpol/sex_configs/default.param'
+
+    # Cluster Image ID
+    image_id = cluster_image.search(image_name).group(0)
+    cluster_id = cluster_image.search(image_name).group(1)
 
     # Image parameters
-    output_image = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/Images/{image_name}_stars.fits'\
-        .format(image_name=image_name[-38:-19])
-    starlist_dir = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/Starlists'
+    output_image = hcc_prefix + f'Data/Comp_Sim/SPTpol/Images/{image_id}_stars.fits'
+    starlist_dir = hcc_prefix + 'Data/Comp_Sim/SPTpol/Starlists'
 
     # Altered image catalog
-    alt_out_cat = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/sex_catalogs/{image_name}_stars.cat'.format(image_name=image_name[-38:-19])
+    alt_out_cat = hcc_prefix + f'Data/Comp_Sim/SPTpol/sex_catalogs/{image_id}_stars.cat'
 
     for j in range(len(bins)-1):
         # Set magnitude range for bin
@@ -102,29 +115,29 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
                     param_file=param_file)
 
             # Read in both the starlist as a truth catalog and the altered image catalog
-            true_stars = ascii.read('{starlist_dir}/{image_name}_stars.dat'
-                                    .format(starlist_dir=starlist_dir, image_name=image_name[-38:-19]),
-                                    names=['x', 'y', 'selection_band'])
-            alt_cat = ascii.read(alt_out_cat, format='sextractor')
+            true_stars = Table.read(f'{starlist_dir}/{image_id}_stars.dat',
+                                    names=['x', 'y', 'selection_band'], format='ascii')
+            altered_cat = Table.read(alt_out_cat, format='ascii.sextractor')
 
             # Preform aperture correction to the magnitude based on the published values in Ashby et al. 2009
-            alt_cat['MAG_APER'] += aper_corr  # From mag_auto - mag_aper values.
+            altered_cat['MAG_APER'] += aper_corr  # From mag_auto - mag_aper values.
 
             # Match the coordinates between the truth catalog and the SExtractor catalog.
             max_sep = fwhm * u.arcsec
 
             wcs = WCS(output_image)
             true_coord = SkyCoord.from_pixel(true_stars['x'], true_stars['y'], wcs=wcs)
-            cat_coord = SkyCoord(alt_cat['ALPHA_J2000'], alt_cat['DELTA_J2000'], unit=u.degree)
+            cat_coord = SkyCoord(altered_cat['ALPHA_J2000'], altered_cat['DELTA_J2000'], unit=u.degree)
 
             idx, sep, _ = true_coord.match_to_catalog_sky(cat_coord)
 
             # Only accept objects that are within the maximum separation.
-            alt_cat_matched = alt_cat[idx][np.where(sep <= max_sep)]
+            alt_cat_matched = altered_cat[idx][sep <= max_sep]
+            true_stars_matched = true_stars[sep <= max_sep]
 
             # Require that the matched stars have magnitudes within 0.2 selection_band of the input magnitudes
             alt_cat_mag_matched = alt_cat_matched[
-                np.where(np.abs(true_stars[np.where(sep <= max_sep)]['selection_band'] - alt_cat_matched['MAG_APER']) <= mag_diff)]
+               np.abs(true_stars_matched['selection_band'] - alt_cat_matched['MAG_APER']) <= mag_diff]
 
             # Append the number of placed and recovered objects into their respective containers.
             placed.append(len(true_stars))
@@ -135,10 +148,13 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
 
     # Create a dictionary entry with the image name as the key and the recovery_rate list as the value.
     # This will allow for the rates to be identifiable to the image they were created from.
-    dict_rate = {image_name[-35:-19]: recovery_rate}
+    dict_rate = {cluster_id: recovery_rate}
 
     return dict_rate
 
+
+#  RegEx for finding the cluster/image ids
+cluster_image = re.compile(r'I[12]_(SPT-CLJ\d+-\d+)')
 
 # Magnitude bins
 bins = np.arange(10.0, 22.5, 0.5)
@@ -152,70 +168,44 @@ mag_diff = 0.2
 # Model type
 model = 'gaussian'
 
-# First we need to grab the images and match them to the Bleem catalog. For this, we'll use the SPT_AGN_Pipeline
-# functions file_pairing and catalog_image_match.
-
-# Pair the files together
-cluster_list = file_pairing('/work/mei/bfloyd/SPT_AGN/Data/Catalogs/', '/work/mei/bfloyd/SPT_AGN/Data/Images/')
-
-# Read in the Bleem catalog
-Bleem = Table(fits.getdata('/work/mei/bfloyd/SPT_AGN/Data/2500d_cluster_sample_fiducial_cosmology.fits'))
-
-# Clean the table of the rows without mass data. These are unconfirmed cluster candidates.
-Bleem = Bleem[np.where(Bleem['M500'] != 0.0)]
-
-# Match the clusters to the catalog requiring the cluster centers be within 1 arcminute of the Bleem center.
-matched_list = catalog_image_match(cluster_list, Bleem, cat_ra_col='RA', cat_dec_col='DEC', max_sep=1.0)
+# Image directory
+image_dir = hcc_prefix + 'Data/SPTPol/images/cluster_cutouts'
 
 # Channel 1 science images
-ch1_images = [matched_list[k]['ch1_sci_path'] for k in range(len(matched_list))]
+ch1_images = glob.glob(image_dir + '/I1*_mosaic.cutout.fits')
 
 # Channel 2 science images
-ch2_images = [matched_list[k]['ch2_sci_path'] for k in range(len(matched_list))]
+ch2_images = glob.glob(image_dir + '/I2*_mosaic.cutout.fits')
 
-# Set up multiprocessing pool
-# get number of cpus available to job
-try:
-    ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"].split('(')[0])
-except KeyError:
-    ncpus = cpu_count()
+irac_data_sptsz = {1: {'psf_fwhm': 1.95, 'zeropt': 17.997, 'aper_corr': -0.1},
+                   2: {'psf_fwhm': 2.02, 'zeropt': 17.538, 'aper_corr': -0.11}}
 
-pool = Pool(processes=ncpus)
+irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
+                    2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.05}}
 
-for channel in range(2):
 
-    # Record start time
-    start_time = time()
+# Record start time
+start_time = time()
 
-    if channel == 0:
-        image_list = ch1_images  # Set the image list to channel 1 images
-        psf_fwhm = 1.66          # PSF FWHM in arcseconds
-        zeropt = 17.997          # Zero-point magnitude
-        aper_corr = -0.05        # Aperture correction
-    else:
-        image_list = ch2_images  # Set the image list to channel 2 images
-        psf_fwhm = 1.72          # PSF FWHM in arcseconds
-        zeropt = 17.538          # Zero-point magnitude
-        aper_corr = -0.05        # Aperture correction
+with MPIPool() as pool:
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
 
-    # Apply the completeness function to the multiprocessing pool for all the images in the image list.
-    rates = [pool.apply_async(completeness, args=(image_name, bins, nsteps, psf_fwhm, zeropt, aper_corr))
-             for image_name in image_list]
+    args = [(image_name, bins, nsteps, irac_data_sptpol[2]['psf_fwhm'], irac_data_sptpol[2]['zeropt'],
+             irac_data_sptpol[2]['aper_corr'], mag_diff, model) for image_name in ch2_images]
+    pool_results = pool.map(completeness, args)
 
-    # Retrieve the return radial from the multiprocessing object.
-    rates = [p.get() for p in rates]
+    if pool.is_master():
+        completeness_results = {cluster_id: recovery_rates for result in pool_results
+                                for cluster_id, recovery_rates in result.items()}
+print('Simulation run time: {}'.format(time() - start_time))
 
-    # Convert the multiple dictionary radial in the rates array into a single dictionary.
-    # If this script is updated to Python 3.x then the following three lines can be replaced with
-    # rates_dict = {**d for d in rates}
-    rates_dict = {}
-    for d in rates:
-        rates_dict.update(d)
+# Add the magnitude values used to create the completeness rates.
+completeness_results['magnitude_bins'] = bins
 
-    # Add the magnitude values used to create the completeness rates.
-    rates_dict.update({'magnitude_bins': bins})
-
-    # Save array to disk
-    np.save('/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/Results/SPT_I{ch}_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}'
-            .format(ch=channel + 1, model=model, fwhm=str(psf_fwhm).replace('.', ''),
-                    corr=str(np.abs(aper_corr)).replace('.', ''), mag_diff=str(mag_diff).replace('.', '')), rates_dict)
+# Save results to disk
+results_filename = hcc_prefix + 'Data/Comp_Sim/SPTpol/Results/SPT_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}'\
+    .format(model=model, fwhm=irac_data_sptpol[2]['psf_fwhm'], corr=irac_data_sptpol[2]['aper_corr'], mag_diff=mag_diff)
+with open(results_filename, 'w') as f:
+    json.dump(completeness_results, f, ensure_ascii=False, indent=4)
