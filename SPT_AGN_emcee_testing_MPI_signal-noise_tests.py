@@ -149,13 +149,13 @@ mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-N
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
-theta_true = float(theta_input)     # Amplitude.
-eta_true = 1.2                      # Redshift slope
-beta_true = 0.5                     # Radial slope
-zeta_true = -1.0                    # Mass slope
-C_true = 0.371                      # Background AGN surface density
+theta_true = float(theta_input)  # Amplitude.
+eta_true = 1.2  # Redshift slope
+beta_true = 0.5  # Radial slope
+zeta_true = -1.0  # Mass slope
+C_true = 0.371  # Background AGN surface density
 
-# Load in the preprocssing file
+# Load in the prepossessing file
 preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/full_spt_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
@@ -176,10 +176,14 @@ nwalkers = 30
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-                               std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-# pos0 = emcee.utils.sample_ball(p0=[eta_true, zeta_true, beta_true, C_true],
-#                                std=[1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+# pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
+#                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
+pos0 = np.vstack([[np.random.uniform(0., 2.),   # theta
+                   np.random.uniform(-3., 3.),  # eta
+                   np.random.uniform(-3., 3.),  # zeta
+                   np.random.uniform(-3., 3.),  # beta
+                   np.random.normal(loc=0.371, scale=0.157)]  # C
+                  for i in range(nwalkers)])
 
 # Set up the autocorrelation and convergence variables
 index = 0
@@ -196,7 +200,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed_trial3'.format(theta=theta_true))
+                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed_trial4'.format(theta=theta_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
