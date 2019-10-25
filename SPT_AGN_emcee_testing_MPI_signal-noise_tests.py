@@ -44,7 +44,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # The cluster's core radius in units of r500
-    rc_r500 = 0.1 * u.Mpc / r500
+    rc_r500 = rc_value * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
@@ -138,22 +138,23 @@ def lnpost(param):
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
-theta_input = sys.argv[1]
+rc_input = sys.argv[1]
 # Read in the mock catalog
 mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/'
-                                       'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
-                                       '_maxr5.00_clseed890_objseed930_full_spt.cat'.format(theta=theta_input),
+                                       'mock_AGN_catalog_t0.153_e1.20_z-1.00_b0.50_C0.371'
+                                       '_maxr5.00_clseed890_objseed930_full_spt.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
-theta_true = float(theta_input)  # Amplitude.
+theta_true = 0.153  # Amplitude.
 eta_true = 1.2  # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
 C_true = 0.371  # Background AGN surface density
+rc_value = float(rc_input)
 
 # Load in the prepossessing file
 preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/full_spt_preprocessing.json'
@@ -200,7 +201,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='snr_test_{theta:.3f}_bkg_free_rc_fixed_trial4'.format(theta=theta_true))
+                                        name='snr_test_0.153_bkg_free_rc_true0.1_rc_input{rc:.3f}_trial5'.format(rc=rc_value))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
