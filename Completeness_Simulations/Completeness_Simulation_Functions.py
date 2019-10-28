@@ -47,6 +47,7 @@ def run_sex(image, output_catalog, mag_zero, seeing_fwhm, sex_config='default.se
 
     # Define locations of files in absolute paths.
     se_executable = '/home/mei/bfloyd/bin/sex'
+    # se_executable = '/opt/local/bin/sex'
     sex_config = os.path.abspath(sex_config)
     param_file = os.path.abspath(param_file)
     image = os.path.abspath(image)
@@ -141,7 +142,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
     # zpoint = fits.getval(image, 'ZEROPT')
 
     # Get the bounds of the image.
-    xlen, ylen = w.pixel_shape
+    xlen, ylen = w._naxis1, w._naxis2
 
     # Radius used in gaussian of mkobjects is half of the FWHM of the PSF in pixels.
     radius = fwhm * 0.5 / pix_scale.to(u.arcsec)
@@ -172,7 +173,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         print('Placing stars.')
 
     # Place the stars on the image.
-    iraf.mkobjects(image, output=out_image, objects=star_fname, star=model, radius=radius, magzero=mag_zero,
+    iraf.mkobjects(image, output=out_image, objects=star_fname, star=model, radius=radius.value, magzero=mag_zero,
                    seed='INDEF')
 
     # Return to the project directory

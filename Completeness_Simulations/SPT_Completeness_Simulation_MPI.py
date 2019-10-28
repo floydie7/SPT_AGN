@@ -26,17 +26,16 @@ from __future__ import print_function, division
 
 import glob
 import json
+import re
 from time import time
 
-import astropy.units as u
 import numpy as np
-from Completeness_Simulation_Functions import *
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from astropy.wcs import WCS
-import re
-
 from schwimmbad import MPIPool
+
+from Completeness_Simulation_Functions import *
 
 try:
     import sys
@@ -181,7 +180,7 @@ irac_data_sptsz = {1: {'psf_fwhm': 1.95, 'zeropt': 17.997, 'aper_corr': -0.1},
                    2: {'psf_fwhm': 2.02, 'zeropt': 17.538, 'aper_corr': -0.11}}
 
 irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
-                    2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.05}}
+                    2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.38}}
 
 
 # Record start time

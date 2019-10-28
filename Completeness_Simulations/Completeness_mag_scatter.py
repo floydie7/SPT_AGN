@@ -9,14 +9,15 @@ from __future__ import print_function, division
 
 import glob
 
-import astropy.units as u
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from Completeness_Simulation_Functions import *
 from astropy.coordinates import SkyCoord
 from astropy.io import ascii
 from astropy.wcs import WCS
+from matplotlib.ticker import AutoMinorLocator
+
+from Completeness_Simulation_Functions import *
 
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
@@ -84,8 +85,6 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
                                 names=['x', 'y', 'selection_band'])
         alt_cat = ascii.read(alt_out_cat, format='sextractor')
 
-
-
         # Match the coordinates between the truth catalog and the SExtractor catalog.
         max_sep = 1.95 * u.arcsec
         wcs = WCS(output_image)
@@ -107,14 +106,14 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
         mag_aper_diff.append(true_stars[np.where(sep <= max_sep)]['selection_band'] - alt_cat_matched['MAG_APER'])
         mag_auto_diff.append(true_stars[np.where(sep <= max_sep)]['selection_band'] - alt_cat_matched['MAG_AUTO'])
 
-
     # Make the plot
     fig, ax = plt.subplots()
     ax.grid()
     for j in range(len(bins)-1):
         ax.scatter(true_mag[j], mag_aper_diff[j], c='k', edgecolors='face')
     ax.set(title='Randomly selected Ch2 stamps', xlabel='true_mag (Vega)', ylabel='true_mag - mag_aper(4",uncorrected)')
-    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_true_mag_aper_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss.pdf', format='pdf')
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_true_mag_aper_scatter_fwhm{fwhm}_gauss.pdf'.format(fwhm=fwhm), format='pdf')
     # plt.show()
     #
     fig, ax = plt.subplots()
@@ -122,7 +121,8 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
     for j in range(len(bins)-1):
         ax.scatter(true_mag[j], mag_auto_diff[j], c='k', edgecolors='face')
     ax.set(title='Randomly selected Ch2 stamps', xlabel='true_mag (Vega)', ylabel='true_mag - mag_auto')
-    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_true_mag_auto_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss.pdf', format='pdf')
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_true_mag_auto_scatter_fwhm{fwhm}_gauss.pdf'.format(fwhm=fwhm), format='pdf')
     # plt.show()
 
     # fig, ax = plt.subplots()
@@ -142,7 +142,8 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
     ax.plot([10.0,23.0], [-0.40, -0.40], 'b-')
     ax.set(title='Randomly selected Ch2 stamps', xlabel='mag_auto (Vega)', ylabel='mag_auto - mag_aper(4",uncorrected)',
            xlim=[10.0, 14.0], ylim=[-0.45,0.0])
-    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_mag_auto_aper_scatter_fwhm'+str(fwhm).replace('.','')+'_gauss_zoom.pdf', format='pdf')
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    fig.savefig('Data/Comp_Sim/SPTpol/Plots/I2_mag_auto_aper_scatter_fwhm{fwhm}_gauss_zoom.pdf'.format(fwhm=fwhm), format='pdf')
     # plt.show()
 
     # Corrected aperture photometry
