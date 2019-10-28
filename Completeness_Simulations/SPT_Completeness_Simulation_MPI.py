@@ -32,7 +32,6 @@ from time import time
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
-from astropy.wcs import WCS
 from schwimmbad import MPIPool
 
 from Completeness_Simulation_Functions import *
@@ -88,11 +87,11 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
     cluster_id = cluster_image.search(image_name).group(1)
 
     # Image parameters
-    output_image = hcc_prefix + f'Data/Comp_Sim/SPTpol/Images/{image_id}_stars.fits'
+    output_image = hcc_prefix + 'Data/Comp_Sim/SPTpol/Images/{image_id}_stars.fits'.format(image_id=image_id)
     starlist_dir = hcc_prefix + 'Data/Comp_Sim/SPTpol/Starlists'
 
     # Altered image catalog
-    alt_out_cat = hcc_prefix + f'Data/Comp_Sim/SPTpol/sex_catalogs/{image_id}_stars.cat'
+    alt_out_cat = hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id)
 
     for j in range(len(bins)-1):
         # Set magnitude range for bin
@@ -114,7 +113,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
                     param_file=param_file)
 
             # Read in both the starlist as a truth catalog and the altered image catalog
-            true_stars = Table.read(f'{starlist_dir}/{image_id}_stars.dat',
+            true_stars = Table.read('{starlist_dir}/{image_id}_stars.dat'.format(starlist_dir=starlist_dir, image_id=image_id),
                                     names=['x', 'y', 'selection_band'], format='ascii')
             altered_cat = Table.read(alt_out_cat, format='ascii.sextractor')
 
