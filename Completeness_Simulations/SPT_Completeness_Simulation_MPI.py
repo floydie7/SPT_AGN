@@ -27,14 +27,14 @@ from __future__ import print_function, division
 import glob
 import json
 import re
+from functools import partial
 from time import time
 
 import numpy as np
+from Completeness_Simulation_Functions import *
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from schwimmbad import MPIPool
-
-from Completeness_Simulation_Functions import *
 
 try:
     import sys
@@ -78,7 +78,6 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
     recovery_rate = []
 
     # Paths to files
-    image = image_name
     sex_conf = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/SPTpol/sex_configs/default.sex'
     param_file = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/SPTpol/sex_configs/default.param'
 
@@ -105,8 +104,8 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
         for i in range(nsteps):
 
             # Now generate the image with artificial stars.
-            make_stars(image, output_image, starlist_dir, model=model, fwhm=fwhm, mag_zero=mag_zero, min_mag=min_mag,
-                       max_mag=max_mag, nstars=10)
+            make_stars(image_name, output_image, starlist_dir, model=model, fwhm=fwhm, mag_zero=mag_zero,
+                       min_mag=min_mag, max_mag=max_mag, nstars=10)
 
             # Run SExtractor again on the altered image
             run_sex(output_image, alt_out_cat, mag_zero=mag_zero, seeing_fwhm=fwhm, sex_config=sex_conf,
@@ -151,6 +150,10 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
     return dict_rate
 
 
+def completeness_unpacker(in_args):
+    completeness(*in_args)
+
+
 #  RegEx for finding the cluster/image ids
 cluster_image = re.compile(r'I[12]_(SPT-CLJ\d+-\d+)')
 
@@ -190,9 +193,11 @@ with MPIPool() as pool:
         pool.wait()
         sys.exit(0)
 
-    args = [(image_name, bins, nsteps, irac_data_sptpol[2]['psf_fwhm'], irac_data_sptpol[2]['zeropt'],
-             irac_data_sptpol[2]['aper_corr'], mag_diff, model) for image_name in ch2_images]
-    pool_results = pool.map(completeness, args)
+    pool_results = pool.map(partial(completeness,
+                                    bins=bins, nsteps=nsteps,
+                                    fwhm=irac_data_sptpol[2]['psf_fwhm'], mag_zero=irac_data_sptpol[2]['zeropt'],
+                                    aper_corr=irac_data_sptpol[2]['aper_corr'], mag_diff=0.2, model='gaussian'),
+                            ch2_images)
 
     if pool.is_master():
         completeness_results = {cluster_id: recovery_rates for result in pool_results
