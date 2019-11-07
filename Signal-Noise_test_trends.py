@@ -25,7 +25,7 @@ filename = 'Data/MCMC/Mock_Catalog/Chains/signal-noise_tests/' \
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'trial3' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'trial' not in chain_name]
 # orig_chain_names = [chain_name for chain_name in chain_names if '_theta_prior_pm0.5theta_true' not in chain_name]
 # narrow_chain_names = [chain_name for chain_name in chain_names if '_theta_prior_pm0.5theta_true' in chain_name]
 #
@@ -105,7 +105,7 @@ ax.set(xlabel=r'$\theta$', ylabel=r'$\eta$')
 ax.set_xticklabels([0, *theta_list])
 ax.yaxis.set_minor_locator(AutoMinorLocator())
 ax.legend()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/trial_3/eta_trend_trial3.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/trial_1/eta_trend_trial1.pdf', format='pdf')
 
 # zeta plot
 zeta_values = [fit['zeta'][1] for fit in mcmc_fits.values()]
@@ -123,4 +123,4 @@ ax.set(xlabel=r'$\theta$', ylabel=r'$\zeta$')
 ax.set_xticklabels([0, *theta_list])
 ax.yaxis.set_minor_locator(AutoMinorLocator())
 ax.legend()
-fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/trial_3/zeta_trend_trial3.pdf', format='pdf')
+fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/mcmc_trends/trial_1/zeta_trend_trial1.pdf', format='pdf')

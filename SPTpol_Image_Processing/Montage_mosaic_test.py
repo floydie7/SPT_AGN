@@ -8,7 +8,7 @@ Integration test for the montage_mosaic.py API to see if it can complete the mos
 import logging
 from itertools import chain
 
-from montage_mosaic import montage_mosaic
+from SPTpol_Image_Processing.montage_mosaic import montage_mosaic
 
 # Set up logging
 logging.basicConfig(filename='SPTPol_mosaics.log', filemode='w',

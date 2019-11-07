@@ -65,7 +65,7 @@ selector = SelectIRAGN(sextractor_cat_dir=catalog_directory, irac_image_dir=imag
                        completeness_file=completeness_sim_results)
 
 # Run the pipeline
-selector.run_selection(excluded_clusters=clusters_to_exclude, max_separation=max_separation,
+selector.run_selection(excluded_clusters=clusters_to_exclude, max_image_catalog_sep=max_separation,
                        ch1_min_cov=ch1_min_coverage, ch2_min_cov=ch2_min_coverage, ch1_bright_mag=ch1_bright_mag,
                        ch2_bright_mag=ch2_bright_mag, selection_band_faint_mag=ch2_faint_mag,
                        ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names, output_name=output_catalog,

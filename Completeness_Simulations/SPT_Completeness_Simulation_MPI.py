@@ -27,22 +27,24 @@ from __future__ import print_function, division
 import glob
 import json
 import re
+import sys
 from functools import partial
 from time import time
 
 import numpy as np
-from Completeness_Simulation_Functions import *
+# from Completeness_Simulation_Functions import *
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from schwimmbad import MPIPool
 
-try:
-    import sys
-    assert sys.version_info() == (2, 7)
-except AssertionError:
-    raise AssertionError('This script must be ran on Python 2.7')
+# try:
+#     import sys
+#     assert sys.version_info() == (2, 7)
+# except AssertionError:
+#     raise AssertionError('This script must be ran on Python 2.7')
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# hcc_prefix = '/Users/btfkwd/Documents/SPT_AGN/'
 
 
 def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0.2, model='gaussian'):
@@ -78,8 +80,8 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, mag_diff=0
     recovery_rate = []
 
     # Paths to files
-    sex_conf = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/SPTpol/sex_configs/default.sex'
-    param_file = '/work/mei/bfloyd/SPT_AGN/Data/Comp_Sim/SPTpol/sex_configs/default.param'
+    sex_conf = hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.sex'
+    param_file = hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.param'
 
     # Cluster Image ID
     image_id = cluster_image.search(image_name).group(0)

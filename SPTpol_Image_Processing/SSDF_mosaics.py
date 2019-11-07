@@ -13,7 +13,7 @@ from itertools import product, chain
 from mpi4py import MPI
 from schwimmbad import MPIPool
 
-from montage_mosaic import montage_mosaic
+from SPTpol_Image_Processing.montage_mosaic import montage_mosaic
 from mpi_logger import MPIFileHandler
 
 # Set up logging

@@ -20,7 +20,7 @@ masks_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/masks'
 completeness_sim_results = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/SPTPol_completeness_sim_placeholder_median.json'
 
 # Clusters to manually exclude
-clusters_to_exclude = {'SPT-CLJ0002-5214', 'SPT-CLJ2357-5953'}
+clusters_to_exclude = {'SPT-CLJ0002-5214', 'SPT-CLJ2341-5640', 'SPT-CLJ2357-5953'}
 
 # Maximum separation allowed between the cluster images' reference pixel and the SPT SZ centers
 max_separation = 1.0 * u.arcmin
