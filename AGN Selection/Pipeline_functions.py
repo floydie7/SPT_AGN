@@ -275,7 +275,14 @@ class SelectIRAGN:
             # Read in the WCS from the coverage mask we made earlier.
             w = WCS(header)
 
-            pix_scale = (w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+            try:
+                assert w.pixel_scale_matrix[0, 1] == 0.
+                pix_scale = (w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+            except AssertionError:
+                cd = w.pixel_scale_matrix
+                _, eig_vec = np.linalg.eig(cd)
+                cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
+                pix_scale = (cd_diag[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
 
             # Open the regions file and get the lines containing the shapes.
             with open(region_file, 'r') as region:
@@ -594,8 +601,9 @@ class SelectIRAGN:
         else:
             final_catalog.write(final_cat_path, overwrite=True)
 
-    def run_selection(self, excluded_clusters, max_separation, ch1_min_cov, ch2_min_cov, ch1_bright_mag, ch2_bright_mag,
-                      selection_band_faint_mag, ch1_ch2_color, spt_colnames, output_name, output_colnames):
+    def run_selection(self, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov, ch1_bright_mag,
+                      ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color, spt_colnames, output_name,
+                      output_colnames):
         """
         Executes full selection pipeline using default values.
 
@@ -603,7 +611,7 @@ class SelectIRAGN:
         ----------
         excluded_clusters : list_like
             Excluded clusters for  :method:`file_pairing`.
-        max_separation : astropy.quantity
+        max_image_catalog_sep : astropy.quantity
             Maximum separation for :method:`image_to_catalog_match`.
         ch1_min_cov : int or float
             Minimum 3.6 um coverage for :method:`coverage_mask`.
@@ -626,7 +634,7 @@ class SelectIRAGN:
 
         """
         self.file_pairing(exclude=excluded_clusters)
-        self.image_to_catalog_match(max_image_catalog_sep=max_separation)
+        self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
         self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
         self.object_mask()
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,

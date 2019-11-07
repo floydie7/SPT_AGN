@@ -102,7 +102,14 @@ def good_pixel_fraction(r, z, r500, image_name, center):
     image_wcs = WCS(header)
 
     # From the WCS get the pixel scale
-    pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * u.deg).to(u.arcsec)
+    try:
+        assert image_wcs.pixel_scale_matrix[0, 1] == 0.
+        pix_scale = (image_wcs.pixel_scale_matrix[1, 1] * image_wcs.wcs.cunit[1]).to(u.arcsec)
+    except AssertionError:
+        cd = image_wcs.pixel_scale_matrix
+        _, eig_vec = np.linalg.eig(cd)
+        cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
+        pix_scale = (cd_diag[1, 1] * image_wcs.wcs.cunit[1]).to(u.arcsec)
 
     # Convert our center into pixel units
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
@@ -255,7 +262,14 @@ for theta_true in theta_list:
 
         # Read in the mask's WCS for the pixel scale and making SkyCoords
         w = WCS(mask_name)
-        mask_pixel_scale = w.pixel_scale_matrix[1, 1] * u.deg
+        try:
+            assert w.pixel_scale_matrix[0, 1] == 0.
+            mask_pixel_scale = w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]
+        except AssertionError:
+            cd = w.pixel_scale_matrix
+            _, eig_vec = np.linalg.eig(cd)
+            cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
+            mask_pixel_scale = cd_diag[1, 1] * w.wcs.cunit[1]
 
         # Also get the mask's image size (- 1 to account for the shift between index and length)
         mask_size_x = w.pixel_shape[0] - 1
@@ -347,35 +361,6 @@ for theta_true in theta_list:
         mask_image = full_mask_image
         AGN_list['MASK_NAME'] = mask_name
 
-        # <editor-fold desc="Flat Mask">
-        # Generate the flat mask version
-        # no_mask_image = np.ones_like(full_mask_image)
-        #
-        # # Write the new mask out to disk for use in fitting later
-        # no_mask_name = mask_dir + 'no_masks/' + re.search('SPT(.+?).fits', mask_name).group(0)
-        # fits.PrimaryHDU(no_mask_image, header=full_mask_header).writeto(no_mask_name, overwrite=True)
-        # AGN_list['MASK_NAME'] = no_mask_name
-        #
-        # # Select the image to mask the data on
-        # mask_image = no_mask_image
-        # </editor-fold>
-
-        # <editor-fold desc="Quarter Mask">
-        # Generate the quarter mask version
-        # quarter_mask_name = mask_dir + 'quarter_masks/' + re.search('SPT(.+?).fits', mask_name).group(0)
-        # quarter_mask_image = np.ones_like(full_mask_image)
-        #
-        # # Write the new mask out to disk for use in fitting later
-        # quarter_mask_area = quarter_mask_image[SZ_center_pix[1].round().astype(int):, SZ_center_pix[0].round().astype(int):]
-        # quarter_mask_image[SZ_center_pix[1].round().astype(int):,
-        #                    SZ_center_pix[0].round().astype(int):] = np.zeros_like(quarter_mask_area)
-        # fits.PrimaryHDU(data=quarter_mask_image, header=full_mask_header).writeto(quarter_mask_name, overwrite=True)
-        # AGN_list['MASK_NAME'] = quarter_mask_name
-        #
-        # # Select the image to mask the data on
-        # mask_image = quarter_mask_image
-        # </editor-fold>
-
         # Remove all objects that are outside of the image bounds
         AGN_list = AGN_list[np.all([0 <= AGN_list['x_pixel'],
                                     AGN_list['x_pixel'] <= mask_size_x,
@@ -388,51 +373,6 @@ for theta_true in theta_list:
 
         AGN_cats.append(AGN_list)
 
-    #     # <editor-fold desc="Diagnostics">
-    #     # ------- The rest of this loop is dedicated to diagnostics of the sample --------
-    #     # Create a histogram of the objects in the cluster using evenly spaced bins on radius
-    #     radial_bins = np.linspace(0, max_radius, num=num_bins)
-    #     hist, bin_edges = np.histogram(AGN_list['radial_r500'], bins=radial_bins)
-    #
-    #     # Compute area in terms of r500^2
-    #     area_edges = np.pi * bin_edges ** 2
-    #     area = np.diff(area_edges)
-    #
-    #     # Calculate the good pixel fraction for each annulus area
-    #     SZ_center = AGN_list['SZ_RA', 'SZ_DEC'][0]
-    #     gpf = good_pixel_fraction(bin_edges, z_cl, r500_cl, AGN_list['MASK_NAME'][0], SZ_center)
-    #     # gpf = 1.0
-    #
-    #     # Scale our area by the good pixel fraction
-    #     scaled_area = area * gpf
-    #
-    #     # Use small-N Poisson error of counts in each bin normalized by the area of the bin
-    #     with np.errstate(divide='ignore', invalid='ignore'):
-    #         count_err = small_poisson(hist)
-    #         err = [count_err_ul / scaled_area for count_err_ul in count_err]
-    #         np.nan_to_num(err, copy=False)
-    #
-    #     # Calculate the model for this cluster
-    #     rall = np.linspace(0, np.max(bin_edges), num=200)
-    #     background_rate_r500 = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z_cl).to(
-    #         u.arcmin / u.Mpc) ** 2 * r500_cl ** 2
-    #     model_cl = model_rate(z_cl, m500_cl, r500_cl, rall, params_true) + background_rate_r500
-    #     gpf_intep_func = interp1d(bin_edges, np.insert(gpf, 0, 1.), kind='cubic')
-    #     gpf_rall = gpf_intep_func(rall)
-    #
-    #     # Drop model values for bins that do not have any area
-    #     # r_zero = np.min(bin_edges[np.where(np.array(gpf) <= 0.4)])
-    #     # model_cl[np.where(gpf_rall <= 0.4)] = np.nan
-    #     # model_cl = model_cl.value / gpf_rall
-    #
-    #     # Store the binned data into the dictionaries
-    #     # gpfs.update({spt_id: gpf})
-    #     hist_heights[spt_id] = hist
-    #     hist_scaled_areas[spt_id] = scaled_area
-    #     hist_errors[spt_id] = err
-    #     hist_models[spt_id] = model_cl
-    #     # </editor-fold>
-    # # %%
     # Stack the individual cluster catalogs into a single master catalog
     outAGN = vstack(AGN_cats)
 
@@ -448,83 +388,6 @@ for theta_true in theta_list:
                  .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
                          maxr=max_radius, nbins=num_bins, cluster_seed=cluster_seed, object_seed=object_seed),
                  format='ascii', overwrite=True)
-    # # <editor-fold desc="Diagnostic Plots">
-    # # -------- Diagnostic Plots --------
-    # # Average the cluster histograms
-    # with np.errstate(divide='ignore', invalid='ignore'):
-    #     stacked_heights = np.nansum(np.array(list(hist_heights.values())), axis=0)
-    #     stacked_areas = np.nansum(np.array(list(hist_scaled_areas.values())), axis=0)
-    #     stacked_hist = stacked_heights / stacked_areas
-    #
-    #     # Find the errors using the fractional Poisson error in the bin.
-    #     frac_err = np.sqrt(stacked_heights) / stacked_heights
-    #     stacked_err = frac_err * stacked_hist
-    #
-    # # Average the cluster models
-    # stacked_model = np.nanmean(list(hist_models.values()), axis=0)
-    #
-    # # Find the scatter on the models
-    # stacked_model_err = np.nanstd(list(hist_models.values()), axis=0)
-    #
-    # # A grid of radii for the data to be plotted on
-    # bin_edges = np.linspace(0, max_radius, num=num_bins)
-    # bins = (bin_edges[1:len(bin_edges)] - bin_edges[0:len(bin_edges) - 1]) / 2. + bin_edges[0:len(bin_edges) - 1]
-    #
-    # # A grid of radii for the model to be plotted on
-    # rall = np.linspace(0, np.max(bin_edges), num=200)
-    #
-    # # A quick chi2 fit of the mean model to find the redshift and mass of the "cluster" it corresponds to
-    # # f = lambda r, z, m: model_rate(z, m*u.Msun, (3 * m*u.Msun / (4 * np.pi * 500 *
-    # #                                                              cosmo.critical_density(z).to(u.Msun / u.Mpc**3)))**(1/3),
-    # #                                r, max_radius, params_true)
-    # # model_z_m, model_cov = op.curve_fit(f, rall[:75], stacked_model[:75], sigma=stacked_model_err[:75],
-    # #                                     bounds=([0.5, 0.2e15], [1.7, 1.8e15]))
-    # # model_z_m_err = np.sqrt(np.diag(model_cov))
-    # # print('Mean model: z = {z:.2f} +/- {z_err:.2e}\tm500 = {m:.2e} +/- {m_err:.3e} Msun'
-    # #       .format(z=model_z_m[0], z_err=model_z_m_err[0], m=model_z_m[1], m_err=model_z_m_err[1]))
-    #
-    # # Overplot the normalized binned data with the model rate
-    # fig, ax = plt.subplots()
-    # ax.errorbar(bins, stacked_hist, yerr=stacked_err, fmt='o', color='C1',
-    #             label='Mock AGN Candidate Surface Density')
-    # ax.plot(rall, stacked_model, color='C0', label='Model Rate')
-    # ax.fill_between(rall, y1=stacked_model + stacked_model_err, y2=stacked_model - stacked_model_err, color='C0',
-    #                 alpha=0.2)
-    # ax.set(title=r'Comparison of Sampled Points to Model $\theta$ = {theta}'.format(theta=theta_true),
-    #        xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
-    # ax.legend()
-    # # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-    # #             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}'
-    # #             '_flat_mask_refresh.pdf'
-    # #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-    # #                     maxr=max_radius, seed=rand_seed), format='pdf')
-    # ax.set(xlim=[0, 3.0])
-    # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Signal-Noise_tests/full_spt/'
-    #             'mock_AGN_binned_check_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_seed{seed}'
-    #             '_full_spt_zoom.pdf'
-    #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-    #                     maxr=max_radius, seed=rand_seed), format='pdf')
-    #
-    # # fig, axarr = plt.subplots(nrows=15, ncols=13, figsize=(50, 50))
-    # # for cluster_id, ax in zip(hist_heights.keys(), axarr.flatten()):
-    # #     surface_den = hist_heights[cluster_id] / hist_scaled_areas[cluster_id]
-    # #     surface_den_err = hist_errors[cluster_id]
-    # #     cluster_model = hist_models[cluster_id]
-    # #
-    # #     ax.errorbar(bins, surface_den, yerr=surface_den_err[::-1], fmt='o', color='C1',
-    # #                 label='Mock AGN Candidate Surface Density')
-    # #     ax.plot(rall, cluster_model, color='C0', label='Model Rate')
-    # #     ax.set(title='Comparison of Sampled Points to Model\n{}'.format(cluster_id),
-    # #            xlabel=r'$r/r_{{500}}$', ylabel=r'Rate per cluster [$r_{{500}}^{-2}$]')
-    # # plt.tight_layout()
-    # # fig.savefig('Data/MCMC/Mock_Catalog/Plots/Poisson_Likelihood/pre-final_tests/'
-    # #             'mock_AGN_binned_check_t{theta:.2f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_maxr{maxr:.2f}_nbins{nbins}'
-    # #             '_seed{seed}_all_clusters_data_to_5r500_flat_mask_applied.pdf'
-    # #             .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true,
-    # #                     maxr=max_radius, nbins=num_bins, seed=rand_seed),
-    # #             format='pdf')
-    # plt.show()
-    # # </editor-fold>
 
     print('Run time: {:.2f}s'.format(time() - catalog_start_time))
 print('Total run time: {:.2f}s'.format(time() - start_time))
