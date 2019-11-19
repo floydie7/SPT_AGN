@@ -32,7 +32,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, C = params
+    theta, eta, zeta, beta, rc, C = params
     # eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
@@ -44,7 +44,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # The cluster's core radius in units of r500
-    rc_r500 = rc_value * u.Mpc / r500
+    rc_r500 = rc * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
@@ -91,10 +91,11 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta, C = param
-    # eta, zeta, beta, C = param
+    theta, eta, zeta, beta, rc, C = param
 
     # Set our hyperparameters
+    h_rc = 0.35
+    h_rc_err = 0.06
     h_C = 0.371
     h_C_err = 0.157
 
@@ -103,12 +104,14 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. \
+    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc <= np.inf \
             and 0.0 <= C < np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
+        # rc_lnprior = -0.5 * (np.log(rc) - np.log(h_rc))**2 / h_rc_err**
+        rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
     else:
@@ -116,11 +119,11 @@ def lnprior(param):
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
+        rc_lnprior = -np.inf
         C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
-    # total_lnprior = eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -138,26 +141,25 @@ def lnpost(param):
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
-rc_input = sys.argv[1]
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/'
-                                       'mock_AGN_catalog_t0.153_e1.20_z-1.00_b0.50_C0.371'
-                                       '_maxr5.00_clseed890_objseed930_full_spt.cat',
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_1/'
+                                       'mock_AGN_catalog_t0.094_e1.20_z-1.00_b0.50_C0.371_rc0.350'
+                                       '_maxr5.00_clseed890_objseed930_core_radius.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
-theta_true = 0.153  # Amplitude.
+theta_true = 0.094  # Amplitude.
 eta_true = 1.2  # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
+rc_true = 0.35  # Core radius (in Mpc)
 C_true = 0.371  # Background AGN surface density
-rc_value = float(rc_input)
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/full_spt_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_1/core_radius_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -179,10 +181,12 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = np.vstack([[np.random.uniform(0., 2.),   # theta
+pos0 = np.vstack([[np.random.uniform(0., 2.),  # theta
                    np.random.uniform(-3., 3.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
+                   # np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
+                   np.random.uniform(0., 1.),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
 
@@ -197,11 +201,11 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_C{C}_full_spt_snr_tests.h5' \
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc_{rc}_C{C}_core_radius_tests.h5' \
         .format(nwalkers=nwalkers, nsteps=nsteps,
-                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true)
+                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='snr_test_0.153_bkg_free_rc_true0.1_rc_input{rc:.3f}_trial5'.format(rc=rc_value))
+                                        name='core_radius_test_uniform_prior_trial1')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -238,10 +242,8 @@ print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-truths = [theta_true, eta_true, zeta_true, beta_true, C_true]
-# labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-# truths = [eta_true, zeta_true, beta_true, C_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
 
 try:
     # Calculate the autocorrelation time

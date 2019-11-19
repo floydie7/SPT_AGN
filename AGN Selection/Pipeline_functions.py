@@ -178,11 +178,11 @@ class SelectIRAGN:
                                      for cluster_id, cluster in self._catalog_dictionary.items()]),
                            names=['SPT_cat_idx', 'center_sep', 'cluster_id'])
 
-        # Sort the table by the Bleem index.
+        # Sort the table by the catalog index.
         match_info.sort(['SPT_cat_idx', 'center_sep'])
 
         # Use Astropy's unique function to remove the duplicate rows. Because the table rows will be subsorted by the
-        # separation column we only need to keep the first incidence of the Bleem index as our best match.
+        # separation column we only need to keep the first incidence of the catalog index as our best match.
         match_info = unique(match_info, keys='SPT_cat_idx', keep='first')
 
         # Remove the duplicate clusters

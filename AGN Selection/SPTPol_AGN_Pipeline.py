@@ -17,7 +17,8 @@ regions_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/regions'
 masks_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/masks'
 
 # Completeness simulation results file
-completeness_sim_results = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/SPTPol_completeness_sim_placeholder_median.json'
+completeness_sim_results = '/Users/btfkwd/Documents/SPT_AGN/Data/Comp_Sim/SPTpol/Results/' \
+                           'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.38_mag0.2.json'
 
 # Clusters to manually exclude
 clusters_to_exclude = {'SPT-CLJ0002-5214', 'SPT-CLJ2341-5640', 'SPT-CLJ2357-5953'}

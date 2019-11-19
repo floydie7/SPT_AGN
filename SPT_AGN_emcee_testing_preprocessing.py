@@ -127,6 +127,10 @@ def generate_catalog_dict(cluster):
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
+    max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
+
+    # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
+    # r500/pix.
     mask_wcs = WCS(mask_dict[cluster_id][1])
     try:
         assert mask_wcs.pixel_scale_matrix[0, 1] == 0.
@@ -137,10 +141,6 @@ def generate_catalog_dict(cluster):
         _, eig_vec = np.linalg.eig(cd)
         cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
         pix_scale = cd_diag[1, 1] * mask_wcs.wcs.cunit[1]
-    max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc/u.arcmin) / cluster_r500
-
-    # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
-    # r500/pix.
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / pix_scale.unit) / cluster_r500
 
     # Generate a radial integration mesh.
@@ -156,15 +156,14 @@ def generate_catalog_dict(cluster):
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-theta_input = '0.153'
 max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/'
-                                       'mock_AGN_catalog_t{theta}_e1.20_z-1.00_b0.50_C0.371'
-                                       '_maxr5.00_clseed890_objseed930_full_spt.cat'.format(theta=theta_input),
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_1/'
+                                       'mock_AGN_catalog_t0.094_e1.20_z-1.00_b0.50_C0.371_rc0.350'
+                                       '_maxr5.00_clseed890_objseed930_core_radius.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -194,6 +193,6 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Signal-Noise_tests/full_spt/trial_3/full_spt_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/core_radius_preprocessing.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)
