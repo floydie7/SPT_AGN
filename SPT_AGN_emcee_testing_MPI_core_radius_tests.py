@@ -104,7 +104,7 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc <= np.inf \
+    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc <= 1. \
             and 0.0 <= C < np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
@@ -172,8 +172,8 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
-nwalkers = 30
+ndim = 6
+nwalkers = 36
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
@@ -205,7 +205,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_test_uniform_prior_trial1')
+                                        name='core_radius_test_uniform_prior_trial2')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
