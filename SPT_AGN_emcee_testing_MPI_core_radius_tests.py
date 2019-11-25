@@ -104,13 +104,13 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc <= np.inf \
+    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc < np.inf \
             and 0.0 <= C < np.inf:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        rc_lnprior = -0.5 * (np.log(rc) - np.log(h_rc)) ** 2 / h_rc_err ** 2,
+        rc_lnprior = -0.5 * (rc - h_rc) ** 2 / h_rc_err ** 2,
         # rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
@@ -205,7 +205,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_test_shaped_prior_trial3')
+                                        name='core_radius_test_shaped_prior_trial4')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
