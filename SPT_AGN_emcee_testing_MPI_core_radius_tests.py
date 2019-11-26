@@ -110,7 +110,7 @@ def lnprior(param):
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        rc_lnprior = -0.5 * (rc - h_rc) ** 2 / h_rc_err ** 2,
+        rc_lnprior = -0.5 * (np.log(rc) - np.log(h_rc)) ** 2 / h_rc_err ** 2
         # rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
