@@ -98,6 +98,8 @@ def lnprior(param):
     h_rc_err = 0.06
     h_C = 0.371
     h_C_err = 0.157
+    h_theta = theta_true
+    h_theta_err = 0.06
 
     # Narrow the prior on theta to bracket +- 50% of theta_true
     # theta_lower = theta_true - theta_true * 0.5
@@ -106,7 +108,8 @@ def lnprior(param):
     # Define all priors to be gaussian
     if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc < np.inf \
             and 0.0 <= C < np.inf:
-        theta_lnprior = 0.0
+        # theta_lnprior = 0.0
+        theta_lnprior = -0.5 * (np.log(theta) - np.log(h_theta))**2 / h_theta_err**2
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
@@ -185,8 +188,8 @@ pos0 = np.vstack([[np.random.uniform(0., 2.),  # theta
                    np.random.uniform(-3., 3.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
-                   # np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
-                   np.random.uniform(0., 1.),  # rc
+                   np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
+                   # np.random.uniform(0., 1.),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
 
@@ -205,7 +208,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_test_shaped_prior_trial4')
+                                        name='core_radius_test_shaped_prior_trial5')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
