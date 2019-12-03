@@ -33,7 +33,7 @@ def model_rate_opted(params, cluster_id, r_r500):
 
     # Unpack our parameters
     # theta, eta, zeta, beta, rc, C = params
-    theta, eta, zeta, beta, C = params
+    theta, eta, zeta, beta, rc, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -44,7 +44,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # The cluster's core radius in units of r500
-    rc_r500 = rc_true * u.Mpc / r500
+    rc_r500 = rc * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
