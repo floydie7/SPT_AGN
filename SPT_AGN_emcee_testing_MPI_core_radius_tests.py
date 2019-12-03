@@ -94,8 +94,8 @@ def lnprior(param):
     theta, eta, zeta, beta, rc, C = param
 
     # Set our hyperparameters
-    h_rc = 0.35
-    h_rc_err = 0.06
+    h_rc = 0.25
+    h_rc_err = 0.1
     h_C = 0.371
     h_C_err = 0.157
     h_theta = theta_true
@@ -106,16 +106,15 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    # if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0. <= rc < np.inf \
-    #         and 0.0 <= C < np.inf:
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf:
+    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
+            and 0.1 <= rc <= 0.5:
         theta_lnprior = 0.0
         # theta_lnprior = -0.5 * (np.log(theta) - np.log(h_theta))**2 / h_theta_err**2
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        # rc_lnprior = -0.5 * (np.log(rc) - np.log(h_rc)) ** 2 / h_rc_err ** 2
-        # rc_lnprior = 0.0
+        # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
+        rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
     else:
@@ -123,12 +122,12 @@ def lnprior(param):
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
-        # rc_lnprior = -np.inf
+        rc_lnprior = -np.inf
         C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -147,8 +146,8 @@ def lnpost(param):
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_1/'
-                                       'mock_AGN_catalog_t0.094_e1.20_z-1.00_b0.50_C0.371_rc0.350'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_7/'
+                                       'mock_AGN_catalog_t0.098_e1.20_z-1.00_b0.50_C0.371_rc0.250'
                                        '_maxr5.00_clseed890_objseed930_core_radius.cat',
                           format='ascii')
 
@@ -156,15 +155,15 @@ mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_te
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
-theta_true = 0.094  # Amplitude.
+theta_true = 0.098  # Amplitude.
 eta_true = 1.2  # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
-rc_true = 0.35  # Core radius (in Mpc)
+rc_true = 0.25  # Core radius (in Mpc)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_1/core_radius_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_7/core_radius_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -191,7 +190,7 @@ pos0 = np.vstack([[np.random.uniform(0., 2.),  # theta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
                    # np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
-                   # np.random.uniform(0., 1.),  # rc
+                   np.random.uniform(0., 1.),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
 
@@ -210,7 +209,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_test_fixed_trial6')
+                                        name='core_radius_new_rc_gen_trial7.0_flat_prior')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.

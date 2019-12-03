@@ -161,8 +161,8 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_1/'
-                                       'mock_AGN_catalog_t0.094_e1.20_z-1.00_b0.50_C0.371_rc0.350'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_7/'
+                                       'mock_AGN_catalog_t0.098_e1.20_z-1.00_b0.50_C0.371_rc0.250'
                                        '_maxr5.00_clseed890_objseed930_core_radius.cat',
                           format='ascii')
 
@@ -193,6 +193,6 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/core_radius_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_7/core_radius_preprocessing.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)
