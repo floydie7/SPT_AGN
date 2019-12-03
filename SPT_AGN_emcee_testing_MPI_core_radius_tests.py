@@ -161,7 +161,7 @@ theta_true = 0.098  # Amplitude.
 eta_true = 1.2  # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
-rc_true = 0.25  # Core radius (in Mpc)
+rc_true = 0.3  # Core radius (in Mpc)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
@@ -192,7 +192,7 @@ pos0 = np.vstack([[np.random.uniform(0., 2.),  # theta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
                    # np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
-                   np.random.uniform(0., 1.),  # rc
+                   # np.random.uniform(0., 1.),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
 
@@ -211,7 +211,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_new_rc_gen_trial7.4_fixed_rc{rc}'.format(rc=rc_true))
+                                        name='core_radius_new_rc_gen_trial7.5_fixed_rc{rc}'.format(rc=rc_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
