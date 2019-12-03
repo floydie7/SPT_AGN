@@ -32,8 +32,8 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    # theta, eta, zeta, beta, rc, C = params
     theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -92,6 +92,7 @@ def lnlike(param):
 def lnprior(param):
     # Extract our parameters
     theta, eta, zeta, beta, rc, C = param
+    # theta, eta, zeta, beta, C = params
 
     # Set our hyperparameters
     h_rc = 0.25
@@ -113,8 +114,8 @@ def lnprior(param):
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
-        rc_lnprior = 0.0
+        rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
+        # rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
     else:
@@ -209,7 +210,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_new_rc_gen_trial7.0_flat_prior')
+                                        name='core_radius_new_rc_gen_trial7.1_shaped_prior')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
