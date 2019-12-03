@@ -32,8 +32,8 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, rc, C = params
-    # theta, eta, zeta, beta, C = params
+    # theta, eta, zeta, beta, rc, C = params
+    theta, eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -44,7 +44,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # The cluster's core radius in units of r500
-    rc_r500 = rc * u.Mpc / r500
+    rc_r500 = rc_true * u.Mpc / r500
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
@@ -91,8 +91,8 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    theta, eta, zeta, beta, rc, C = param
-    # theta, eta, zeta, beta, C = params
+    # theta, eta, zeta, beta, rc, C = param
+    theta, eta, zeta, beta, C = param
 
     # Set our hyperparameters
     h_rc = 0.25
@@ -107,14 +107,15 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
-            and 0.1 <= rc <= 0.5:
+    # if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
+    #         and 0.1 <= rc <= 0.5:
+    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf:
         theta_lnprior = 0.0
         # theta_lnprior = -0.5 * (np.log(theta) - np.log(h_theta))**2 / h_theta_err**2
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
-        rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
+        # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
         # rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
@@ -127,8 +128,8 @@ def lnprior(param):
         C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -160,7 +161,7 @@ theta_true = 0.098  # Amplitude.
 eta_true = 1.2  # Redshift slope
 beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
-rc_true = 0.25  # Core radius (in Mpc)
+rc_true = 0.1  # Core radius (in Mpc)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
@@ -210,7 +211,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_new_rc_gen_trial7.1_shaped_prior')
+                                        name='core_radius_new_rc_gen_trial7.2_fixed_rc{rc}'.format(rc=rc_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
