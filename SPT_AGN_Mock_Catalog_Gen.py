@@ -84,14 +84,11 @@ def model_rate(z, m, r500, r_r500, params):
     # Unpack our parameters
     theta, eta, zeta, beta, rc = params
 
-    # The cluster's core radius in units of r500
-    rc_r500 = rc * u.Mpc / r500
-
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5)
+    model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
 
     return model.value
 
@@ -159,13 +156,13 @@ n_cl = 238 + 55
 
 # Set parameter values
 # theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
-theta_list = [0.037, 0.046, 0.094, 0.098, 0.1, 0.107, 0.153, 0.2, 0.4, 1.0]
+theta_list = [0.037, 0.046, 0.094, 0.098, 0.1, 0.107, 0.153, 0.2, 0.4, 1.0, 1.5, 2.0, 2.5, 3.0]
 # theta_true = 0.155     # Amplitude.
 eta_true = 1.2       # Redshift slope
-zeta_true = -1.0     # Mass slope
-beta_true = 0.5      # Radial slope
-C_true = 0.371       # Background AGN surface density
-rc_true = 0.25  # Core radius (in Mpc)
+zeta_true = -1.0  # Mass slope
+beta_true = 1.0  # Radial slope
+C_true = 0.371  # Background AGN surface density
+rc_true = 0.1  # Core radius (in r500)
 
 # Core radius standard deviation for distribution (in units of Mpc)
 rc_true_sigma = 0.1
@@ -225,17 +222,13 @@ selected_clusters['r500'] = (3 * selected_clusters['M500'] * u.Msun /
                              (4 * np.pi * 500 *
                               cosmo.critical_density(selected_clusters['REDSHIFT']).to(u.Msun / u.Mpc ** 3))) ** (1 / 3)
 
-# Generate a core radius for the cluster drawn from a log-normal distribution
-selected_clusters['Rc_Mpc'] = cluster_rng.normal(loc=rc_true, scale=rc_true_sigma, size=n_cl)
-
 # Create cluster names
 name_bank = ['SPT_Mock_{:03d}'.format(i) for i in range(n_cl)]
 
 # Combine our data into a catalog
 SPT_data = Table([name_bank, selected_clusters['RA'], selected_clusters['DEC'], selected_clusters['M500'],
-                  selected_clusters['r500'], selected_clusters['Rc_Mpc'], selected_clusters['REDSHIFT'], masks_bank,
-                  selected_clusters['SPT_ID']],
-                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'r500', 'Rc_Mpc', 'REDSHIFT', 'MASK_NAME', 'orig_SPT_ID'])
+                  selected_clusters['r500'], selected_clusters['REDSHIFT'], masks_bank, selected_clusters['SPT_ID']],
+                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'r500', 'REDSHIFT', 'MASK_NAME', 'orig_SPT_ID'])
 
 # Check that we have the correct mask and cluster data matched up. If so, we can drop the original SPT_ID column
 assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_SPT_ID'], SPT_data['MASK_NAME'])])
@@ -247,7 +240,7 @@ r_dist_r500 = np.linspace(0, max_radius, num=200)
 
 for theta_true in theta_list:
     catalog_start_time = time()
-    params_true = (theta_true, eta_true, zeta_true, beta_true)
+    params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
 
     cluster_sample = SPT_data.copy()
 
@@ -258,11 +251,7 @@ for theta_true in theta_list:
         z_cl = cluster['REDSHIFT']
         m500_cl = cluster['M500'] * u.Msun
         r500_cl = cluster['r500'] * u.Mpc
-        core_radius_cl = cluster['Rc_Mpc']
         SZ_center = cluster['SZ_RA', 'SZ_DEC']
-
-        # Append the cluster core radius to the parameter list
-        cluster_params_true = params_true + (core_radius_cl,)
 
         # Read in the mask's WCS for the pixel scale and making SkyCoords
         w = WCS(mask_name)
@@ -285,7 +274,7 @@ for theta_true in theta_list:
         SZ_center_skycoord = SkyCoord(SZ_center['SZ_RA'], SZ_center['SZ_DEC'], unit='deg')
 
         # Calculate the model values for the AGN candidates in the cluster
-        model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, cluster_params_true)
+        model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
 
         # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
         # the cluster.
@@ -311,7 +300,7 @@ for theta_true in theta_list:
         radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
 
         # Filter the candidates through the model to establish the radial trend in the data.
-        rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, cluster_params_true)
+        rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
 
         # Our rejection rate is the model rate at the radius scaled by the maximum rate
         prob_reject = rate_at_rad / max_rate
@@ -339,7 +328,6 @@ for theta_true in theta_list:
         AGN_list['M500'] = m500_cl
         AGN_list['REDSHIFT'] = z_cl
         AGN_list['r500'] = r500_cl
-        AGN_list['Rc_Mpc'] = core_radius_cl
 
         # Create a flag indicating if the object is a cluster member
         AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
@@ -383,16 +371,14 @@ for theta_true in theta_list:
 
     # Reorder the columns in the cluster for ascetic reasons.
     outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC', 'REDSHIFT', 'M500', 'r500',
-                    'Rc_Mpc', 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+                    'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
-          .format(param=params_true + (rc_true, C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys),
-                  agn=len(outAGN)))
-    outAGN.write('Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_6/'
-                 'mock_AGN_catalog_t{theta:.3f}_e{eta:.2f}_z{zeta:.2f}_b{beta:.2f}_C{C:.3f}_rc{rc:.3f}'
-                 '_maxr{maxr:.2f}_clseed{cluster_seed}_objseed{object_seed}_core_radius.cat'
-                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, C=C_true, rc=rc_true,
-                         maxr=max_radius, cluster_seed=cluster_seed, object_seed=object_seed),
+          .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
+    outAGN.write(f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/'
+                 f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}'
+                 f'_C{C_true:.3f}_rc{rc_true:.3f}_maxr{max_radius:.2f}'
+                 f'_clseed{cluster_seed}_objseed{object_seed}_core_radius.cat',
                  format='ascii', overwrite=True)
 
     print('Run time: {:.2f}s'.format(time() - catalog_start_time))
