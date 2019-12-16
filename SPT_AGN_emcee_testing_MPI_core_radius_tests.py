@@ -32,8 +32,8 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    # theta, eta, zeta, beta, rc, C = params
-    theta, eta, zeta, beta, C = params
+    theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -43,14 +43,11 @@ def model_rate_opted(params, cluster_id, r_r500):
     # Convert our background surface density from angular units into units of r500^-2
     background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
-    # The cluster's core radius in units of r500
-    rc_r500 = rc_true * u.Mpc / r500
-
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc_r500) ** 2) ** (-1.5 * beta + 0.5) + background
+    model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
 
     return model.value
 
@@ -91,32 +88,28 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(param):
     # Extract our parameters
-    # theta, eta, zeta, beta, rc, C = param
-    theta, eta, zeta, beta, C = param
+    theta, eta, zeta, beta, rc, C = param
+    # theta, eta, zeta, beta, C = param
 
     # Set our hyperparameters
-    h_rc = 0.25
-    h_rc_err = 0.1
+    # h_rc = 0.25
+    # h_rc_err = 0.1
     h_C = 0.371
     h_C_err = 0.157
-    h_theta = theta_true
-    h_theta_err = 0.06
 
     # Narrow the prior on theta to bracket +- 50% of theta_true
     # theta_lower = theta_true - theta_true * 0.5
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    # if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
-    #         and 0.1 <= rc <= 0.5:
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf:
+    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
+            and 0.01 <= rc <= 0.5:
         theta_lnprior = 0.0
-        # theta_lnprior = -0.5 * (np.log(theta) - np.log(h_theta))**2 / h_theta_err**2
         eta_lnprior = 0.0
         beta_lnprior = 0.0
         zeta_lnprior = 0.0
         # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
-        # rc_lnprior = 0.0
+        rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
     else:
@@ -128,8 +121,8 @@ def lnprior(param):
         C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -148,8 +141,8 @@ def lnpost(param):
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_7/'
-                                       'mock_AGN_catalog_t0.098_e1.20_z-1.00_b0.50_C0.371_rc0.250'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/'
+                                       'mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100'
                                        '_maxr5.00_clseed890_objseed930_core_radius.cat',
                           format='ascii')
 
@@ -157,15 +150,16 @@ mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_te
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
-theta_true = 0.098  # Amplitude.
+theta_true = 2.5  # Amplitude.
 eta_true = 1.2  # Redshift slope
-beta_true = 0.5  # Radial slope
 zeta_true = -1.0  # Mass slope
-rc_true = 0.4  # Core radius (in Mpc)
+beta_true = 1.0  # Radial slope
+rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_7/core_radius_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/' \
+                               'core_radius_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -192,7 +186,7 @@ pos0 = np.vstack([[np.random.uniform(0., 2.),  # theta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
                    # np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
-                   # np.random.uniform(0., 1.),  # rc
+                   np.random.uniform(0., 0.5),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
 
@@ -211,7 +205,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_new_rc_gen_trial7.6_fixed_rc{rc}'.format(rc=rc_true))
+                                        name='core_radius_new_rc_gen_trial8'.format(rc=rc_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
