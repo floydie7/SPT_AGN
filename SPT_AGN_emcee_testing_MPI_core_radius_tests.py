@@ -172,7 +172,7 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5
+ndim = 6
 nwalkers = 36
 
 # Also, set the number of steps to run the sampler for.
