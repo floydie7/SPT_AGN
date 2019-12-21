@@ -161,9 +161,9 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/'
                                        'mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100'
-                                       '_maxr5.00_clseed890_objseed930_core_radius.cat',
+                                       '_maxr5.00_clseed890_objseed930_core_radius_with_center_offsets.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster

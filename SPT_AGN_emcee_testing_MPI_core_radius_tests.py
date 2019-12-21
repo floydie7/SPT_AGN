@@ -141,9 +141,9 @@ def lnpost(param):
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/'
                                        'mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100'
-                                       '_maxr5.00_clseed890_objseed930_core_radius.cat',
+                                       '_maxr5.00_clseed890_objseed930_core_radius_with_center_offsets.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -158,7 +158,7 @@ rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/' \
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/' \
                                'core_radius_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
@@ -205,7 +205,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_new_rc_gen_trial8'.format(rc=rc_true))
+                                        name='core_radius_cluster_offsets_trial9'.format(rc=rc_true))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
