@@ -124,7 +124,7 @@ def generate_catalog_dict(cluster):
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
     cluster_r500 = cluster['r500'][0] * u.Mpc
-    cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+    cluster_sz_cent = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -193,6 +193,7 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/core_radius_preprocessing.json'
+preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/' \
+                               'core_radius_with_center_offsets_preprocessing.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)

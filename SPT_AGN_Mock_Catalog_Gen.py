@@ -155,23 +155,19 @@ start_time = time()
 n_cl = 238 + 55
 
 # Set parameter values
-# theta_list = [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 4.0, 6.0, 12.0]
-theta_list = [0.037, 0.046, 0.094, 0.098, 0.1, 0.107, 0.153, 0.2, 0.4, 1.0, 1.5, 2.0, 2.5, 3.0]
-# theta_true = 0.155     # Amplitude.
-eta_true = 1.2       # Redshift slope
+# theta_list = [0.037, 0.046, 0.094, 0.098, 0.1, 0.107, 0.153, 0.2, 0.4, 1.0, 1.5, 2.0, 2.5, 3.0]
+theta_list = [2.5]  # Amplitude.
+eta_true = 1.2  # Redshift slope
 zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 C_true = 0.371  # Background AGN surface density
 rc_true = 0.1  # Core radius (in r500)
 
-# Core radius standard deviation for distribution (in units of Mpc)
-rc_true_sigma = 0.1
-
 # Set the maximum radius we will generate objects to as a factor of r500
 max_radius = 5.0
 
-# Number of bins to use to plot our sampled data points
-num_bins = 30
+# Set cluster center positional uncertainty
+cluster_pos_uncert = 0.214 * u.arcmin
 # </editor-fold>
 
 # <editor-fold desc="Data Generation">
@@ -338,8 +334,15 @@ for theta_true in theta_list:
         AGN_list['RA'] = agn_coords_skycoord.ra
         AGN_list['DEC'] = agn_coords_skycoord.dec
 
+        # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
+        offset_SZ_center = cluster_rng.multivariate_normal((SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+                                                           np.eye(2) * cluster_pos_uncert.to(u.deg).value ** 2)
+        offset_SZ_center_skycoord = SkyCoord(offset_SZ_center[0], offset_SZ_center[1], unit='deg')
+        AGN_list['OFFSET_RA'] = offset_SZ_center_skycoord.ra
+        AGN_list['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
+
         # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-        r_final_arcmin = SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
+        r_final_arcmin = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
         r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
         AGN_list['radial_arcmin'] = r_final_arcmin
         AGN_list['radial_r500'] = r_final_r500
@@ -370,15 +373,15 @@ for theta_true in theta_list:
     outAGN = vstack(AGN_cats)
 
     # Reorder the columns in the cluster for ascetic reasons.
-    outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC', 'REDSHIFT', 'M500', 'r500',
-                    'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+    outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
+                    'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-    outAGN.write(f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_8/'
+    outAGN.write(f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/'
                  f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}'
                  f'_C{C_true:.3f}_rc{rc_true:.3f}_maxr{max_radius:.2f}'
-                 f'_clseed{cluster_seed}_objseed{object_seed}_core_radius.cat',
+                 f'_clseed{cluster_seed}_objseed{object_seed}_core_radius_with_center_offsets.cat',
                  format='ascii', overwrite=True)
 
     print('Run time: {:.2f}s'.format(time() - catalog_start_time))
