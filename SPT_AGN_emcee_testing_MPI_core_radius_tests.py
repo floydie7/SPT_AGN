@@ -41,7 +41,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     r500 = catalog_dict[cluster_id]['r500']
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C_true / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
@@ -102,7 +102,7 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 1.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
+    if 0.0 <= theta <= 5.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
             and 0.01 <= rc <= 0.5:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
@@ -181,7 +181,7 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = np.vstack([[np.random.uniform(0., 2.),  # theta
+pos0 = np.vstack([[np.random.uniform(0., 5.),  # theta
                    np.random.uniform(-3., 3.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
