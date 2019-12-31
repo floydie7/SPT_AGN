@@ -159,7 +159,7 @@ C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
 preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/' \
-                               'core_radius_preprocessing.json'
+                               'core_radius_with_center_offsets_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
