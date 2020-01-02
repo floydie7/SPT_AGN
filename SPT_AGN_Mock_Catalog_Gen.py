@@ -7,7 +7,6 @@ Using our Bayesian model, generates a mock catalog to use in testing the limitat
 import glob
 import re
 from itertools import product
-from pathlib import Path
 from time import time
 
 import astropy.units as u
@@ -156,7 +155,8 @@ start_time = time()
 n_cl = 238 + 55
 
 # Set parameter values
-theta_list = np.arange(0., 10., 0.5)  # Amplitude.
+theta_list = [4.775, 12.256, 44.862, 2.686, 7.070, 17.132, 1.546, 4.228, 10.635, 0.848,
+              2.267, 6.253, 0.418, 1.251, 3.382, 0.212, 0.725, 1.774, 0.118, 0.349, 0.921]  # Amplitude.
 eta_list = np.arange(0., 7.)  # Redshift slope
 zeta_list = np.arange(-1.0, 2.0)  # Mass slope
 beta_true = 1.0  # Radial slope
@@ -234,161 +234,160 @@ del SPT_data['orig_SPT_ID']
 r_dist_r500 = np.linspace(0, max_radius, num=200)
 # </editor-fold>
 
-for eta_true, zeta_true in product(eta_list, zeta_list):
-    for theta_true in theta_list:
-        catalog_start_time = time()
-        params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
+for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_list)):
+    catalog_start_time = time()
+    params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
 
-        cluster_sample = SPT_data.copy()
+    cluster_sample = SPT_data.copy()
 
-        AGN_cats = []
-        for cluster in cluster_sample:
-            spt_id = cluster['SPT_ID']
-            mask_name = cluster['MASK_NAME']
-            z_cl = cluster['REDSHIFT']
-            m500_cl = cluster['M500'] * u.Msun
-            r500_cl = cluster['r500'] * u.Mpc
-            SZ_center = cluster['SZ_RA', 'SZ_DEC']
+    AGN_cats = []
+    for cluster in cluster_sample:
+        spt_id = cluster['SPT_ID']
+        mask_name = cluster['MASK_NAME']
+        z_cl = cluster['REDSHIFT']
+        m500_cl = cluster['M500'] * u.Msun
+        r500_cl = cluster['r500'] * u.Mpc
+        SZ_center = cluster['SZ_RA', 'SZ_DEC']
 
-            # Read in the mask's WCS for the pixel scale and making SkyCoords
-            w = WCS(mask_name)
-            try:
-                assert w.pixel_scale_matrix[0, 1] == 0.
-                mask_pixel_scale = w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]
-            except AssertionError:
-                cd = w.pixel_scale_matrix
-                _, eig_vec = np.linalg.eig(cd)
-                cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-                mask_pixel_scale = cd_diag[1, 1] * w.wcs.cunit[1]
+        # Read in the mask's WCS for the pixel scale and making SkyCoords
+        w = WCS(mask_name)
+        try:
+            assert w.pixel_scale_matrix[0, 1] == 0.
+            mask_pixel_scale = w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]
+        except AssertionError:
+            cd = w.pixel_scale_matrix
+            _, eig_vec = np.linalg.eig(cd)
+            cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
+            mask_pixel_scale = cd_diag[1, 1] * w.wcs.cunit[1]
 
-            # Also get the mask's image size (- 1 to account for the shift between index and length)
-            mask_size_x = w.pixel_shape[0] - 1
-            mask_size_y = w.pixel_shape[1] - 1
-            mask_radius_pix = (
-                    max_radius * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(u.deg / u.Mpc) / mask_pixel_scale).value
+        # Also get the mask's image size (- 1 to account for the shift between index and length)
+        mask_size_x = w.pixel_shape[0] - 1
+        mask_size_y = w.pixel_shape[1] - 1
+        mask_radius_pix = (
+                max_radius * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(u.deg / u.Mpc) / mask_pixel_scale).value
 
-            # Find the SZ Center for the cluster we are mimicking
-            SZ_center_skycoord = SkyCoord(SZ_center['SZ_RA'], SZ_center['SZ_DEC'], unit='deg')
+        # Find the SZ Center for the cluster we are mimicking
+        SZ_center_skycoord = SkyCoord(SZ_center['SZ_RA'], SZ_center['SZ_DEC'], unit='deg')
 
-            # Calculate the model values for the AGN candidates in the cluster
-            model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
+        # Calculate the model values for the AGN candidates in the cluster
+        model_cluster_agn = model_rate(z_cl, m500_cl, r500_cl, r_dist_r500, params_true)
 
-            # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
-            # the cluster.
-            max_rate = np.max(model_cluster_agn)  # r500^-2 units
-            max_rate_inv_pix2 = ((max_rate / r500_cl ** 2) * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) ** 2
-                                 * mask_pixel_scale.to(u.arcmin) ** 2)
+        # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
+        # the cluster.
+        max_rate = np.max(model_cluster_agn)  # r500^-2 units
+        max_rate_inv_pix2 = ((max_rate / r500_cl ** 2) * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) ** 2
+                             * mask_pixel_scale.to(u.arcmin) ** 2)
 
-            # Set the bounding box for the object placement
-            SZ_center_pix = SZ_center_skycoord.to_pixel(wcs=w, origin=0, mode='wcs')
-            upper_x = SZ_center_pix[0] + mask_radius_pix
-            upper_y = SZ_center_pix[1] + mask_radius_pix
-            lower_x = SZ_center_pix[0] - mask_radius_pix
-            lower_y = SZ_center_pix[1] - mask_radius_pix
+        # Set the bounding box for the object placement
+        SZ_center_pix = SZ_center_skycoord.to_pixel(wcs=w, origin=0, mode='wcs')
+        upper_x = SZ_center_pix[0] + mask_radius_pix
+        upper_y = SZ_center_pix[1] + mask_radius_pix
+        lower_x = SZ_center_pix[0] - mask_radius_pix
+        lower_y = SZ_center_pix[1] - mask_radius_pix
 
-            # Simulate the AGN using the spatial Poisson point process.
-            cluster_agn_coords_pix = poisson_point_process(max_rate_inv_pix2, dx=upper_x, dy=upper_y,
-                                                           lower_dx=lower_x, lower_dy=lower_y)
-
-            # Find the radius of each point placed scaled by the cluster's r500 radius
-            cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1],
-                                                       wcs=w, origin=0, mode='wcs')
-            radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
-            radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
-
-            # Filter the candidates through the model to establish the radial trend in the data.
-            rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
-
-            # Our rejection rate is the model rate at the radius scaled by the maximum rate
-            prob_reject = rate_at_rad / max_rate
-
-            # Draw a random number for each candidate
-            alpha = object_rng.uniform(0, 1, len(rate_at_rad))
-
-            # Perform the rejection sampling
-            cluster_agn_final = cluster_agn_skycoord[np.where(prob_reject >= alpha)]
-            cluster_agn_final_pix = np.array(cluster_agn_final.to_pixel(w, origin=0, mode='wcs'))
-
-            # Generate background sources
-            background_rate = C_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
-            background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
+        # Simulate the AGN using the spatial Poisson point process.
+        cluster_agn_coords_pix = poisson_point_process(max_rate_inv_pix2, dx=upper_x, dy=upper_y,
                                                        lower_dx=lower_x, lower_dy=lower_y)
 
-            # Concatenate the cluster sources with the background sources
-            line_of_sight_agn_pix = np.hstack((cluster_agn_final_pix, background_agn_pix))
+        # Find the radius of each point placed scaled by the cluster's r500 radius
+        cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1],
+                                                   wcs=w, origin=0, mode='wcs')
+        radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
+        radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
 
-            # Set up the table of objects
-            AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1]], names=['x_pixel', 'y_pixel'])
-            AGN_list['SPT_ID'] = spt_id
-            AGN_list['SZ_RA'] = SZ_center['SZ_RA']
-            AGN_list['SZ_DEC'] = SZ_center['SZ_DEC']
-            AGN_list['M500'] = m500_cl
-            AGN_list['REDSHIFT'] = z_cl
-            AGN_list['r500'] = r500_cl
+        # Filter the candidates through the model to establish the radial trend in the data.
+        rate_at_rad = model_rate(z_cl, m500_cl, r500_cl, radii_r500, params_true)
 
-            # Create a flag indicating if the object is a cluster member
-            AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
-                                                      np.full_like(background_agn_pix[0], False)))
+        # Our rejection rate is the model rate at the radius scaled by the maximum rate
+        prob_reject = rate_at_rad / max_rate
 
-            # Convert the pixel coordinates to RA/Dec coordinates
-            agn_coords_skycoord = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0,
-                                                      mode='wcs')
-            AGN_list['RA'] = agn_coords_skycoord.ra
-            AGN_list['DEC'] = agn_coords_skycoord.dec
+        # Draw a random number for each candidate
+        alpha = object_rng.uniform(0, 1, len(rate_at_rad))
 
-            # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
-            offset_SZ_center = cluster_rng.multivariate_normal(
-                (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-                np.eye(2) * cluster_pos_uncert.to(u.deg).value ** 2)
-            offset_SZ_center_skycoord = SkyCoord(offset_SZ_center[0], offset_SZ_center[1], unit='deg')
-            AGN_list['OFFSET_RA'] = offset_SZ_center_skycoord.ra
-            AGN_list['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
+        # Perform the rejection sampling
+        cluster_agn_final = cluster_agn_skycoord[np.where(prob_reject >= alpha)]
+        cluster_agn_final_pix = np.array(cluster_agn_final.to_pixel(w, origin=0, mode='wcs'))
 
-            # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-            r_final_arcmin = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
-            r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
-            AGN_list['radial_arcmin'] = r_final_arcmin
-            AGN_list['radial_r500'] = r_final_r500
+        # Generate background sources
+        background_rate = C_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
+        background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
+                                                   lower_dx=lower_x, lower_dy=lower_y)
 
-            # Select only objects within the max_radius
-            AGN_list = AGN_list[AGN_list['radial_r500'] <= max_radius]
+        # Concatenate the cluster sources with the background sources
+        line_of_sight_agn_pix = np.hstack((cluster_agn_final_pix, background_agn_pix))
 
-            # Read in the original (full) mask
-            full_mask_image, full_mask_header = fits.getdata(mask_name, header=True)
+        # Set up the table of objects
+        AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1]], names=['x_pixel', 'y_pixel'])
+        AGN_list['SPT_ID'] = spt_id
+        AGN_list['SZ_RA'] = SZ_center['SZ_RA']
+        AGN_list['SZ_DEC'] = SZ_center['SZ_DEC']
+        AGN_list['M500'] = m500_cl
+        AGN_list['REDSHIFT'] = z_cl
+        AGN_list['r500'] = r500_cl
 
-            # Select the image to mask the data on
-            mask_image = full_mask_image
-            AGN_list['MASK_NAME'] = mask_name
+        # Create a flag indicating if the object is a cluster member
+        AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
+                                                  np.full_like(background_agn_pix[0], False)))
 
-            # Remove all objects that are outside of the image bounds
-            AGN_list = AGN_list[np.all([0 <= AGN_list['x_pixel'],
-                                        AGN_list['x_pixel'] <= mask_size_x,
-                                        0 <= AGN_list['y_pixel'],
-                                        AGN_list['y_pixel'] <= mask_size_y], axis=0)]
+        # Convert the pixel coordinates to RA/Dec coordinates
+        agn_coords_skycoord = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0,
+                                                  mode='wcs')
+        AGN_list['RA'] = agn_coords_skycoord.ra
+        AGN_list['DEC'] = agn_coords_skycoord.dec
 
-            # Pass the cluster catalog through the quarter mask to insure all objects are on image.
-            AGN_list = AGN_list[np.where(mask_image[np.floor(AGN_list['y_pixel']).astype(int),
-                                                    np.floor(AGN_list['x_pixel']).astype(int)] == 1)]
+        # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
+        offset_SZ_center = cluster_rng.multivariate_normal(
+            (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+            np.eye(2) * cluster_pos_uncert.to(u.deg).value ** 2)
+        offset_SZ_center_skycoord = SkyCoord(offset_SZ_center[0], offset_SZ_center[1], unit='deg')
+        AGN_list['OFFSET_RA'] = offset_SZ_center_skycoord.ra
+        AGN_list['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
 
-            AGN_cats.append(AGN_list)
+        # Calculate the radii of the final AGN scaled by the cluster's r500 radius
+        r_final_arcmin = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
+        r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
+        AGN_list['radial_arcmin'] = r_final_arcmin
+        AGN_list['radial_r500'] = r_final_r500
 
-        # Stack the individual cluster catalogs into a single master catalog
-        outAGN = vstack(AGN_cats)
+        # Select only objects within the max_radius
+        AGN_list = AGN_list[AGN_list['radial_r500'] <= max_radius]
 
-        # Reorder the columns in the cluster for ascetic reasons.
-        outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
-                        'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+        # Read in the original (full) mask
+        full_mask_image, full_mask_header = fits.getdata(mask_name, header=True)
 
-        print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
-              .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-        Path(f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/'
-             f'e{eta_true:.2f}_z{zeta_true:.2f}').mkdir(parents=True, exist_ok=True)
-        outAGN.write(
-            f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/e{eta_true:.2f}_z{zeta_true:.2f}/'
-            f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}'
-            f'_C{C_true:.3f}_rc{rc_true:.3f}_maxr{max_radius:.2f}'
-            f'_clseed{cluster_seed}_objseed{object_seed}_slope_test.cat',
-            format='ascii', overwrite=True)
+        # Select the image to mask the data on
+        mask_image = full_mask_image
+        AGN_list['MASK_NAME'] = mask_name
 
-        print('Run time: {:.2f}s'.format(time() - catalog_start_time))
+        # Remove all objects that are outside of the image bounds
+        AGN_list = AGN_list[np.all([0 <= AGN_list['x_pixel'],
+                                    AGN_list['x_pixel'] <= mask_size_x,
+                                    0 <= AGN_list['y_pixel'],
+                                    AGN_list['y_pixel'] <= mask_size_y], axis=0)]
+
+        # Pass the cluster catalog through the quarter mask to insure all objects are on image.
+        AGN_list = AGN_list[np.where(mask_image[np.floor(AGN_list['y_pixel']).astype(int),
+                                                np.floor(AGN_list['x_pixel']).astype(int)] == 1)]
+
+        AGN_cats.append(AGN_list)
+
+    # Stack the individual cluster catalogs into a single master catalog
+    outAGN = vstack(AGN_cats)
+
+    # Reorder the columns in the cluster for ascetic reasons.
+    outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
+                    'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+
+    print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
+          .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
+    # Path(f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/'
+    #      f'e{eta_true:.2f}_z{zeta_true:.2f}').mkdir(parents=True, exist_ok=True)
+    outAGN.write(
+        f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/realistic/'
+        f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}'
+        f'_C{C_true:.3f}_rc{rc_true:.3f}_maxr{max_radius:.2f}'
+        f'_clseed{cluster_seed}_objseed{object_seed}_slope_test.cat',
+        format='ascii', overwrite=True)
+
+    print('Run time: {:.2f}s'.format(time() - catalog_start_time))
 print('Total run time: {:.2f}s'.format(time() - start_time))
