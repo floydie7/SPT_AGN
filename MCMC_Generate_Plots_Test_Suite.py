@@ -25,13 +25,12 @@ max_radius = 5.0  # Maximum integration radius in r500 units
 # Our file storing the full test suite
 filename = 'Data/MCMC/Mock_Catalog/Chains/Final_tests/core_radius_tests/' \
            'emcee_run_w36_s1000000_mock_t0.094_e1.2_z-1.0_b0.5_rc_variable_C0.371_core_radius_tests.h5'
-# filename = 'Data/MCMC/Mock_Catalog/Chains/Final_tests/core_radius_tests/trial_8_snapshot_2019-12-18T1509.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'trial8' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'trial9' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -49,8 +48,6 @@ for chain_name, sampler in sampler_dict.items():
 
     labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
     truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
-    # labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$C$']
-    # truths = [eta_true, zeta_true, beta_true, C_true]
 
     # Plot the chains
     fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
@@ -64,7 +61,7 @@ for chain_name, sampler in sampler_dict.items():
     axes[0].set(title=chain_name)
     axes[-1].set(xlabel='Steps')
 
-    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/core_radius_tests/trial_8/'
+    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/core_radius_tests/trial_9/'
                 'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc{rc}_C{C}_{chain_name}_full_spt.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true,
                         chain_name=chain_name),
@@ -97,7 +94,7 @@ for chain_name, sampler in sampler_dict.items():
     # Produce the corner plot
     fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
     fig.suptitle(chain_name)
-    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/core_radius_tests/trial_8/'
+    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/core_radius_tests/trial_9/'
                 'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc{rc}_C{C}_{chain_name}_full_spt.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true,
                         chain_name=chain_name), format='pdf')
