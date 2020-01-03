@@ -155,15 +155,18 @@ def generate_catalog_dict(cluster):
     return cluster_id, cluster_dict
 
 
+# Get the catalog id from the command-line arguments
+cat_id = sys.argv[1]
+
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/'
-                                       'mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100'
-                                       '_maxr5.00_clseed890_objseed930_core_radius_with_center_offsets.cat',
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/realistic/'
+                                       f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
+                                       '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
@@ -193,7 +196,6 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/' \
-                               'core_radius_with_center_offsets_preprocessing.json'
+preprocess_file = f'slope_test_{cat_id}_preprocessing.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)

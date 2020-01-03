@@ -6,6 +6,7 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 import json
+import re
 import sys
 from time import time
 
@@ -102,7 +103,7 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 5.0 and -3. <= eta <= 3. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
+    if 0.0 <= theta <= 46.0 and 0. <= eta <= 7. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
             and 0.01 <= rc <= 0.5:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
@@ -138,28 +139,33 @@ def lnpost(param):
     return lp + lnlike(param)
 
 
+# Get the catalog id from the command-line arguments
+cat_id = sys.argv[1]
+
+# Extract the parameter values from the catalog id
+id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
+
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/'
-                                       'mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100'
-                                       '_maxr5.00_clseed890_objseed930_core_radius_with_center_offsets.cat',
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/realistic/'
+                                       f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
+                                       '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
 
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
-theta_true = 2.5  # Amplitude.
-eta_true = 1.2  # Redshift slope
-zeta_true = -1.0  # Mass slope
+theta_true = id_params[0]  # Amplitude.
+eta_true = id_params[1]  # Redshift slope
+zeta_true = id_params[2]  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/core_radius_tests/trial_9/' \
-                               'core_radius_with_center_offsets_preprocessing.json'
+preprocess_file = f'slope_test_{cat_id}_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -181,11 +187,10 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = np.vstack([[np.random.uniform(0., 5.),  # theta
-                   np.random.uniform(-3., 3.),  # eta
+pos0 = np.vstack([[np.random.uniform(0., 46.),  # theta
+                   np.random.uniform(-3., 7.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
-                   # np.random.lognormal(mean=np.log(0.35), sigma=0.06),  # rc
                    np.random.uniform(0., 0.5),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
@@ -205,7 +210,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='core_radius_cluster_offsets_trial9'.format(rc=rc_true))
+                                        name=f'trial1_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
