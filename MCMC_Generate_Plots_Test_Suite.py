@@ -4,6 +4,7 @@ Author: Benjamin Floyd
 
 Generates the chain walker and corner plots for a previously generated emcee chain file.
 """
+import re
 
 import corner
 import emcee
@@ -13,9 +14,9 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator
 
 # Set parameter values
-theta_true = 2.5  # Amplitude.
-eta_true = 1.2  # Redshift slope
-zeta_true = -1.0  # Mass slope
+# theta_true = 2.5  # Amplitude.
+# eta_true = 1.2  # Redshift slope
+# zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
@@ -23,14 +24,14 @@ C_true = 0.371  # Background AGN surface density
 max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Our file storing the full test suite
-filename = 'Data/MCMC/Mock_Catalog/Chains/Final_tests/core_radius_tests/' \
-           'emcee_run_w36_s1000000_mock_t0.094_e1.2_z-1.0_b0.5_rc_variable_C0.371_core_radius_tests.h5'
+filename = 'Data/MCMC/Mock_Catalog/Chains/Final_tests/slope_tests/' \
+           'emcee_run_w36_s1000000_mock_tvariable_evariable_zvariable_b1.0_rc_0.1_C0.371_slope_tests.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'trial9' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'trial1' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -38,7 +39,7 @@ sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name)
 # Process each chain
 for chain_name, sampler in sampler_dict.items():
     print('-----\n{}'.format(chain_name))
-    # theta_true = float(re.search(r'_(\d+\.\d+)_', chain_name).group(1))
+    theta_true, eta_true, zeta_true = np.array(re.findall(r'-?\d+(?:\.\d+)', chain_name), dtype=np.float)
 
     # Get the chain from the sampler
     samples = sampler.get_chain()
@@ -61,7 +62,7 @@ for chain_name, sampler in sampler_dict.items():
     axes[0].set(title=chain_name)
     axes[-1].set(xlabel='Steps')
 
-    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/core_radius_tests/trial_9/'
+    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_1/mcmc_results/'
                 'Param_chains_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc{rc}_C{C}_{chain_name}_full_spt.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true,
                         chain_name=chain_name),
@@ -94,7 +95,7 @@ for chain_name, sampler in sampler_dict.items():
     # Produce the corner plot
     fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True)
     fig.suptitle(chain_name)
-    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/core_radius_tests/trial_9/'
+    fig.savefig('Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_1/mcmc_results/'
                 'Corner_plot_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc{rc}_C{C}_{chain_name}_full_spt.pdf'
                 .format(theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true,
                         chain_name=chain_name), format='pdf')
@@ -110,4 +111,5 @@ for chain_name, sampler in sampler_dict.items():
 
     # Get estimate of autocorrelation time
     print('Autocorrelation time: {:.1f}'.format(tau))
+    plt.close('all')
 # plt.show()
