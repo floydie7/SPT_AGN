@@ -103,8 +103,8 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 46.0 and 0. <= eta <= 7. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
-            and 0.01 <= rc <= 0.5:
+    if 0.0 <= theta <= 12.0 and 0. <= eta <= 6. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
+            and 0.05 <= rc <= 0.15:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -187,11 +187,11 @@ nsteps = int(1e6)
 # We will initialize our walkers in a tight ball near the initial parameter values.
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
-pos0 = np.vstack([[np.random.uniform(0., 46.),  # theta
-                   np.random.uniform(-3., 7.),  # eta
+pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
+                   np.random.uniform(-3., 6.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
-                   np.random.uniform(0., 0.5),  # rc
+                   np.random.normal(loc=0.1, scale=6e-3),  # rc
                    np.random.normal(loc=0.371, scale=0.157)]  # C
                   for i in range(nwalkers)])
 
@@ -206,11 +206,11 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc_{rc}_C{C}_core_radius_tests.h5' \
+    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc_{rc}_C{C}_slope_tests.h5' \
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial1_{cat_id}')
+                                        name=f'trial2_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
