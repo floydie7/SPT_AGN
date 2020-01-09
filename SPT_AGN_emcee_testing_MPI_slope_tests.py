@@ -148,7 +148,7 @@ id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/realistic/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_2/realistic/'
                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
