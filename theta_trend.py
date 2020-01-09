@@ -18,8 +18,9 @@ from astropy.table import Table, vstack
 real_catalog = vstack([Table.read('Data/Output/SPT_IRAGN.fits'), Table.read('Data/Output/SPTPol_IRAGN.fits')])
 
 # Get all directories
-mock_dirs = glob.glob('Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_1/*/')
+mock_dirs = glob.glob('Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_2/*/')
 
+realistic_thetas = []
 for directory in mock_dirs:
     # Get the label for this mock catalog set from the directory name
     mock_set_label = re.search(r'/(e\d+(?:\.\d+)_z-?\d+(?:\.\d+))', directory).group(1)
@@ -46,6 +47,7 @@ for directory in mock_dirs:
     # Find the real data theta value
     # real_theta = inverse_theta(len(real_catalog))
     real_theta_comp = inverse_theta(real_catalog['COMPLETENESS_CORRECTION'].sum(), *trend_fit)
+    realistic_thetas.append(real_theta_comp)
 
     fig, ax = plt.subplots()
     ax.scatter(theta_values, number_of_objs, label='Mock catalogs')
@@ -65,10 +67,13 @@ for directory in mock_dirs:
 
     ax.legend(loc='lower right')
     fig.savefig(
-        'Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_1/catalog_set_theta_trends/'
+        'Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_2/catalog_set_theta_trends/'
         f'mock_catalog_theta_trend_{mock_set_label}.pdf',
         format='pdf')
     # plt.show()
+    plt.close('all')
 
     # print('theta for real catalog: {:.3f}'.format(real_theta))
     print(f'{mock_set_label}: theta for real catalog (completeness corrected): {real_theta_comp:.3f}')
+
+print(realistic_thetas)
