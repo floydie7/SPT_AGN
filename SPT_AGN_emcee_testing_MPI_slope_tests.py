@@ -104,7 +104,7 @@ def lnprior(param):
 
     # Define all priors to be gaussian
     if 0.0 <= theta <= 12.0 and 0. <= eta <= 6. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
-            and 0.05 <= rc <= 0.15:
+            and 0.05 <= rc <= 0.5:
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -165,7 +165,7 @@ rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = f'slope_test_{cat_id}_preprocessing.json'
+preprocess_file = hcc_prefix + f'SPT_AGN/MCMC/Slope_tests/trial2/{cat_id}/' + f'slope_test_{cat_id}_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -210,7 +210,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial2_{cat_id}')
+                                        name=f'trial3_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
