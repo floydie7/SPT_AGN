@@ -165,7 +165,7 @@ rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + f'SPT_AGN/MCMC/Slope_tests/trial2/{cat_id}/' + f'slope_test_{cat_id}_preprocessing.json'
+preprocess_file = hcc_prefix + f'MCMC/Slope_tests/trial2/{cat_id}/' + f'slope_test_{cat_id}_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
