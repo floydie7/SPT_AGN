@@ -79,7 +79,8 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
         pix_scale = cd_diag[1, 1] * image_wcs.wcs.cunit[1]
 
     # Convert our center into pixel units
-    center_pix = image_wcs.wcs_world2pix(center['OFFSET_RA'], center['OFFSET_DEC'], 0)
+    center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
+    # center_pix = image_wcs.wcs_world2pix(center['OFFSET_RA'], center['OFFSET_DEC'], 0)
 
     # Convert our radius to pixels
     r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(pix_scale.unit / u.Mpc) / pix_scale
@@ -124,7 +125,8 @@ def generate_catalog_dict(cluster):
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
     cluster_r500 = cluster['r500'][0] * u.Mpc
-    cluster_sz_cent = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
+    cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
+    # cluster_sz_cent = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -164,7 +166,7 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_2/realistic/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_4/realistic/'
                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')

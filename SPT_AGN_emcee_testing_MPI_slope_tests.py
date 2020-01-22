@@ -148,7 +148,7 @@ id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_2/realistic/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_4/realistic/'
                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
@@ -165,7 +165,7 @@ rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = hcc_prefix + f'MCMC/Slope_tests/trial2/{cat_id}/' + f'slope_test_{cat_id}_preprocessing.json'
+preprocess_file = hcc_prefix + f'slope_test_{cat_id}_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -210,7 +210,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial3_{cat_id}')
+                                        name=f'trial4_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
