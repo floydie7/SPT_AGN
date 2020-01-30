@@ -124,7 +124,7 @@ def generate_catalog_dict(cluster):
     cluster_id = cluster['SPT_ID'][0]
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
-    cluster_r500 = cluster['r500'][0] * u.Mpc
+    cluster_r500 = cluster['R500'][0] * u.Mpc
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     # cluster_sz_cent = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
     cluster_completeness = cluster['COMPLETENESS_CORRECTION']
