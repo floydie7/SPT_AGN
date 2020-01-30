@@ -14,7 +14,6 @@ import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
-from astropy.table import Table
 from schwimmbad import MPIPool
 
 from custom_math import trap_weight  # Custom trapezoidal integration
@@ -22,7 +21,7 @@ from custom_math import trap_weight  # Custom trapezoidal integration
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def model_rate_opted(params, cluster_id, r_r500):
+def model_rate_opted(params, cluster_id, r_r500, completeness_weight):
     """
     Our generating model.
 
@@ -45,7 +44,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    a = completeness_weight * theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
@@ -61,19 +60,24 @@ def lnlike(param):
         gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
         # Get the radial positions of the AGN
-        radial_r500 = catalog_dict[cluster_id]['radial_r500']
+        # radial_r500 = catalog_dict[cluster_id]['radial_r500']
+        radial_r500_maxr = catalog_dict[cluster_id]['radial_r500_maxr']
+
+        # Get the completeness weights for the AGN
+        completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
 
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
 
-        # Select only the objects within the same radial limit we are using for integration.
-        radial_r500_maxr = radial_r500[radial_r500 <= rall[-1]]
+        # # Select only the objects within the same radial limit we are using for integration.
+        # radial_r500_maxr = radial_r500[radial_r500 <= rall[-1]]
 
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
+        ni = model_rate_opted(param, cluster_id, radial_r500_maxr, completeness_weight_maxr)
 
-        # Compute the full model along the radial direction
-        nall = model_rate_opted(param, cluster_id, rall)
+        # Compute the full model along the radial direction.
+        # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
+        nall = model_rate_opted(param, cluster_id, rall, completeness_weight=1)
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - trap_weight(nall * 2 * np.pi * rall, rall,
@@ -103,8 +107,12 @@ def lnprior(param):
     # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
-    if 0.0 <= theta <= 12.0 and 0. <= eta <= 6. and -3. <= zeta <= 3. and -3. <= beta <= 3. and 0.0 <= C < np.inf \
-            and 0.05 <= rc <= 0.5:
+    if (0.0 <= theta <= np.inf and
+            -1. <= eta <= 6. and
+            -3. <= zeta <= 3. and
+            -3. <= beta <= 3. and
+            0.0 <= C < np.inf and
+            0.05 <= rc <= 0.5):
         theta_lnprior = 0.0
         eta_lnprior = 0.0
         beta_lnprior = 0.0
@@ -148,13 +156,13 @@ id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_4/realistic/'
-                                       f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
-                                       '_maxr5.00_clseed890_objseed930_slope_test.cat',
-                          format='ascii')
-
-# Read in the mask files for each cluster
-mock_catalog_grp = mock_catalog.group_by('SPT_ID')
+# mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_4/realistic/'
+#                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
+#                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
+#                           format='ascii')
+#
+# # Read in the mask files for each cluster
+# mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
 theta_true = id_params[0]  # Amplitude.
@@ -169,12 +177,15 @@ preprocess_file = f'slope_test_{cat_id}_preprocessing.json'
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
-# Go through the catalog dictionary and add the radial positions of all the AGN and add units to the mass and r500 radius
+# Go through the catalog dictionary and recasting the cluster's mass and r500 to quantities and recast the radial
+# position and completeness lists to arrays.
 for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['m500'] = cluster_info['m500'] * u.Msun
     catalog_dict[cluster_id]['r500'] = cluster_info['r500'] * u.Mpc
-    group_mask = mock_catalog_grp.groups.keys['SPT_ID'] == cluster_id
-    catalog_dict[cluster_id]['radial_r500'] = mock_catalog_grp.groups[group_mask]['radial_r500']
+    catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
+    catalog_dict[cluster_id]['completeness_weight_maxr'] = np.array(cluster_info['completeness_weight_maxr'])
+    # group_mask = mock_catalog_grp.groups.keys['SPT_ID'] == cluster_id
+    # catalog_dict[cluster_id]['radial_r500'] = mock_catalog_grp.groups[group_mask]['radial_r500']
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -188,7 +199,7 @@ nsteps = int(1e6)
 # pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
 #                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
 pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
-                   np.random.uniform(-3., 6.),  # eta
+                   np.random.uniform(-1., 6.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
                    np.random.normal(loc=0.1, scale=6e-3),  # rc
@@ -210,7 +221,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial4_{cat_id}')
+                                        name=f'trial5_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.

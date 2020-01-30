@@ -127,6 +127,8 @@ def generate_catalog_dict(cluster):
     cluster_r500 = cluster['r500'][0] * u.Mpc
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     # cluster_sz_cent = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
+    cluster_completeness = cluster['COMPLETENESS_CORRECTION']
+    cluster_radial_r500 = cluster['RADIAL_SEP_R500']
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -148,11 +150,19 @@ def generate_catalog_dict(cluster):
     # Generate a radial integration mesh.
     rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
 
+    # Compute the good pixel fractions
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
                                           rescale_factor=rescale_fact)
 
-    cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500, 'r500': cluster_r500,
-                    'gpf_rall': cluster_gpf_all, 'rall': rall}
+    # Select only the objects within the same radial limit we are using for integration.
+    radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
+    completeness_weight_maxr = cluster_completeness[cluster_radial_r500 <= rall[-1]]
+
+    # Construct our cluster dictionary with all data needed for the sampler.
+    # Additionally, store only values in types that can be serialized to JSON
+    cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500.value, 'r500': cluster_r500.value,
+                    'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_r500_maxr': list(radial_r500_maxr),
+                    'completeness_weight_maxr': list(completeness_weight_maxr)}
 
     return cluster_id, cluster_dict
 
@@ -166,7 +176,7 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_4/realistic/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_5/'
                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
@@ -191,11 +201,13 @@ with MPIPool() as pool:
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
-# Recast some of the values to types that can be serialized by JSON
-for cluster_id, cluster_info in catalog_dict.items():
-    catalog_dict[cluster_id]['m500'] = cluster_info['m500'].value
-    catalog_dict[cluster_id]['r500'] = cluster_info['r500'].value
-    catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
+# # Recast some of the values to types that can be serialized by JSON
+# for cluster_id, cluster_info in catalog_dict.items():
+#     catalog_dict[cluster_id]['m500'] = cluster_info['m500'].value
+#     catalog_dict[cluster_id]['r500'] = cluster_info['r500'].value
+#     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
+#     catalog_dict[cluster_id]['radial_r500_maxr'] = list(cluster_info['radial_r500_maxr'])
+#     catalog_dict[cluster_id]['completeness_weight_maxr'] = list(cluster_info['completeness_weight_maxr'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
 preprocess_file = f'slope_test_{cat_id}_preprocessing.json'

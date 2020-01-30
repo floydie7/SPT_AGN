@@ -222,7 +222,7 @@ spt_catalog_mask = [np.where(full_spt_catalog['SPT_ID'] == spt_id)[0][0] for spt
 selected_clusters = full_spt_catalog['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT'][spt_catalog_mask]
 
 # We'll need the r500 radius for each cluster too.
-selected_clusters['r500'] = (3 * selected_clusters['M500'] * u.Msun /
+selected_clusters['R500'] = (3 * selected_clusters['M500'] * u.Msun /
                              (4 * np.pi * 500 *
                               cosmo.critical_density(selected_clusters['REDSHIFT']).to(u.Msun / u.Mpc ** 3))) ** (1 / 3)
 
@@ -232,7 +232,7 @@ name_bank = ['SPT_Mock_{:03d}'.format(i) for i in range(n_cl)]
 # Combine our data into a catalog
 SPT_data = Table([name_bank, selected_clusters['RA'], selected_clusters['DEC'], selected_clusters['M500'],
                   selected_clusters['r500'], selected_clusters['REDSHIFT'], masks_bank, selected_clusters['SPT_ID']],
-                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'r500', 'REDSHIFT', 'MASK_NAME', 'orig_SPT_ID'])
+                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'R500', 'REDSHIFT', 'MASK_NAME', 'orig_SPT_ID'])
 
 # Check that we have the correct mask and cluster data matched up. If so, we can drop the original SPT_ID column
 assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_SPT_ID'], SPT_data['MASK_NAME'])])
@@ -256,7 +256,7 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         mask_name = cluster['MASK_NAME']
         z_cl = cluster['REDSHIFT']
         m500_cl = cluster['M500'] * u.Msun
-        r500_cl = cluster['r500'] * u.Mpc
+        r500_cl = cluster['R500'] * u.Mpc
         SZ_center = cluster['SZ_RA', 'SZ_DEC']
 
         # Read in the mask's WCS for the pixel scale and making SkyCoords
@@ -333,7 +333,7 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         AGN_list['SZ_DEC'] = SZ_center['SZ_DEC']
         AGN_list['M500'] = m500_cl
         AGN_list['REDSHIFT'] = z_cl
-        AGN_list['r500'] = r500_cl
+        AGN_list['R500'] = r500_cl
 
         # Create a flag indicating if the object is a cluster member
         AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
@@ -356,11 +356,11 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         # Calculate the radii of the final AGN scaled by the cluster's r500 radius
         r_final_arcmin = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
         r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
-        AGN_list['radial_arcmin'] = r_final_arcmin
-        AGN_list['radial_r500'] = r_final_r500
+        AGN_list['RADIAL_SEP_ARCMIN'] = r_final_arcmin
+        AGN_list['RADIAL_SEP_R500'] = r_final_r500
 
         # Select only objects within the max_radius
-        AGN_list = AGN_list[AGN_list['radial_r500'] <= max_radius]
+        AGN_list = AGN_list[AGN_list['RADIAL_SEP_R500'] <= max_radius]
 
         # Read in the original (full) mask
         full_mask_image, full_mask_header = fits.getdata(mask_name, header=True)
@@ -386,7 +386,7 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
 
     # Reorder the columns in the cluster for ascetic reasons.
     outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
-                    'REDSHIFT', 'M500', 'r500', 'radial_arcmin', 'radial_r500', 'MASK_NAME', 'Cluster_AGN']
+                    'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'MASK_NAME', 'Cluster_AGN']
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
