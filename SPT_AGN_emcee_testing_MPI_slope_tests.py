@@ -6,6 +6,7 @@ This script will preform the Bayesian analysis on the SPT-AGN data to produce th
 for all fitting parameters.
 """
 import json
+import os
 import re
 import sys
 from time import time
@@ -64,8 +65,7 @@ def lnlike(param):
         radial_r500_maxr = catalog_dict[cluster_id]['radial_r500_maxr']
 
         # Get the completeness weights for the AGN
-        # completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
-        completeness_weight_maxr = np.ones_like(radial_r500_maxr)
+        completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
 
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
@@ -151,6 +151,9 @@ def lnpost(param):
 # Get the catalog id from the command-line arguments
 cat_id = sys.argv[1]
 
+# Get the completeness weighting flag from the command-line arguments
+comp_weight_flag = sys.argv[2].lower() == 'true'
+
 # Extract the parameter values from the catalog id
 id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
 
@@ -174,7 +177,7 @@ rc_true = 0.1  # Core radius (in r500)
 C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = f'slope_test_{cat_id}_preprocessing.json'
+preprocess_file = os.path.abspath(f'../preprocessing/slope_test_{cat_id}_preprocessing.json')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -184,7 +187,8 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['m500'] = cluster_info['m500'] * u.Msun
     catalog_dict[cluster_id]['r500'] = cluster_info['r500'] * u.Mpc
     catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
-    catalog_dict[cluster_id]['completeness_weight_maxr'] = np.array(cluster_info['completeness_weight_maxr'])
+    catalog_dict[cluster_id]['completeness_weight_maxr'] = np.array(cluster_info['completeness_weight_maxr']) \
+        if comp_weight_flag else np.ones_like(catalog_dict[cluster_id]['radial_r500_maxr'])
     # group_mask = mock_catalog_grp.groups.keys['SPT_ID'] == cluster_id
     # catalog_dict[cluster_id]['radial_r500'] = mock_catalog_grp.groups[group_mask]['radial_r500']
 
@@ -222,7 +226,8 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial5b_{cat_id}_no_weight')
+                                        name='trial5{ab}_{cat_id}'.format(ab='a' if comp_weight_flag else 'b',
+                                                                          cat_id=cat_id))
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
