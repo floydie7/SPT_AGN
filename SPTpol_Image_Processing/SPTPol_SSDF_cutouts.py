@@ -17,7 +17,7 @@ import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.nddata import Cutout2D
-from astropy.table import Table, setdiff
+from astropy.table import Table, join
 from astropy.wcs import WCS
 from mpi4py import MPI
 from mpipool import Pool
@@ -28,13 +28,15 @@ from mpi_logger import MPIFileHandler
 comm = MPI.COMM_WORLD
 logger = logging.getLogger('node[{:d}]'.format(comm.rank))
 logger.setLevel(logging.DEBUG)
-mpi_handler = MPIFileHandler('SPTPol_cutouts_with_mosaics.log')
+mpi_handler = MPIFileHandler('SPTPol_cutouts_with_mosaics_common.log')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 mpi_handler.setFormatter(formatter)
 logger.addHandler(mpi_handler)
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-# hcc_prefix = ''
+
+
+# hcc_prefix = '/Users/btfkwd/Documents/SPT_AGN/'
 
 
 def make_cutout(cluster_key):
@@ -139,7 +141,8 @@ bocquet = Table.read(hcc_prefix + 'Data/2500d_cluster_sample_Bocquet18.fits')
 huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
 
 # Select only clusters that have not already been discovered in SPT-SZ 2500d
-huang = setdiff(huang, bocquet, keys=['SPT_ID'])
+# huang = setdiff(huang, bocquet, keys=['SPT_ID'])
+huang = join(huang, bocquet, keys=['SPT_ID'])
 
 # Select only clusters with IR imaging
 huang = huang[huang['imaging'] >= 2]

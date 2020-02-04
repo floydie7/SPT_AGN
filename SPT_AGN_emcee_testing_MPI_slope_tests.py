@@ -64,7 +64,8 @@ def lnlike(param):
         radial_r500_maxr = catalog_dict[cluster_id]['radial_r500_maxr']
 
         # Get the completeness weights for the AGN
-        completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
+        # completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
+        completeness_weight_maxr = np.ones_like(radial_r500_maxr)
 
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
@@ -221,7 +222,7 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial5_{cat_id}')
+                                        name=f'trial5b_{cat_id}_no_weight')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
