@@ -17,7 +17,7 @@ import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.nddata import Cutout2D
-from astropy.table import Table, join
+from astropy.table import Table
 from astropy.wcs import WCS
 from mpi4py import MPI
 from mpipool import Pool
@@ -169,7 +169,7 @@ ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.
 logger.info('Performing cluster search')
 # Make SkyCoords for the cluster centers and the SSDF objects
 # cluster_centers = SkyCoord(huang['RA'], huang['Dec'], unit='deg')
-cluster_centers = SkyCoord(common['RA_Huang'], common['DEC_Huang'], unit='dec')
+cluster_centers = SkyCoord(common['RA_Huang'], common['DEC_Huang'], unit='deg')
 ssdf_coords = SkyCoord(ssdf_catalog['ALPHA_J2000'], ssdf_catalog['DELTA_J2000'], unit='deg')
 
 # Search around each cluster to find the subset of objects nearby
