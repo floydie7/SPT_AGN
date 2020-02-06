@@ -42,7 +42,8 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 def make_cutout(cluster_key):
     # For each cluster, create a sub-table of the full SSDF catalog
     ssdf_obj_keys = cluster_idx_dict[cluster_key]
-    spt_id = huang['SPT_ID'][cluster_key]
+    # spt_id = huang['SPT_ID'][cluster_key]
+    spt_id = common['SPT_ID'][cluster_key]
     logger.debug('Working on cluster: {}'.format(spt_id))
     cluster_objs = Table.from_pandas(ssdf_catalog.iloc[ssdf_obj_keys])
     tiles = np.unique(cluster_objs['TILE'])
@@ -135,20 +136,24 @@ def make_cutout(cluster_key):
 
 logger.info('Reading in source catalogs')
 # Read in the SPT-SZ 2500d cluster catalog
-bocquet = Table.read(hcc_prefix + 'Data/2500d_cluster_sample_Bocquet18.fits')
+# bocquet = Table.read(hcc_prefix + 'Data/2500d_cluster_sample_Bocquet18.fits')
 
 # Read in the SPTPol 100d cluster catalog
-huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
+# huang = Table.read(hcc_prefix + 'Data/sptpol100d_catalog_huang19.fits')
+
+# Read in the common cluster catalog
+common = Table.read(hcc_prefix + 'Data/common_clusters_2500d_100d.fits')
 
 # Select only clusters that have not already been discovered in SPT-SZ 2500d
 # huang = setdiff(huang, bocquet, keys=['SPT_ID'])
-huang = join(huang, bocquet, keys=['SPT_ID'])
 
 # Select only clusters with IR imaging
-huang = huang[huang['imaging'] >= 2]
+# huang = huang[huang['imaging'] >= 2]
+common = common[common['imaging_Huang'] > 2]
 
 # Select only clusters with redshift and mass information (confirmed clusters)
-huang = huang[huang['redshift'] > 0]
+# huang = huang[huang['redshift'] > 0]
+common = common[common['REDSHIFT_Huang'] > 0]
 
 # Remove any clusters that we've already processed
 # cluster_id_pattern = re.compile(r'SPT-CLJ\d+-\d+')
@@ -163,7 +168,8 @@ ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.
 
 logger.info('Performing cluster search')
 # Make SkyCoords for the cluster centers and the SSDF objects
-cluster_centers = SkyCoord(huang['RA'], huang['Dec'], unit='deg')
+# cluster_centers = SkyCoord(huang['RA'], huang['Dec'], unit='deg')
+cluster_centers = SkyCoord(common['RA_Huang'], common['DEC_Huang'], unit='dec')
 ssdf_coords = SkyCoord(ssdf_catalog['ALPHA_J2000'], ssdf_catalog['DELTA_J2000'], unit='deg')
 
 # Search around each cluster to find the subset of objects nearby
