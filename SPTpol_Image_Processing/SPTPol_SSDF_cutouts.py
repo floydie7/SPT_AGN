@@ -48,7 +48,7 @@ def make_cutout(cluster_key):
     cluster_objs = Table.from_pandas(ssdf_catalog.iloc[ssdf_obj_keys])
     tiles = np.unique(cluster_objs['TILE'])
 
-    # For now we will only make cutouts of clusters that are fully contained within a single SSDF tile
+    # Check to see if the cutout is fully contained within a single SSDF tile
     if len(tiles) == 1:
         tile_id = cluster_objs['TILE'][0]
         logger.debug('Cluster {spt_id} is located on SSDF tile {tile_id}'.format(spt_id=spt_id, tile_id=tile_id))
@@ -56,6 +56,7 @@ def make_cutout(cluster_key):
         # Read in the appropriate SSDF tiles
         ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/ssdf_tiles/*{tile}*.fits'.format(tile=tile_id))
 
+    # Otherwise, start checking the mosaics
     else:
         logger.info('{spt_id} has objects on multiple SSDF tiles: {tiles}. Switching to mosaics.'
                     .format(spt_id=spt_id, tiles=list(tiles)))
@@ -63,13 +64,21 @@ def make_cutout(cluster_key):
 
         ssdf_tile_files = glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/completed/*{tile}*.fits'.format(tile=tile_id))
 
+        # If a bespoke mosaic doesn't exist, start checking to see if the cutout fits in one of the larger mosaics
         if not ssdf_tile_files:
             tile_id_nums = [re.search(r'\d\.\d', tile_id).group(0) for tile_id in tiles]
             ssdf_tile_files = [f for f in glob.glob(hcc_prefix + 'Data/SPTPol/images/mosaic_tiles/completed/*.fits')
                                if all(id_num in f for id_num in tile_id_nums)]
 
+            # If all else fails, record that we don't have a mosaic available and exit our function
+            if not ssdf_tile_files:
+                logger.warning('{spt_id} does not have a matching mosaic tile. '
+                               'Please create a mosaic with tiles: {tiles}'.format(spt_id=spt_id, tiles=tiles))
+                return
+
     image_dict = {}
     try:
+        # Collect the images into our dictionary
         for image in ssdf_tile_files:
             if 'I1' in image and 'cov' not in image:
                 image_dict['I1_sci'] = fits.getdata(image, header=True)
