@@ -237,7 +237,7 @@ with MPIPool() as pool:
 print('Simulation run time: {}'.format(time() - start_time))
 
 # Add the magnitude values used to create the completeness rates.
-completeness_results['magnitude_bins'] = bins
+completeness_results['magnitude_bins'] = list(bins)
 
 # Save results to disk
 results_filename = irac_data_sptpol['root_dir'] + '/Results/SPT_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}' \
