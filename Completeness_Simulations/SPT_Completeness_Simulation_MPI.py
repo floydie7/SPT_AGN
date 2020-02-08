@@ -205,7 +205,7 @@ irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
                     'root_dir': hcc_prefix + 'Data/Comp_Sim/SPTpol'}
 
 # Image directory
-image_dir = irac_data_sptpol['root_dir'] + '/images/cluster_cutouts'
+image_dir = hcc_prefix + 'Data/SPTpol/images/cluster_cutouts'
 
 # Channel 1 science images
 ch1_images = glob.glob(image_dir + '/I1*_mosaic.cutout.fits')
