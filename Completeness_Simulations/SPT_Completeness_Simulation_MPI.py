@@ -199,7 +199,7 @@ irac_data_sptsz = {1: {'psf_fwhm': 1.95, 'zeropt': 17.997, 'aper_corr': -0.1, },
                    'root_dir': hcc_prefix + 'Data/Comp_Sim'}
 
 irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
-                    2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.38},
+                    2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.11},
                     'config_file': hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.sex',
                     'param_file': hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.param',
                     'root_dir': hcc_prefix + 'Data/Comp_Sim/SPTpol'}

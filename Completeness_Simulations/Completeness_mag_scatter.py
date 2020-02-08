@@ -9,15 +9,15 @@ from __future__ import print_function, division
 
 import glob
 
+import astropy.units as u
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from Completeness_Simulation_Functions import *
 from astropy.coordinates import SkyCoord
 from astropy.io import ascii
 from astropy.wcs import WCS
 from matplotlib.ticker import AutoMinorLocator
-
-from Completeness_Simulation_Functions import *
 
 matplotlib.rcParams['lines.linewidth'] = 1.0
 matplotlib.rcParams['lines.markersize'] = np.sqrt(20)
@@ -156,3 +156,9 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
     # ax.set(title='Randomly selected Ch2 stamps', xlabel='mag_auto (Vega)', ylabel='mag_auto - mag_aper(4",corrected)')
     # fig.savefig('Data/Comp_Sim/Plots/I2_mag_auto_aper_corr_scatter_fwhm'+str(fwhm)+'_gauss.pdf', format='pdf')
     # # plt.show()
+
+    # Give a printout of the aproximate correction needed
+    mag_auto_arr = np.concatenate([mag_auto[j].data for j in range(len(bins) - 1)])
+    mag_auto_aper_arr = np.concatenate([mag_auto_aper[j].data for j in range(len(bins) - 1)])
+    mean_corr = np.mean(mag_auto_aper_arr[np.logical_or(mag_auto_arr >= 10.0, mag_auto_arr <= 11.0)])
+    print('Aperture correction needed: {:.2f}'.format(mean_corr))
