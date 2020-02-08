@@ -62,8 +62,8 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
 
         # Paths to files
         image = image_name
-        sex_conf = 'Data/Comp_Sim/sex_configs/default.sex'
-        param_file = 'Data/Comp_Sim/sex_configs/default.param'
+        sex_conf = 'Data/Comp_Sim/SPTpol/sex_configs/default.sex'
+        param_file = 'Data/Comp_Sim/SPTpol/sex_configs/default.param'
 
         # Image parameters
         output_image = 'Data/Comp_Sim/SPTpol/Images/{image_name}_stars.fits'.format(image_name=image_name[-38:-19])
@@ -86,7 +86,7 @@ for fwhm in [2.02]:  # Warm mission Ch2 psf
         alt_cat = ascii.read(alt_out_cat, format='sextractor')
 
         # Match the coordinates between the truth catalog and the SExtractor catalog.
-        max_sep = 1.95 * u.arcsec
+        max_sep = fwhm * u.arcsec
         wcs = WCS(output_image)
         true_coord = SkyCoord.from_pixel(true_stars['x'], true_stars['y'], wcs=wcs)
         cat_coord = SkyCoord(alt_cat['ALPHA_J2000'], alt_cat['DELTA_J2000'], unit=u.degree)

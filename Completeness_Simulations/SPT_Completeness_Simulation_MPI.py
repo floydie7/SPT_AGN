@@ -205,7 +205,7 @@ irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
                     'root_dir': hcc_prefix + 'Data/Comp_Sim/SPTpol'}
 
 # Image directory
-image_dir = hcc_prefix + 'Data/SPTpol/images/cluster_cutouts'
+image_dir = hcc_prefix + 'Data/SPTPol/images/cluster_cutouts'
 
 # Channel 1 science images
 ch1_images = glob.glob(image_dir + '/I1*_mosaic.cutout.fits')
@@ -240,7 +240,7 @@ print('Simulation run time: {}'.format(time() - start_time))
 completeness_results['magnitude_bins'] = list(bins)
 
 # Save results to disk
-results_filename = irac_data_sptpol['root_dir'] + '/Results/SPT_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}' \
+results_filename = irac_data_sptpol['root_dir'] + '/Results/SPT_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json' \
     .format(model=model, fwhm=irac_data_sptpol[2]['psf_fwhm'], corr=irac_data_sptpol[2]['aper_corr'], mag_diff=mag_diff)
 with open(results_filename, 'w') as f:
     json.dump(completeness_results, f, ensure_ascii=False, indent=4)
