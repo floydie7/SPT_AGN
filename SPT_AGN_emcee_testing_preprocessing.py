@@ -205,7 +205,7 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_5/'
+mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_6/realistic/'
                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
