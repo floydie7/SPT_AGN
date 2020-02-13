@@ -34,7 +34,6 @@ def model_rate_opted(params, cluster_id, r_r500, completeness_weight):
 
     # Unpack our parameters
     theta, eta, zeta, beta, rc, C = params
-    # theta, eta, zeta, beta, C = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -61,7 +60,6 @@ def lnlike(param):
         gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
         # Get the radial positions of the AGN
-        # radial_r500 = catalog_dict[cluster_id]['radial_r500']
         radial_r500_maxr = catalog_dict[cluster_id]['radial_r500_maxr']
 
         # Get the completeness weights for the AGN
@@ -69,9 +67,6 @@ def lnlike(param):
 
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
-
-        # # Select only the objects within the same radial limit we are using for integration.
-        # radial_r500_maxr = radial_r500[radial_r500 <= rall[-1]]
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr, completeness_weight_maxr)
@@ -95,17 +90,12 @@ def lnlike(param):
 def lnprior(param):
     # Extract our parameters
     theta, eta, zeta, beta, rc, C = param
-    # theta, eta, zeta, beta, C = param
 
     # Set our hyperparameters
     # h_rc = 0.25
     # h_rc_err = 0.1
     h_C = 0.371
     h_C_err = 0.157
-
-    # Narrow the prior on theta to bracket +- 50% of theta_true
-    # theta_lower = theta_true - theta_true * 0.5
-    # theta_upper = theta_true + theta_true * 0.5
 
     # Define all priors to be gaussian
     if (0.0 <= theta <= np.inf and
@@ -132,7 +122,6 @@ def lnprior(param):
 
     # Assuming all parameters are independent the joint log-prior is
     total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + C_lnprior
 
     return total_lnprior
 
@@ -151,22 +140,19 @@ def lnpost(param):
 # Get the catalog id from the command-line arguments
 cat_id = sys.argv[1]
 
-# Get the completeness weighting flag from the command-line arguments
-comp_weight_flag = sys.argv[2].lower() == 'true'
-
 # Extract the parameter values from the catalog id
 id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
 
+# Get the completeness weighting flag from the command-line arguments
+comp_weight_flag = sys.argv[2].lower() == 'true'
+
+# Get the offset flag from the command-line arguments
+offset_flag = sys.argv[3].lower()
+offset_suffix = {'off': '', 'full': '_offset', 'half': '_half_offset'}
+trial_subscript = {'off': 'a', 'full': 'b', 'half': 'c'}
+
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
-# Read in the mock catalog
-# mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_4/realistic/'
-#                                        f'mock_AGN_catalog_{cat_id}_b1.00_C0.371_rc0.100'
-#                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
-#                           format='ascii')
-#
-# # Read in the mask files for each cluster
-# mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 
 # Set parameter values
 theta_true = id_params[0]  # Amplitude.
@@ -186,11 +172,13 @@ with open(preprocess_file, 'r') as f:
 for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['m500'] = cluster_info['m500'] * u.Msun
     catalog_dict[cluster_id]['r500'] = cluster_info['r500'] * u.Mpc
-    catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
-    catalog_dict[cluster_id]['completeness_weight_maxr'] = np.array(cluster_info['completeness_weight_maxr']) \
-        if comp_weight_flag else np.ones_like(catalog_dict[cluster_id]['radial_r500_maxr'])
-    # group_mask = mock_catalog_grp.groups.keys['SPT_ID'] == cluster_id
-    # catalog_dict[cluster_id]['radial_r500'] = mock_catalog_grp.groups[group_mask]['radial_r500']
+    catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall' + offset_suffix[offset_flag]]
+    catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(
+        cluster_info['radial_r500_maxr' + offset_suffix[offset_flag]])
+    catalog_dict[cluster_id]['completeness_weight_maxr'] = \
+        np.array(cluster_info['completeness_weight_maxr' + offset_suffix[offset_flag]]) \
+            if comp_weight_flag else np.ones_like(
+            catalog_dict[cluster_id]['radial_r500_maxr' + offset_suffix[offset_flag]])
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -201,8 +189,6 @@ nwalkers = 36
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-# pos0 = emcee.utils.sample_ball(p0=[theta_true, eta_true, zeta_true, beta_true, C_true],
-#                                std=[1e-2, 1e-2, 1e-2, 1e-2, 0.157], size=nwalkers)
 pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
                    np.random.uniform(-1., 6.),  # eta
                    np.random.uniform(-3., 3.),  # zeta
@@ -212,7 +198,6 @@ pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
                   for i in range(nwalkers)])
 
 # Set up the autocorrelation and convergence variables
-index = 0
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
@@ -226,8 +211,9 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        name='trial5{ab}_{cat_id}'.format(ab='a' if comp_weight_flag else 'b',
-                                                                          cat_id=cat_id))
+                                        # name='trial5{ab}_{cat_id}'.format(ab='a' if comp_weight_flag else 'b',
+                                        #                                   cat_id=cat_id))
+                                        name=f'trial6{trial_subscript[offset_flag]}_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -241,7 +227,7 @@ with MPIPool() as pool:
     start_sampler_time = time()
 
     # Sample up to nsteps.
-    for sample in sampler.sample(pos0, iterations=nsteps):
+    for index, sample in enumerate(sampler.sample(pos0, iterations=nsteps)):
         # Only check convergence every 100 steps
         if sampler.iteration % 100:
             continue
@@ -250,7 +236,6 @@ with MPIPool() as pool:
         # Using tol = 0 means we will always get an estimate even if it isn't trustworthy
         tau = sampler.get_autocorr_time(tol=0)
         autocorr[index] = np.mean(tau)
-        index += 1
 
         # Check convergence
         converged = np.all(tau * 100 < sampler.iteration)

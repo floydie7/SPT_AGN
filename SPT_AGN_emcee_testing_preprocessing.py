@@ -126,9 +126,14 @@ def generate_catalog_dict(cluster):
     cluster_m500 = cluster['M500'][0] * u.Msun
     cluster_r500 = cluster['R500'][0] * u.Mpc
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
-    # cluster_sz_cent = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
     cluster_completeness = cluster['COMPLETENESS_CORRECTION']
     cluster_radial_r500 = cluster['RADIAL_SEP_R500']
+
+    # Offset columns
+    cluster_sz_cent_offset = cluster['OFFSET_RA', 'OFFSET_DEC'][0]
+    cluster_radial_r500_offset = cluster['RADIAL_SEP_ARCMIN_OFFSET']
+    cluster_sz_cent_half_offset = cluster['HALF_OFFSET_RA', 'HALF_OFFSET_DEC'][0]
+    cluster_radial_r500_half_offset = cluster['RADIAL_SEP_R500_HALF_OFFSET']
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -158,11 +163,35 @@ def generate_catalog_dict(cluster):
     radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
     completeness_weight_maxr = cluster_completeness[cluster_radial_r500 <= rall[-1]]
 
+    # Compute the offset good pixel fractions
+    cluster_gpf_all_offset = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent_offset, cluster_id,
+                                                 rescale_factor=rescale_fact)
+
+    # Filter the objects to fit within the maximum radius from the offset center
+    radial_r500_maxr_offset = cluster_radial_r500_offset[cluster_radial_r500_offset <= rall[-1]]
+    completeness_weight_maxr_offset = cluster_completeness[cluster_radial_r500_offset <= rall[-1]]
+
+    # Compute the half-offset good pixel fractions
+    cluster_gpf_all_half_offset = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent_half_offset,
+                                                      cluster_id, rescale_factor=rescale_fact)
+
+    # Filter the objects to fit within the maximum radius from the half-offset center
+    radial_r500_maxr_half_offset = cluster_radial_r500_half_offset[cluster_radial_r500_half_offset <= rall[-1]]
+    completeness_weight_maxr_half_offset = cluster_completeness[cluster_radial_r500_half_offset <= rall[-1]]
+
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500.value, 'r500': cluster_r500.value,
                     'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_r500_maxr': list(radial_r500_maxr),
-                    'completeness_weight_maxr': list(completeness_weight_maxr)}
+                    'completeness_weight_maxr': list(completeness_weight_maxr),
+                    # Offset values
+                    'gpf_rall_offset': cluster_gpf_all_offset, 'radial_r500_maxr_offset': list(radial_r500_maxr_offset),
+                    'completeness_weight_maxr_offset': list(completeness_weight_maxr_offset),
+                    # Half-offset values
+                    'gpf_rall_half_offset': cluster_gpf_all_half_offset,
+                    'radial_r500_maxr_half_offset': list(cluster_radial_r500_half_offset),
+                    'completeness_weight_maxr_half_offset': list(completeness_weight_maxr_half_offset)
+                    }
 
     return cluster_id, cluster_dict
 
@@ -200,14 +229,6 @@ with MPIPool() as pool:
         catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in pool_results}
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
-
-# # Recast some of the values to types that can be serialized by JSON
-# for cluster_id, cluster_info in catalog_dict.items():
-#     catalog_dict[cluster_id]['m500'] = cluster_info['m500'].value
-#     catalog_dict[cluster_id]['r500'] = cluster_info['r500'].value
-#     catalog_dict[cluster_id]['rall'] = list(cluster_info['rall'])
-#     catalog_dict[cluster_id]['radial_r500_maxr'] = list(cluster_info['radial_r500_maxr'])
-#     catalog_dict[cluster_id]['completeness_weight_maxr'] = list(cluster_info['completeness_weight_maxr'])
 
 # Store the results in a JSON file to be used later by the MCMC sampler
 preprocess_file = f'slope_test_{cat_id}_preprocessing.json'

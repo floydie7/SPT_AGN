@@ -36,6 +36,7 @@ import numpy as np
 from Completeness_Simulation_Functions import *
 from astropy.coordinates import SkyCoord
 from astropy.table import Table, hstack, vstack
+from astropy.wcs import WCS
 from schwimmbad import MPIPool
 
 # try:
@@ -45,8 +46,6 @@ from schwimmbad import MPIPool
 #     raise AssertionError('This script must be ran on Python 2.7')
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-
-
 # hcc_prefix = '/Users/btfkwd/Documents/SPT_AGN/'
 
 
@@ -212,6 +211,9 @@ ch1_images = glob.glob(image_dir + '/I1*_mosaic.cutout.fits')
 
 # Channel 2 science images
 ch2_images = glob.glob(image_dir + '/I2*_mosaic.cutout.fits')
+
+# Resampled test image
+resampled_image = hcc_prefix + 'Data/SPTPol/images/resample_test/I2_SPT-CLJ0000-5748_resample.fits'
 
 # Record start time
 start_time = time()

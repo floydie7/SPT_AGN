@@ -175,7 +175,10 @@ rc_true = 0.1  # Core radius (in r500)
 max_radius = 5.0
 
 # Set cluster center positional uncertainty
-cluster_pos_uncert = 0.214 * u.arcmin
+median_cluster_pos_uncert = 0.214 * u.arcmin
+
+# SPT's 150 GHz beam size
+SZ_theta_beam = 1.2 * u.arcmin
 # </editor-fold>
 
 # <editor-fold desc="Data Generation">
@@ -219,7 +222,7 @@ spt_catalog_ids = [re.search(r'SPT-CLJ\d+-\d+', mask_name).group(0) for mask_nam
 # spt_catalog_idx = np.any([full_spt_catalog['SPT_ID'] == catalog_id for catalog_id in spt_catalog_ids], axis=0)
 # spt_catalog_mask = np.isin(full_spt_catalog['SPT_ID'], spt_catalog_ids, assume_unique=True)
 spt_catalog_mask = [np.where(full_spt_catalog['SPT_ID'] == spt_id)[0][0] for spt_id in spt_catalog_ids]
-selected_clusters = full_spt_catalog['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT'][spt_catalog_mask]
+selected_clusters = full_spt_catalog['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT', 'THETA_CORE', 'XI'][spt_catalog_mask]
 
 # We'll need the r500 radius for each cluster too.
 selected_clusters['R500'] = (3 * selected_clusters['M500'] * u.Msun /
@@ -231,8 +234,10 @@ name_bank = ['SPT_Mock_{:03d}'.format(i) for i in range(n_cl)]
 
 # Combine our data into a catalog
 SPT_data = Table([name_bank, selected_clusters['RA'], selected_clusters['DEC'], selected_clusters['M500'],
-                  selected_clusters['r500'], selected_clusters['REDSHIFT'], masks_bank, selected_clusters['SPT_ID']],
-                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'R500', 'REDSHIFT', 'MASK_NAME', 'orig_SPT_ID'])
+                  selected_clusters['R500'], selected_clusters['REDSHIFT'], selected_clusters['THETA_CORE'],
+                  selected_clusters['XI'], masks_bank, selected_clusters['SPT_ID']],
+                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'R500', 'REDSHIFT', 'THETA_CORE', 'XI', 'MASK_NAME',
+                        'orig_SPT_ID'])
 
 # Check that we have the correct mask and cluster data matched up. If so, we can drop the original SPT_ID column
 assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_SPT_ID'], SPT_data['MASK_NAME'])])
@@ -258,6 +263,8 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         m500_cl = cluster['M500'] * u.Msun
         r500_cl = cluster['R500'] * u.Mpc
         SZ_center = cluster['SZ_RA', 'SZ_DEC']
+        SZ_theta_core = cluster['THETA_CORE'] * u.arcmin
+        SZ_xi = cluster['XI']
 
         # Read in the mask's WCS for the pixel scale and making SkyCoords
         w = WCS(mask_name)
@@ -346,6 +353,7 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         AGN_list['DEC'] = agn_coords_skycoord.dec
 
         # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
+        cluster_pos_uncert = np.sqrt(SZ_theta_beam ** 2 + SZ_theta_core ** 2) / SZ_xi
         offset_SZ_center = cluster_rng.multivariate_normal(
             (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
             np.eye(2) * cluster_pos_uncert.to(u.deg).value ** 2)
@@ -353,11 +361,33 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         AGN_list['OFFSET_RA'] = offset_SZ_center_skycoord.ra
         AGN_list['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
 
+        # Additionally, decrease the positional uncertainty to half of the true value
+        cluster_pos_uncert_half = cluster_pos_uncert / 2
+        half_offset_SZ_center = cluster_rng.multivariate_normal(
+            (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+            np.eye(2) * cluster_pos_uncert_half.to(u.deg).value ** 2)
+        half_offset_SZ_center_skycoord = SkyCoord(half_offset_SZ_center[0], half_offset_SZ_center[1], unit='deg')
+        AGN_list['HALF_OFFSET_RA'] = half_offset_SZ_center_skycoord.ra
+        AGN_list['HALF_OFFSET_DEC'] = half_offset_SZ_center_skycoord.dec
+
         # Calculate the radii of the final AGN scaled by the cluster's r500 radius
-        r_final_arcmin = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
+        r_final_arcmin = SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
         r_final_r500 = r_final_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
         AGN_list['RADIAL_SEP_ARCMIN'] = r_final_arcmin
         AGN_list['RADIAL_SEP_R500'] = r_final_r500
+
+        # Also calculate the radial distances based on the offset center.
+        r_final_arcmin_offset = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
+        r_final_r500_offset = r_final_arcmin_offset * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
+        AGN_list['RADIAL_SEP_ARCMIN_OFFSET'] = r_final_arcmin_offset
+        AGN_list['RADIAL_SEP_R500_OFFSET'] = r_final_r500_offset
+
+        # Also, calculate the radial distances based on the half-offset center
+        r_final_arcmin_half_offset = half_offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
+        r_final_r500_half_offset = r_final_arcmin_half_offset * cosmo.kpc_proper_per_arcmin(z_cl).to(
+            u.Mpc / u.arcmin) / r500_cl
+        AGN_list['RADIAL_SEP_ARCMIN_HALF_OFFSET'] = r_final_arcmin_half_offset
+        AGN_list['RADIAL_SEP_R500_HALF_OFFSET'] = r_final_r500_half_offset
 
         # Select only objects within the max_radius
         AGN_list = AGN_list[AGN_list['RADIAL_SEP_R500'] <= max_radius]
@@ -385,15 +415,18 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
     outAGN = vstack(AGN_cats)
 
     # Reorder the columns in the cluster for ascetic reasons.
-    outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
-                    'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'MASK_NAME', 'Cluster_AGN']
+    outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OFFSET_RA', 'HALF_OFFSET_DEC',
+                    'x_pixel', 'y_pixel', 'RA', 'DEC',
+                    'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'RADIAL_SEP_ARCMIN_OFFSET',
+                    'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
+                    'MASK_NAME', 'Cluster_AGN']
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
     # Path(f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_2/'
     #      f'e{eta_true:.2f}_z{zeta_true:.2f}').mkdir(parents=True, exist_ok=True)
     outAGN.write(
-        f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_2/realistic/'
+        f'Data/MCMC/Mock_Catalog/Catalogs/Final_tests/Slope_tests/trial_6/realistic/'
         f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}'
         f'_C{C_true:.3f}_rc{rc_true:.3f}_maxr{max_radius:.2f}'
         f'_clseed{cluster_seed}_objseed{object_seed}_slope_test.cat',

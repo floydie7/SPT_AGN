@@ -171,7 +171,7 @@ common = common[common['REDSHIFT_Huang'] > 0]
 # huang = setdiff(huang, completed_ids, keys='SPT_ID')
 
 # Read in the SSDF photometric catalog
-ssdf_template = Table.read(hcc_prefix + 'Data/ssdf_table_template.cat', format='ascii.sextractor')
+ssdf_template = Table.read(hcc_prefix + 'Data/SPTPol/catalogs/ssdf_table_template.cat', format='ascii.sextractor')
 ssdf_catalog = pd.read_csv(hcc_prefix + 'Data/SPTPol/catalogs/SSDF2.20130918.v9.private.cat',
                            delim_whitespace=True, skiprows=52, names=ssdf_template.colnames)
 
