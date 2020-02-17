@@ -79,8 +79,16 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
         pix_scale = cd_diag[1, 1] * image_wcs.wcs.cunit[1]
 
     # Convert our center into pixel units
-    center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
-    # center_pix = image_wcs.wcs_world2pix(center['OFFSET_RA'], center['OFFSET_DEC'], 0)
+    try:
+        center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
+    except KeyError:
+        try:
+            center_pix = image_wcs.wcs_world2pix(center['OFFSET_RA'], center['OFFSET_DEC'], 0)
+        except KeyError:
+            try:
+                center_pix = image_wcs.wcs_world2pix(center['HALF_OFFSET_RA'], center['HALF_OFFSET_DEC'], 0)
+            except KeyError:
+                raise
 
     # Convert our radius to pixels
     r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(pix_scale.unit / u.Mpc) / pix_scale
