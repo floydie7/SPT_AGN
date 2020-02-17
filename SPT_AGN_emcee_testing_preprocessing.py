@@ -210,6 +210,10 @@ mock_catalog = Table.read(hcc_prefix + 'Data/MCMC/Mock_Catalog/Catalogs/Final_te
                                        '_maxr5.00_clseed890_objseed930_slope_test.cat',
                           format='ascii')
 
+# **** Must be removed for tests involving incomplete data ****
+# Artificially adding a completeness weight column to the entire catalog for testing purposes.
+mock_catalog['COMPLETENESS_CORRECTION'] = 1.0
+
 # Read in the mask files for each cluster
 mock_catalog_grp = mock_catalog.group_by('SPT_ID')
 mask_dict = {cluster_id[0]: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
