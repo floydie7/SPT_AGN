@@ -88,7 +88,10 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
             try:
                 center_pix = image_wcs.wcs_world2pix(center['HALF_OFFSET_RA'], center['HALF_OFFSET_DEC'], 0)
             except KeyError:
-                raise
+                try:
+                    center_pix = image_wcs.wcs_world2pix(center['075_OFFSET_RA'], center['075_OFFSET_DEC'], 0)
+                except KeyError:
+                    raise
 
     # Convert our radius to pixels
     r_pix = r * r500 * cosmo.arcsec_per_kpc_proper(z).to(pix_scale.unit / u.Mpc) / pix_scale
@@ -142,6 +145,8 @@ def generate_catalog_dict(cluster):
     cluster_radial_r500_offset = cluster['RADIAL_SEP_ARCMIN_OFFSET']
     cluster_sz_cent_half_offset = cluster['HALF_OFFSET_RA', 'HALF_OFFSET_DEC'][0]
     cluster_radial_r500_half_offset = cluster['RADIAL_SEP_R500_HALF_OFFSET']
+    cluster_sz_cent_075_offset = cluster['075_OFFSET_RA', '075_OFFSET_DEC'][0]
+    cluster_radial_r500_075_offset = cluster['RADIAL_SEP_R500_075_OFFSET']
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -163,6 +168,7 @@ def generate_catalog_dict(cluster):
     # Generate a radial integration mesh.
     rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
 
+    # <editor-fold desc="True Center GPF and Filtering">
     # Compute the good pixel fractions
     cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
                                           rescale_factor=rescale_fact)
@@ -170,7 +176,9 @@ def generate_catalog_dict(cluster):
     # Select only the objects within the same radial limit we are using for integration.
     radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
     completeness_weight_maxr = cluster_completeness[cluster_radial_r500 <= rall[-1]]
+    # </editor-fold>
 
+    # <editor-fold, desc="1-sigma Offset GPF and Filtering">
     # Compute the offset good pixel fractions
     cluster_gpf_all_offset = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent_offset, cluster_id,
                                                  rescale_factor=rescale_fact)
@@ -178,7 +186,9 @@ def generate_catalog_dict(cluster):
     # Filter the objects to fit within the maximum radius from the offset center
     radial_r500_maxr_offset = cluster_radial_r500_offset[cluster_radial_r500_offset <= rall[-1]]
     completeness_weight_maxr_offset = cluster_completeness[cluster_radial_r500_offset <= rall[-1]]
+    # </editor-fold>
 
+    # <editor-fold, desc="0.5-sigma Offset GPF and Filtering">
     # Compute the half-offset good pixel fractions
     cluster_gpf_all_half_offset = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent_half_offset,
                                                       cluster_id, rescale_factor=rescale_fact)
@@ -186,6 +196,16 @@ def generate_catalog_dict(cluster):
     # Filter the objects to fit within the maximum radius from the half-offset center
     radial_r500_maxr_half_offset = cluster_radial_r500_half_offset[cluster_radial_r500_half_offset <= rall[-1]]
     completeness_weight_maxr_half_offset = cluster_completeness[cluster_radial_r500_half_offset <= rall[-1]]
+    # </editor-fold>
+
+    # <editor-fold, desc="0.75-sigma Offset GPF and Filtering">
+    # Compute the 0.75-offset good pixel fractions
+    cluster_gpf_all_075_offset = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent_075_offset,
+                                                     cluster_id, rescale_factor=rescale_fact)
+    # Filter the objects to fit within the maximum radius from the 0.75-offset center
+    radial_r500_maxr_075_offset = cluster_radial_r500_075_offset[cluster_radial_r500_075_offset <= rall[-1]]
+    completeness_weight_maxr_075_offset = cluster_completeness[cluster_radial_r500_075_offset <= rall[-1]]
+    # </editor-fold>
 
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
@@ -193,12 +213,17 @@ def generate_catalog_dict(cluster):
                     'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_r500_maxr': list(radial_r500_maxr),
                     'completeness_weight_maxr': list(completeness_weight_maxr),
                     # Offset values
-                    'gpf_rall_offset': cluster_gpf_all_offset, 'radial_r500_maxr_offset': list(radial_r500_maxr_offset),
+                    'gpf_rall_offset': cluster_gpf_all_offset,
+                    'radial_r500_maxr_offset': list(radial_r500_maxr_offset),
                     'completeness_weight_maxr_offset': list(completeness_weight_maxr_offset),
                     # Half-offset values
                     'gpf_rall_half_offset': cluster_gpf_all_half_offset,
-                    'radial_r500_maxr_half_offset': list(cluster_radial_r500_half_offset),
-                    'completeness_weight_maxr_half_offset': list(completeness_weight_maxr_half_offset)
+                    'radial_r500_maxr_half_offset': list(radial_r500_maxr_half_offset),
+                    'completeness_weight_maxr_half_offset': list(completeness_weight_maxr_half_offset),
+                    # 0.75-offset values
+                    'gpf_rall_075_offset': cluster_gpf_all_075_offset,
+                    'radial_r500_maxr_075_offset': list(radial_r500_maxr_075_offset),
+                    'completeness_weight_maxr_075_offset': list(completeness_weight_maxr_075_offset)
                     }
 
     return cluster_id, cluster_dict

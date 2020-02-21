@@ -354,9 +354,10 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
 
         # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
         cluster_pos_uncert = np.sqrt(SZ_theta_beam ** 2 + SZ_theta_core ** 2) / SZ_xi
+        AGN_list['CENTER_POS_UNC_ARCMIN_1sigma'] = cluster_pos_uncert
         offset_SZ_center = cluster_rng.multivariate_normal(
             (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-            np.eye(2) * cluster_pos_uncert.to(u.deg).value ** 2)
+            np.eye(2) * cluster_pos_uncert.to_value(u.deg) ** 2)
         offset_SZ_center_skycoord = SkyCoord(offset_SZ_center[0], offset_SZ_center[1], unit='deg')
         AGN_list['OFFSET_RA'] = offset_SZ_center_skycoord.ra
         AGN_list['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
@@ -365,10 +366,19 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
         cluster_pos_uncert_half = cluster_pos_uncert / 2
         half_offset_SZ_center = cluster_rng.multivariate_normal(
             (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-            np.eye(2) * cluster_pos_uncert_half.to(u.deg).value ** 2)
+            np.eye(2) * cluster_pos_uncert_half.to_value(u.deg) ** 2)
         half_offset_SZ_center_skycoord = SkyCoord(half_offset_SZ_center[0], half_offset_SZ_center[1], unit='deg')
         AGN_list['HALF_OFFSET_RA'] = half_offset_SZ_center_skycoord.ra
         AGN_list['HALF_OFFSET_DEC'] = half_offset_SZ_center_skycoord.dec
+
+        cluster_pos_uncert_075 = cluster_pos_uncert * 0.75
+        threequarters_offset_SZ_center = cluster_rng.multivariate_normal(
+            (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+            np.eye(2) * cluster_pos_uncert_half.to_value(u.deg) ** 2)
+        threequarters_offset_SZ_center_skycoord = SkyCoord(threequarters_offset_SZ_center[0],
+                                                           threequarters_offset_SZ_center[1], unit='deg')
+        AGN_list['075_OFFSET_RA'] = threequarters_offset_SZ_center_skycoord.ra
+        AGN_list['075_OFFSET_DEC'] = threequarters_offset_SZ_center_skycoord.dec
 
         # Calculate the radii of the final AGN scaled by the cluster's r500 radius
         r_final_arcmin = SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
@@ -388,6 +398,12 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
             u.Mpc / u.arcmin) / r500_cl
         AGN_list['RADIAL_SEP_ARCMIN_HALF_OFFSET'] = r_final_arcmin_half_offset
         AGN_list['RADIAL_SEP_R500_HALF_OFFSET'] = r_final_r500_half_offset
+
+        r_final_arcmin_075_offset = threequarters_offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
+        r_final_r500_075_offset = r_final_arcmin_075_offset * cosmo.kpc_proper_per_arcmin(z_cl).to(
+            u.Mpc / u.arcmin) / r500_cl
+        AGN_list['RADIAL_SEP_ARCMIN_075_OFFSET'] = r_final_arcmin_075_offset
+        AGN_list['RADIAL_SEP_R500_075_OFFSET'] = r_final_r500_075_offset
 
         # Select only objects within the max_radius
         AGN_list = AGN_list[AGN_list['RADIAL_SEP_R500'] <= max_radius]
@@ -416,10 +432,10 @@ for theta_true, (eta_true, zeta_true) in zip(theta_list, product(eta_list, zeta_
 
     # Reorder the columns in the cluster for ascetic reasons.
     outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OFFSET_RA', 'HALF_OFFSET_DEC',
-                    'x_pixel', 'y_pixel', 'RA', 'DEC',
+                    '075_OFFSET_RA', '075_OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
                     'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'RADIAL_SEP_ARCMIN_OFFSET',
                     'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
-                    'MASK_NAME', 'Cluster_AGN']
+                    'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME', 'Cluster_AGN']
 
     print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
           .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))

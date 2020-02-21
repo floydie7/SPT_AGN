@@ -148,8 +148,8 @@ comp_weight_flag = sys.argv[2].lower() == 'true'
 
 # Get the offset flag from the command-line arguments
 offset_flag = sys.argv[3].lower()
-offset_suffix = {'off': '', 'full': '_offset', 'half': '_half_offset'}
-trial_subscript = {'off': 'a', 'full': 'b', 'half': 'c'}
+offset_suffix = {'off': '', 'full': '_offset', 'half': '_half_offset', 'three-quarters': '_075_offset'}
+trial_subscript = {'off': 'a', 'full': 'b', 'half': 'c', 'three-quarters': 'd'}
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
