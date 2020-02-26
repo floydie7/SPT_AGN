@@ -41,7 +41,7 @@ ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-output_catalog = '/Users/btfkwd/Documents/SPT_AGN/Data/Output/SPT_IRAGN.fits'
+output_catalog = '/Users/btfkwd/Documents/SPT_AGN/Data/Output/SPTSZ_IRAGN.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',

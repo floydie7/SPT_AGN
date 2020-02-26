@@ -68,16 +68,20 @@ def lnlike(param):
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
 
+        # Compute the completeness ratio for this cluster
+        completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
+
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, radial_r500_maxr, completeness_weight_maxr)
+        ni = model_rate_opted(param, cluster_id, radial_r500_maxr, completeness_weight=1)
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
         nall = model_rate_opted(param, cluster_id, rall, completeness_weight=1)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - trap_weight(nall * 2 * np.pi * rall, rall,
-                                                                             weight=gpf_all)
+        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - completeness_ratio * trap_weight(
+            nall * 2 * np.pi * rall,
+            rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -144,12 +148,14 @@ cat_id = sys.argv[1]
 id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
 
 # Get the completeness weighting flag from the command-line arguments
-comp_weight_flag = sys.argv[2].lower() == 'true'
+# comp_weight_flag = sys.argv[2].lower() == 'true'
+comp_weight_flag = True
 
 # Get the offset flag from the command-line arguments
-offset_flag = sys.argv[3].lower()
+# offset_flag = sys.argv[3].lower()
+offset_flag = 'off'
 offset_suffix = {'off': '', 'full': '_offset', 'half': '_half_offset', 'three-quarters': '_075_offset'}
-trial_subscript = {'off': 'a', 'full': 'b', 'half': 'c', 'three-quarters': 'd'}
+# trial_subscript = {'off': 'a', 'full': 'b', 'half': 'c', 'three-quarters': 'd'}
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
@@ -211,9 +217,8 @@ with MPIPool() as pool:
         .format(nwalkers=nwalkers, nsteps=nsteps,
                 theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
     backend = emcee.backends.HDFBackend(chain_file,
-                                        # name='trial5{ab}_{cat_id}'.format(ab='a' if comp_weight_flag else 'b',
-                                        #                                   cat_id=cat_id))
-                                        name=f'trial6{trial_subscript[offset_flag]}_{cat_id}')
+                                        name=f'trial5c_{cat_id}')
+    # name=f'trial6{trial_subscript[offset_flag]}_{cat_id}')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
