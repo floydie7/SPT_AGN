@@ -194,11 +194,8 @@ huang = huang[huang['M500'] > 0.0]  # Nick uses a '-1.0' for non-confirmations f
 huang['M500'] *= 1e14  # Same reason as Bocquet's catalog.
 
 # Standardize the column names in the Huang catalog to match the Bocquet catalog
-huang.rename_column('Dec', 'DEC')
-huang.rename_column('redshift', 'REDSHIFT')
-huang.rename_column('redshift_unc', 'REDSHIFT_UNC')
-huang.rename_column('xi', 'XI')
-huang.rename_column('theta_core', 'THETA_CORE')
+huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],
+                     ['DEC', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC'])
 
 # Merge the two catalogs
 full_spt_catalog = join(bocquet, huang, join_type='outer')

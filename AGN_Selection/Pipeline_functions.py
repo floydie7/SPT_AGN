@@ -9,7 +9,8 @@ import glob
 import json
 import re
 import warnings
-from itertools import groupby, product
+from collections import ChainMap
+from itertools import groupby, product, chain
 
 import numpy as np
 from astropy import units as u
@@ -34,17 +35,17 @@ class SelectIRAGN:
 
     Parameters
     ----------
-    sextractor_cat_dir : str
+    sextractor_cat_dir : str or list of str
         Directory for the SExtractor photometric catalogs.
-    irac_image_dir : str
+    irac_image_dir : str or list of str
         Directory for the IRAC 3.6 um and 4.5 um science and coverage images.
-    region_file_dir : str
+    region_file_dir : str or list of str
         Directory for DS9 regions files describing areas to mask manually.
     mask_dir : str
         Directory to write good pixel masks into
     spt_catalog : astropy table_like
         Official SPT cluster catalog.
-    completeness_file : str
+    completeness_file : str or list of str
         File name of the completeness simulation results.
     """
 
@@ -85,8 +86,15 @@ class SelectIRAGN:
         """
 
         # List the file names for both the images and the catalogs
-        image_files = glob.glob(self._irac_image_dir + '/*.fits')
-        cat_files = glob.glob(self._sextractor_cat_dir + '/*.cat')
+        if isinstance(self._irac_image_dir, list):
+            image_files = list(chain.from_iterable(glob.glob(f'{img_dir}/*.fits') for img_dir in self._irac_image_dir))
+        else:
+            image_files = glob.glob(f'{self._irac_image_dir}/*.fits')
+        if isinstance(self._sextractor_cat_dir, list):
+            cat_files = list(
+                chain.from_iterable(glob.glob(f'{cat_dir}/*.fits') for cat_dir in self._sextractor_cat_dir))
+        else:
+            cat_files = glob.glob(f'{self._sextractor_cat_dir}/*.cat')
 
         # Combine and sort both file lists
         cat_image_files = sorted(cat_files + image_files, key=self.__keyfunct)
@@ -122,7 +130,7 @@ class SelectIRAGN:
             try:
                 assert file_keys == cluster_files.keys()
             except AssertionError:
-                message = 'Cluster {id} is missing files {k}'.format(id=cluster_id, k=file_keys - cluster_files.keys())
+                message = f'Cluster {cluster_id} is missing files {file_keys - cluster_files.keys()}'
                 warnings.warn(message)
                 problem_clusters.append(cluster_id)
 
@@ -227,10 +235,7 @@ class SelectIRAGN:
             spt_id = self._spt_catalog['SPT_ID'][cluster_info['SPT_cat_idx']]
 
             # Write out the coverage mask.
-            mask_fname = '{cluster_id}_cov_mask{ch1_cov}_{ch2_cov}.fits'.format(cluster_id=spt_id,
-                                                                                ch1_cov=ch1_min_cov,
-                                                                                ch2_cov=ch2_min_cov)
-            mask_pathname = self._mask_dir + '/' + mask_fname
+            mask_pathname = f'{self._mask_dir}/{spt_id}_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits'
             combined_cov_hdu = fits.PrimaryHDU(combined_cov, header=header)
             combined_cov_hdu.writeto(mask_pathname, overwrite=True)
 
@@ -258,7 +263,11 @@ class SelectIRAGN:
         """
 
         # Region file directory files
-        reg_files = {self.__keyfunct(f): f for f in glob.glob(self._region_file_dir + '/*.reg')}
+        if isinstance(self._region_file_dir, list):
+            reg_files = {self.__keyfunct(f): f for f in chain.from_iterable(glob.glob(f'{reg_dir}/*.reg')
+                                                                            for reg_dir in self._region_file_dir)}
+        else:
+            reg_files = {self.__keyfunct(f): f for f in glob.glob(f'{self._region_file_dir}/*.reg')}
 
         # Select out the IDs of the clusters needing additional masking
         clusters_to_mask = set(reg_files).intersection(self._catalog_dictionary)
@@ -352,8 +361,8 @@ class SelectIRAGN:
 
                 # Return error if mask shape isn't known.
                 else:
-                    raise KeyError('Mask shape is unknown, please check the region file of cluster: {region} {mask}'
-                                   .format(region=region_file, mask=mask))
+                    raise KeyError(
+                        f'Mask shape is unknown, please check the region file of cluster: {region_file} {mask}')
 
                 shapes_to_mask.append(shape)
 
@@ -544,8 +553,15 @@ class SelectIRAGN:
         """
 
         # Load in the completeness simulation data from the file
-        with open(self._completeness_results, 'r') as f:
-            completeness_dict = json.load(f)
+        if isinstance(self._completeness_results, list):
+            json_dicts = []
+            for comp_results in self._completeness_results:
+                with open(comp_results, 'r') as f:
+                    json_dicts.append(json.load(f))
+            completeness_dict = dict(ChainMap(*json_dicts))
+        else:
+            with open(self._completeness_results, 'r') as f:
+                completeness_dict = json.load(f)
 
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Array element names
@@ -596,7 +612,7 @@ class SelectIRAGN:
 
         final_cat_path = filename
 
-        if filename.endswith(".cat"):
+        if filename.endswith('.cat'):
             final_catalog.write(final_cat_path, format='ascii', overwrite=True)
         else:
             final_catalog.write(final_cat_path, overwrite=True)

@@ -245,4 +245,4 @@ completeness_results['magnitude_bins'] = list(bins)
 results_filename = irac_data_sptpol['root_dir'] + '/Results/SPT_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json' \
     .format(model=model, fwhm=irac_data_sptpol[2]['psf_fwhm'], corr=irac_data_sptpol[2]['aper_corr'], mag_diff=mag_diff)
 with open(results_filename, 'w') as f:
-    json.dump(completeness_results, f, ensure_ascii=False, indent=4)
+    json.dump(completeness_results, f, ensure_ascii=False, indent=4, sort_keys=True)

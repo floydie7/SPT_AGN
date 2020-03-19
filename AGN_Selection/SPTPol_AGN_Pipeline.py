@@ -18,7 +18,7 @@ masks_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/masks'
 
 # Completeness simulation results file
 completeness_sim_results = '/Users/btfkwd/Documents/SPT_AGN/Data/Comp_Sim/SPTpol/Results/' \
-                           'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.38_mag0.2.json'
+                           'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 
 # Clusters to manually exclude
 clusters_to_exclude = {'SPT-CLJ0002-5214', 'SPT-CLJ2341-5640', 'SPT-CLJ2357-5953'}
@@ -56,9 +56,8 @@ Huang['M500_uerr'] *= 1e14
 Huang['M500_lerr'] *= 1e14
 
 # Because Nick doesn't capitalize some of his columns we need to standardize a few of his column names.
-Huang.rename_column('Dec', 'DEC')
-Huang.rename_column('redshift', 'REDSHIFT')
-Huang.rename_column('redshift_unc', 'REDSHIFT_UNC')
+Huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],
+                     ['DEC', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC'])
 
 # Run the pipeline.
 print('Starting Pipeline.')
