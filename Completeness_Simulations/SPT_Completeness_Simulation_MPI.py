@@ -6,13 +6,14 @@ This script executes the functions written in Completeness_Simulation.Completene
 completeness curves for all the SPT clusters found in the Bleem survey.
 
 The completeness simulation is preformed by using the IRAF tasks noao.artdata.starlists and noao.artdata.mkobjects.
-The starlist task generates a list of random coordinates and magnitudes within the specified bounds where the artificial
-stars will be placed. In all cases the spatial and magnitude values were drawn from a uniform distribution with the
-spatial values bounded between a buffer of 5 pixels on either side in both axes. The magnitude values were bounded
-between the specified minimum and maximum magnitudes which were iterated from the Vega magnitudes of 10.0 selection_band to
-23.0 selection_band by 0.5 selection_band intervals. The mkobjects task created a new image based on the existing input image with the
-addition of artificial stars with positions and magnitudes provided by the output of the starlist task using the
-specified model and point spread function (psf) full-width at half-maximum in arcseconds.
+The starlist task generates a list of random coordinates and magnitudes within the specified bounds where the
+artificial stars will be placed. In all cases the spatial and magnitude values were drawn from a uniform distribution
+with the spatial values bounded between a buffer of 5 pixels on either side in both axes. The magnitude values were
+bounded between the specified minimum and maximum magnitudes which were iterated from the Vega magnitudes of 10.0
+selection_band to 23.0 selection_band by 0.5 selection_band intervals. The mkobjects task created a new image based
+on the existing input image with the addition of artificial stars with positions and magnitudes provided by the
+output of the starlist task using the specified model and point spread function (psf) full-width at half-maximum in
+arcseconds.
 
 Source Extractor (SExtractor) was then run on the image creating a catalog of all detected objects. Both the input list
 created by the starlist task and the SExtractor catalog were read in using the astropy.io.ascii.read function, the
@@ -33,7 +34,7 @@ from time import time
 
 import astropy.units as u
 import numpy as np
-from Completeness_Simulation_Functions import *
+from Completeness_Simulation_Functions import run_sex, make_stars
 from astropy.coordinates import SkyCoord
 from astropy.table import Table, hstack, vstack
 from astropy.wcs import WCS
@@ -49,56 +50,58 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = '/Users/btfkwd/Documents/SPT_AGN/'
 
 
-def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_file, param_file, root_dir, mag_diff=0.2,
-                 model='gaussian'):
+def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_file, param_file, root_dir, mag_diff, model):
     """
     Generates a completeness simulation on one image.
-    :param image_name:
-        File name for the image to be processed.
-    :param bins:
-        Array of magnitude bins.
-    :param nsteps:
-        Number of star placements to preform per magnitude bin.
-    :param fwhm:
-        The PSF full-width at half maximum to be used in the modeling of the stars.
-    :param mag_zero:
-        The appropriate zero-point magnitude for the band.
-    :param aper_corr:
-        The aperture correction for the measurement magnitude.
-    :param mag_diff:
-        The magnitude difference tolerance between the "true" magnitudes and the measured magnitudes. Defaults to 0.2.
-    :param model:
-        The model to use to generate the artificial stars. Can be 'gaussian' or 'moffat'. Defaults to 'gaussian'.
-    :return dict_rate:
-        A dictionary the image name as the key and the recovery rates in a list as the value.
-    :type image_name: str
-    :type bins: numpy.ndarray
-    :type nsteps: int
-    :type fwhm: float
-    :type aper_corr: float
-    :type mag_diff: float
-    :type model: str
-    :rtype dict:
-    """
-    recovery_rate = []
 
-    # Paths to files
-    sex_conf = config_file
-    param_file = param_file
+    Parameters
+    ----------
+    image_name : str
+        File name for the image to be processed.
+    bins : list_like
+        Array of magnitude bins.
+    nsteps : int
+        Number of star placements to preform per magnitude bin.
+    fwhm : float
+        The PSF full-width at half maximum to be used in the modeling of the stars.
+    mag_zero : float
+        The appropriate zero-point magnitude for the band.
+    aper_corr : float
+        The aperture correction for the measurement magnitude.
+    config_file : str
+        SExtractor configuration file.
+    param_file : str
+        SExtractor parameter file.
+    root_dir : str
+        Root working directory for simulation.
+    mag_diff : float
+        The magnitude difference tolerance between the "true" magnitudes and the measured magnitudes. Defaults to 0.2.
+    model : str
+        The model to use to generate the artificial stars. Can be 'gaussian' or 'moffat'. Defaults to 'gaussian'.
+
+
+    Returns
+    -------
+    dict_rate : dict
+        A dictionary the image name as the key and the recovery rates in a list as the value.
+    """
 
     # Cluster Image ID
     image_id = cluster_image.search(image_name).group(0)
     cluster_id = cluster_image.search(image_name).group(1)
 
     # Image parameters
-    output_image = root_dir + '/Images/{image_id}_stars.fits'.format(image_id=image_id)
-    starlist_dir = root_dir + '/Starlists'
+    output_image = root_dir.join('/Images/{image_id}_stars.fits'.format(image_id=image_id))
+    starlist_dir = root_dir.join('/Starlists')
 
     # Altered image catalog
-    alt_out_cat = root_dir + '/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id)
+    alt_out_cat = root_dir.join('/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id))
 
     # Store a copy of the input and output tables
     input_output = []
+
+    # Store the recovery rates
+    recovery_rate = []
 
     for j in range(len(bins) - 1):
         # Set magnitude range for bin
@@ -115,7 +118,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
                        min_mag=min_mag, max_mag=max_mag, nstars=10)
 
             # Run SExtractor again on the altered image
-            run_sex(output_image, alt_out_cat, mag_zero=mag_zero, seeing_fwhm=fwhm, sex_config=sex_conf,
+            run_sex(output_image, alt_out_cat, mag_zero=mag_zero, seeing_fwhm=fwhm, sex_config=config_file,
                     param_file=param_file)
 
             # Read in both the starlist as a truth catalog and the altered image catalog
@@ -167,53 +170,65 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     # Merge all the input/output tables and write to file
     input_output_merged = vstack(input_output)
     input_output_merged.filled(-99)
-    input_output_merged.write(root_dir + '/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id))
+    input_output_merged.write(root_dir.join('/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id)))
 
     return dict_rate
-
-
-def completeness_unpacker(in_args):
-    completeness(*in_args)
 
 
 #  RegEx for finding the cluster/image ids
 cluster_image = re.compile(r'I[12]_(SPT-CLJ\d+-\d+)')
 
 # Magnitude bins
-bins = np.arange(10.0, 22.5, 0.5)
+mag_bins = np.arange(10.0, 22.5, 0.5)
 
 # Number of iterations per magnitude bin
-nsteps = 100
+placements_per_mag = 100
 
 # Magnitude threshold
-mag_diff = 0.2
+recovery_mag_thresh = 0.2
 
 # Model type
-model = 'gaussian'
+psf_model = 'gaussian'
 
 irac_data_sptsz = {1: {'psf_fwhm': 1.95, 'zeropt': 17.997, 'aper_corr': -0.1, },
                    2: {'psf_fwhm': 2.02, 'zeropt': 17.538, 'aper_corr': -0.11},
-                   'config_file': hcc_prefix + 'Data/Comp_Sim/sex_configs/default.sex',
-                   'param_file': hcc_prefix + 'Data/Comp_Sim/sex_configs/default.param',
-                   'root_dir': hcc_prefix + 'Data/Comp_Sim'}
+                   'config_file': hcc_prefix.join('Data/Comp_Sim/sex_configs/default.sex'),
+                   'param_file': hcc_prefix.join('Data/Comp_Sim/sex_configs/default.param'),
+                   'root_dir': hcc_prefix.join('Data/Comp_Sim')}
 
 irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
                     2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.11},
-                    'config_file': hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.sex',
-                    'param_file': hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.param',
-                    'root_dir': hcc_prefix + 'Data/Comp_Sim/SPTpol'}
+                    'config_file': hcc_prefix.join('Data/Comp_Sim/SPTpol/sex_configs/default.sex'),
+                    'param_file': hcc_prefix.join('Data/Comp_Sim/SPTpol/sex_configs/default.param'),
+                    'root_dir': hcc_prefix.join('Data/Comp_Sim/SPTpol')}
 
 # Image directory
-image_dir = hcc_prefix + 'Data/SPTPol/images/cluster_cutouts'
-
-# Channel 1 science images
-ch1_images = glob.glob(image_dir + '/I1*_mosaic.cutout.fits')
+survey = 'SZ'
+# survey = 'pol'
+if survey == 'SZ':
+    # SPT-SZ/targeted IRAC SPTpol
+    image_dir = hcc_prefix.join('Data/Images')
+    config_dict = irac_data_sptsz
+else:
+    # SSDF SPTpol
+    image_dir = hcc_prefix.join('Data/SPTPol/images/cluster_cutouts')
+    config_dict = irac_data_sptpol
 
 # Channel 2 science images
-ch2_images = glob.glob(image_dir + '/I2*_mosaic.cutout.fits')
+ch2_images = glob.glob(image_dir.join('/I2*_mosaic.cutout.fits'))
 
 # Resampled test image
-resampled_image = hcc_prefix + 'Data/SPTPol/images/resample_test/I2_SPT-CLJ0000-5748_resample.fits'
+# resampled_image = hcc_prefix + 'Data/SPTPol/images/resample_test/I2_SPT-CLJ0000-5748_resample.fits'
+
+# Set up the completeness simulation functions partially evaluated except for the image list
+I2_completeness = partial(completeness,
+                          bins=mag_bins, nsteps=placements_per_mag,
+                          fwhm=config_dict[2]['psf_fwhm'], mag_zero=config_dict[2]['zeropt'],
+                          aper_corr=config_dict[2]['aper_corr'],
+                          config_file=config_dict['config_file'],
+                          param_file=config_dict['param_file'],
+                          root_dir=config_dict['root_dir'],
+                          mag_diff=recovery_mag_thresh, model=psf_model)
 
 # Record start time
 start_time = time()
@@ -223,15 +238,7 @@ with MPIPool() as pool:
         pool.wait()
         sys.exit(0)
 
-    pool_results = pool.map(partial(completeness,
-                                    bins=bins, nsteps=nsteps,
-                                    fwhm=irac_data_sptpol[2]['psf_fwhm'], mag_zero=irac_data_sptpol[2]['zeropt'],
-                                    aper_corr=irac_data_sptpol[2]['aper_corr'],
-                                    config_file=irac_data_sptpol['config_file'],
-                                    param_file=irac_data_sptpol['param_file'],
-                                    root_dir=irac_data_sptpol['root_dir'],
-                                    mag_diff=0.2, model='gaussian'),
-                            ch2_images)
+    pool_results = pool.map(I2_completeness, ch2_images)
 
     if pool.is_master():
         completeness_results = {cluster_id: recovery_rates for result in pool_results
@@ -239,10 +246,12 @@ with MPIPool() as pool:
 print('Simulation run time: {}'.format(time() - start_time))
 
 # Add the magnitude values used to create the completeness rates.
-completeness_results['magnitude_bins'] = list(bins)
+completeness_results['magnitude_bins'] = list(mag_bins)
 
 # Save results to disk
-results_filename = irac_data_sptpol['root_dir'] + '/Results/SPT_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json' \
-    .format(model=model, fwhm=irac_data_sptpol[2]['psf_fwhm'], corr=irac_data_sptpol[2]['aper_corr'], mag_diff=mag_diff)
+results_filename = config_dict['root_dir'].join(
+    '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'], corr=irac_data_sptpol[2]['aper_corr'],
+        mag_diff=recovery_mag_thresh))
 with open(results_filename, 'w') as f:
     json.dump(completeness_results, f, ensure_ascii=False, indent=4, sort_keys=True)
