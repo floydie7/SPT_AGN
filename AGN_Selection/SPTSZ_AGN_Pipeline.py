@@ -11,14 +11,15 @@ from Pipeline_functions import SelectIRAGN
 from astropy.table import Table, join, unique
 
 # Define directories
-catalog_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/Catalogs'
-image_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/Images'
-regions_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/Regions'
-masks_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/Masks'
+# prefix = '/Users/btfkwd/Documents/SPT_AGN/'
+prefix = '/home/ben/PycharmProjects/SPT_AGN/'
+catalog_directory = f'{prefix}Data/Catalogs'
+image_directory = f'{prefix}Data/Images'
+regions_directory = f'{prefix}Data/Regions'
+masks_directory = f'{prefix}Data/Masks'
 
 # Completeness simulation results file
-completeness_sim_results = '/Users/btfkwd/Documents/SPT_AGN/Data/Comp_Sim/Results/' \
-                           'SPT_I2_results_gaussian_fwhm202_corr011_mag02.json'
+completeness_sim_results = f'{prefix}Data/Comp_Sim/Results/SPT_I2_results_gaussian_fwhm202_corr011_mag02.json'
 
 # Clusters to manually exclude
 clusters_to_exclude = {'SPT-CLJ0045-5757', 'SPT-CLJ0201-6051', 'SPT-CLJ0230-4427',
@@ -42,7 +43,7 @@ ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-output_catalog = '/Users/btfkwd/Documents/SPT_AGN/Data/Output/SPTSZ_IRAGN.fits'
+output_catalog = f'{prefix}Data/Output/SPTSZ_IRAGN.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
@@ -51,7 +52,7 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000'
                        'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION']
 
 # Read in SPT cluster catalog and convert masses to [Msun] rather than [Msun/1e14]
-Bocquet = Table.read('/Users/btfkwd/Documents/SPT_AGN/Data/2500d_cluster_sample_Bocquet18.fits')
+Bocquet = Table.read(f'{prefix}Data/2500d_cluster_sample_Bocquet18.fits')
 # Bocquet = Bocquet[Bocquet['M500'] != 0.0]  # Remove unconfirmed clusters
 Bocquet['M500'] *= 1e14
 Bocquet['M500_uerr'] *= 1e14
@@ -59,7 +60,7 @@ Bocquet['M500_lerr'] *= 1e14
 
 # For the 20 common clusters between SPT-SZ 2500d and SPTpol 100d surveys we want to update the cluster information from
 # the more recent survey. Thus, we will merge the SPT-SZ and SPTpol catalogs together.
-Huang = Table.read('/Users/btfkwd/Documents/SPT_AGN/Data/sptpol100d_catalog_huang19.fits')
+Huang = Table.read(f'{prefix}Data/sptpol100d_catalog_huang19.fits')
 
 # First we need to rename several columns in the SPTpol 100d catalog to match the format of the SPT-SZ catalog
 Huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],

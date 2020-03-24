@@ -11,13 +11,15 @@ from Pipeline_functions import SelectIRAGN
 from astropy.table import Table
 
 # Define directories
-catalog_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/catalogs/cluster_cutouts'
-image_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/images/cluster_cutouts'
-regions_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/regions'
-masks_directory = '/Users/btfkwd/Documents/SPT_AGN/Data/SPTPol/masks'
+# prefix = '/Users/btfkwd/Documents/SPT_AGN/'
+prefix = '/home/ben/PycharmProjects/SPT_AGN/'
+catalog_directory = f'{prefix}Data/SPTPol/catalogs/cluster_cutouts'
+image_directory = f'{prefix}Data/SPTPol/images/cluster_cutouts'
+regions_directory = f'{prefix}Data/SPTPol/regions'
+masks_directory = f'{prefix}Data/SPTPol/masks'
 
 # Completeness simulation results file
-completeness_sim_results = '/Users/btfkwd/Documents/SPT_AGN/Data/Comp_Sim/SPTpol/Results/' \
+completeness_sim_results = f'{prefix}Data/Comp_Sim/SPTpol/Results/' \
                            'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 
 # Clusters to manually exclude
@@ -40,7 +42,7 @@ ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-output_catalog = '/Users/btfkwd/Documents/SPT_AGN/Data/Output/SPTPol_IRAGN.fits'
+output_catalog = f'{prefix}Data/Output/SPTPol_IRAGN.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
@@ -49,7 +51,7 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000'
                        'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION']
 
 # Read in SPT cluster catalog and convert masses to [Msun] rather than [Msun/1e14]
-Huang = Table.read('/Users/btfkwd/Documents/SPT_AGN/Data/sptpol100d_catalog_huang19.fits')
+Huang = Table.read(f'{prefix}Data/sptpol100d_catalog_huang19.fits')
 Huang = Huang[Huang['M500'] > 0.0]  # Remove unconfirmed clusters
 Huang['M500'] *= 1e14
 Huang['M500_uerr'] *= 1e14
@@ -67,25 +69,12 @@ selector = SelectIRAGN(sextractor_cat_dir=catalog_directory, irac_image_dir=imag
                        region_file_dir=regions_directory, mask_dir=masks_directory, spt_catalog=Huang,
                        completeness_file=completeness_sim_results)
 
-# Run the pipeline (Manually as we are skipping the image-to-catalog matching)
-selector.file_pairing(exclude=clusters_to_exclude)
-# We need the 'SPT_cat_idx' key for each cluster downstream. This would normally be done with `image_to_catalog_match`
-# but since the reference pixels for the cutouts are far away from the cluster centers we need to hack it in.
-for cluster_id, cluster_info in selector._catalog_dictionary.items():
-    try:
-        huang_idx = np.where(Huang['SPT_ID'] == cluster_id)[0][0]
-    except IndexError:
-        print(cluster_id, np.where(Huang['SPT_ID'] == cluster_id))
-        raise
-    cluster_info.update({'SPT_cat_idx': huang_idx})
-selector.coverage_mask(ch1_min_cov=ch1_min_coverage, ch2_min_cov=ch2_min_coverage)
-selector.object_mask()
-selector.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
-                          selection_band_faint_mag=ch2_faint_mag, ch1_ch2_color_cut=ch1_ch2_color)
-selector.catalog_merge(catalog_cols=spt_column_names)
-selector.object_separations()
-selector.completeness_value()
-selector.final_catalogs(filename=output_catalog, catalog_cols=output_column_names)
+# Run the pipeline
+selector.run_selection(excluded_clusters=clusters_to_exclude, max_image_catalog_sep=max_separation,
+                       ch1_min_cov=ch1_min_coverage, ch2_min_cov=ch2_min_coverage, ch1_bright_mag=ch1_bright_mag,
+                       ch2_bright_mag=ch2_bright_mag, selection_band_faint_mag=ch2_faint_mag,
+                       ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names, output_name=output_catalog,
+                       output_colnames=output_column_names)
 print('Pipeline finished. Run time: {:.2f}s'.format(time() - start_time))
 
 # Read in new output catalog

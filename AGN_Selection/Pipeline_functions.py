@@ -92,7 +92,7 @@ class SelectIRAGN:
             image_files = glob.glob(f'{self._irac_image_dir}/*.fits')
         if isinstance(self._sextractor_cat_dir, list):
             cat_files = list(
-                chain.from_iterable(glob.glob(f'{cat_dir}/*.fits') for cat_dir in self._sextractor_cat_dir))
+                chain.from_iterable(glob.glob(f'{cat_dir}/*.cat') for cat_dir in self._sextractor_cat_dir))
         else:
             cat_files = glob.glob(f'{self._sextractor_cat_dir}/*.cat')
 
@@ -590,18 +590,24 @@ class SelectIRAGN:
 
             cluster_info.update({'catalog': sex_catalog})
 
-    def final_catalogs(self, filename, catalog_cols=None):
+    def final_catalogs(self, filename=None, catalog_cols=None):
         """
         Collates all catalogs into one table then writes the catalog to disk.
 
         Parameters
         ----------
-        filename : str
-            File name of the output catalog file.
+        filename : str, optional
+            File name of the output catalog file. If not specified, the function will return the final catalog instead
+            of writing to disk.
         catalog_cols : list_like, optional
-            List of column names in the catalog which we wish to keep in our output file. If not specified all columns
-            present in the catalog are kept in the output file.
+            List of column names in the catalog which we wish to keep in our output file. If not specified, all columns
+            present in the catalog are kept in the output catalog.
 
+        Returns
+        -------
+        final_catalog : `~astropy.table.Table` object or None
+            The final catalog of the survey AGN. If `filename` is specified, the function will write the catalog to disk
+            instead of returning.
         """
 
         final_catalog = vstack([cluster_info['catalog'] for cluster_info in self._catalog_dictionary.values()])
@@ -610,12 +616,13 @@ class SelectIRAGN:
         if catalog_cols is not None:
             final_catalog.keep_columns(catalog_cols)
 
-        final_cat_path = filename
-
-        if filename.endswith('.cat'):
-            final_catalog.write(final_cat_path, format='ascii', overwrite=True)
+        if filename is None:
+            return final_catalog
         else:
-            final_catalog.write(final_cat_path, overwrite=True)
+            if filename.endswith('.cat'):
+                final_catalog.write(filename, format='ascii', overwrite=True)
+            else:
+                final_catalog.write(filename, overwrite=True)
 
     def run_selection(self, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov, ch1_bright_mag,
                       ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color, spt_colnames, output_name,
@@ -648,6 +655,12 @@ class SelectIRAGN:
         output_colnames : list_like
             Column names to be kept in output catalog for :method:`final_catalogs`
 
+        Returns
+        -------
+        final_catalog : `~astropy.table.Table` object or None
+            The pipeline will return the final catalog if `output_name` is given as None. Otherwise, the pipeline will
+            write the final catalog to disk automatically.
+
         """
         self.file_pairing(exclude=excluded_clusters)
         self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
@@ -658,7 +671,9 @@ class SelectIRAGN:
         self.catalog_merge(catalog_cols=spt_colnames)
         self.object_separations()
         self.completeness_value()
-        self.final_catalogs(filename=output_name, catalog_cols=output_colnames)
+        final_catalog = self.final_catalogs(filename=output_name, catalog_cols=output_colnames)
+        if final_catalog is not None:
+            return final_catalog
 
     @staticmethod
     def __keyfunct(f):
