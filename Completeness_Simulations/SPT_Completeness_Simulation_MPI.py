@@ -47,6 +47,8 @@ from schwimmbad import MPIPool
 #     raise AssertionError('This script must be ran on Python 2.7')
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+
+
 # hcc_prefix = '/Users/btfkwd/Documents/SPT_AGN/'
 
 
@@ -91,11 +93,11 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     cluster_id = cluster_image.search(image_name).group(1)
 
     # Image parameters
-    output_image = root_dir.join('/Images/{image_id}_stars.fits'.format(image_id=image_id))
-    starlist_dir = root_dir.join('/Starlists')
+    output_image = root_dir + '/Images/{image_id}_stars.fits'.format(image_id=image_id)
+    starlist_dir = root_dir + '/Starlists'
 
     # Altered image catalog
-    alt_out_cat = root_dir.join('/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id))
+    alt_out_cat = root_dir + '/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id)
 
     # Store a copy of the input and output tables
     input_output = []
@@ -170,7 +172,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     # Merge all the input/output tables and write to file
     input_output_merged = vstack(input_output)
     input_output_merged.filled(-99)
-    input_output_merged.write(root_dir.join('/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id)))
+    input_output_merged.write(root_dir + '/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id))
 
     return dict_rate
 
@@ -192,30 +194,30 @@ psf_model = 'gaussian'
 
 irac_data_sptsz = {1: {'psf_fwhm': 1.95, 'zeropt': 17.997, 'aper_corr': -0.1, },
                    2: {'psf_fwhm': 2.02, 'zeropt': 17.538, 'aper_corr': -0.11},
-                   'config_file': hcc_prefix.join('Data/Comp_Sim/sex_configs/default.sex'),
-                   'param_file': hcc_prefix.join('Data/Comp_Sim/sex_configs/default.param'),
-                   'root_dir': hcc_prefix.join('Data/Comp_Sim')}
+                   'config_file': hcc_prefix + 'Data/Comp_Sim/sex_configs/default.sex',
+                   'param_file': hcc_prefix + 'Data/Comp_Sim/sex_configs/default.param',
+                   'root_dir': hcc_prefix + 'Data/Comp_Sim',
+                   'image_dir': hcc_prefix + 'Data/Images'}
 
 irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
                     2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.11},
-                    'config_file': hcc_prefix.join('Data/Comp_Sim/SPTpol/sex_configs/default.sex'),
-                    'param_file': hcc_prefix.join('Data/Comp_Sim/SPTpol/sex_configs/default.param'),
-                    'root_dir': hcc_prefix.join('Data/Comp_Sim/SPTpol')}
+                    'config_file': hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.sex',
+                    'param_file': hcc_prefix + 'Data/Comp_Sim/SPTpol/sex_configs/default.param',
+                    'root_dir': hcc_prefix + 'Data/Comp_Sim/SPTpol',
+                    'image_dir': hcc_prefix + 'Data/SPTPol/images/cluster_cutouts'}
 
 # Image directory
 survey = 'SZ'
 # survey = 'pol'
 if survey == 'SZ':
     # SPT-SZ/targeted IRAC SPTpol
-    image_dir = hcc_prefix.join('Data/Images')
     config_dict = irac_data_sptsz
 else:
     # SSDF SPTpol
-    image_dir = hcc_prefix.join('Data/SPTPol/images/cluster_cutouts')
     config_dict = irac_data_sptpol
 
 # Channel 2 science images
-ch2_images = glob.glob(image_dir.join('/I2*_mosaic.cutout.fits'))
+ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
 
 # Resampled test image
 # resampled_image = hcc_prefix + 'Data/SPTPol/images/resample_test/I2_SPT-CLJ0000-5748_resample.fits'
@@ -249,9 +251,10 @@ print('Simulation run time: {}'.format(time() - start_time))
 completeness_results['magnitude_bins'] = list(mag_bins)
 
 # Save results to disk
-results_filename = config_dict['root_dir'].join(
-    '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
-        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'], corr=irac_data_sptpol[2]['aper_corr'],
-        mag_diff=recovery_mag_thresh))
+results_filename = config_dict['root_dir'] + \
+                   '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+                       survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
+                       corr=irac_data_sptpol[2]['aper_corr'],
+                       mag_diff=recovery_mag_thresh)
 with open(results_filename, 'w') as f:
     json.dump(completeness_results, f, ensure_ascii=False, indent=4, sort_keys=True)
