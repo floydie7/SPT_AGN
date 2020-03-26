@@ -172,7 +172,8 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     # Merge all the input/output tables and write to file
     input_output_merged = vstack(input_output)
     input_output_merged.filled(-99)
-    input_output_merged.write(root_dir + '/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id))
+    input_output_merged.write(root_dir + '/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id),
+                              overwrite=True)
 
     return dict_rate
 
