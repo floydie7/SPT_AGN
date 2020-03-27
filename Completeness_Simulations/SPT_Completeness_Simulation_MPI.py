@@ -141,6 +141,9 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
 
             idx, sep, _ = true_coord.match_to_catalog_sky(cat_coord)
 
+            # Add separation to the altered catalog
+            altered_cat['SEP'] = sep
+
             # Only accept objects that are within the maximum separation.
             alt_cat_matched = altered_cat[idx][sep <= max_sep]
             true_stars_matched = true_stars[sep <= max_sep]
@@ -152,9 +155,9 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
             # Join the input and output catalogs
             true_stars_for_join = hstack([true_stars, Table([true_coord.ra, true_coord.dec],
                                                             names=['ALPHA_J2000', 'DELTA_J2000'])])
-            alt_cat_for_join = Table(altered_cat[idx]['X_IMAGE', 'Y_IMAGE', 'ALPHA_J2000', 'DELTA_J2000', 'MAG_APER'],
-                                     masked=True)
-            alt_cat_for_join.mask = np.tile(~(sep <= max_sep), (len(alt_cat_for_join.columns), 1))
+            alt_cat_for_join = Table(altered_cat[idx]['X_IMAGE', 'Y_IMAGE', 'ALPHA_J2000', 'DELTA_J2000',
+                                                      'MAG_APER', 'SEP'])
+            # alt_cat_for_join.mask = np.tile(~(sep <= max_sep), (len(alt_cat_for_join.columns), 1))
             merged_table = hstack([true_stars_for_join, alt_cat_for_join], table_names=['input', 'output'])
             input_output.append(merged_table)
 
@@ -171,7 +174,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
 
     # Merge all the input/output tables and write to file
     input_output_merged = vstack(input_output)
-    input_output_merged.filled(-99)
+    # input_output_merged.filled(-99)
     input_output_merged.write(root_dir + '/Input_Output_catalogs/{image_id}_inout.fits'.format(image_id=image_id),
                               overwrite=True)
 
