@@ -141,9 +141,6 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
 
             idx, sep, _ = true_coord.match_to_catalog_sky(cat_coord)
 
-            # Add separation to the altered catalog
-            altered_cat['SEP'] = sep
-
             # Only accept objects that are within the maximum separation.
             alt_cat_matched = altered_cat[idx][sep <= max_sep]
             true_stars_matched = true_stars[sep <= max_sep]
@@ -156,7 +153,10 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
             true_stars_for_join = hstack([true_stars, Table([true_coord.ra, true_coord.dec],
                                                             names=['ALPHA_J2000', 'DELTA_J2000'])])
             alt_cat_for_join = Table(altered_cat[idx]['X_IMAGE', 'Y_IMAGE', 'ALPHA_J2000', 'DELTA_J2000',
-                                                      'MAG_APER', 'SEP'])
+                                                      'MAG_APER'])
+            # Add separation to the altered catalog
+            alt_cat_for_join['SEP'] = sep
+
             # alt_cat_for_join.mask = np.tile(~(sep <= max_sep), (len(alt_cat_for_join.columns), 1))
             merged_table = hstack([true_stars_for_join, alt_cat_for_join], table_names=['input', 'output'])
             input_output.append(merged_table)
