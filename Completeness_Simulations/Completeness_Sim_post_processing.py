@@ -27,7 +27,7 @@ max_sep = 2.02 * u.arcsec
 recovery_mag_thresh = 0.2
 
 # Get the list of catalogs
-inout_catalogs = glob.iglob(f'{hcc_prefix}/Data/Comp_Sim/Input_Output_catalogs/*_inout.fits')
+inout_catalogs = glob.iglob(f'{hcc_prefix}Data/Comp_Sim/Input_Output_catalogs/*_inout.fits')
 
 completeness_results = {}
 for catalog in inout_catalogs:
@@ -46,7 +46,7 @@ for catalog in inout_catalogs:
     recovery_rate = []
     for cluster_mag_bin in cluster_binned.groups:
         # Check to see if we placed any objects in this magnitude bin. If we did, we can continue.
-        if len(cluster_mag_bin) != 0:
+        if len(cluster_mag_bin) == 0:
             continue
 
         # Select for objects matching our spatial and photometric thresholds
@@ -63,6 +63,6 @@ for catalog in inout_catalogs:
 completeness_results['magnitude_bins'] = list(mag_bins)
 
 # Save results to disk
-results_filename = f'{hcc_prefix}/Comp_Sim/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
+results_filename = f'{hcc_prefix}Data/Comp_Sim/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 with open(results_filename, 'w') as f:
     json.dump(completeness_results, f, ensure_ascii=False, indent=4, sort_keys=True)
