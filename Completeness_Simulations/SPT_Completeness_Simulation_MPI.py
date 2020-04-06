@@ -105,7 +105,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     alt_out_cat = root_dir + '/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id)
 
     if reg_file:
-        region_file = root_dir + '/resampled_test/regions/{image_id}.reg'.format(image_id=image_id)
+        region_file = root_dir + '/rereduced_images/regions/{image_id}.reg'.format(image_id=image_id)
         with open(region_file, 'r') as region:
             objs = [ln.strip() for ln in region
                     if ln.startswith('circle') or ln.startswith('box') or ln.startswith('ellipse')]
@@ -276,7 +276,7 @@ else:
 #                   if not any(cluster_name in image_name for cluster_name in ['SPT-CLJ2332-5358', 'SPT-CLJ2341-5726'])]
 
 # Resampled test image
-resampled_images = glob.glob(hcc_prefix + 'Data/SPTPol/images/resample_test/I2*_mosaic.cutout.fits')
+resampled_images = glob.glob(hcc_prefix + 'Data/SPTPol/images/rereduced_images/I2*_mosaic.cutout.fits')
 
 # Set up the completeness simulation functions partially evaluated except for the image list
 I2_completeness = partial(completeness,
