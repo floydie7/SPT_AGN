@@ -74,7 +74,8 @@ def run_sex(image, output_catalog, mag_zero, seeing_fwhm, sex_config='default.se
     os.chdir(proj_cwd)
 
 
-def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, max_mag, nstars, _print=False):
+def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, max_mag, nstars,
+               placement_bounds=None, _print=False):
     """
     Uses IRAF tasks (via PyRAF) starlist and mkobjects to generate artificial stars and place them on the image.
 
@@ -96,6 +97,8 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         Maximum magnitude allowed for the stars to have.
     :param nstars: 
         Number of stars to place on the image.
+    :param placement_bounds:
+        List of tuples indicating the bounds for allowable placements as (xmin, ymin, xmax, ymax).
     :param _print:
         Boolean flag determining if progress messages should be printed to the screen. Defaults to 'False'.
     :type image: str
@@ -141,8 +144,14 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
     # # Get the zero point magnitude from the image.
     # zpoint = fits.getval(image, 'ZEROPT')
 
-    # Get the bounds of the image.
-    xlen, ylen = w._naxis1, w._naxis2
+    if placement_bounds is None:
+        # Get the bounds of the image.
+        xlen, ylen = w._naxis1, w._naxis2
+        xmin, xmax = 5., xlen - 5.
+        ymin, ymax = 5., ylen - 5.
+    else:
+        xmin, ymin, xmax, ymax  = placement_bounds
+
 
     # Radius used in gaussian of mkobjects is half of the FWHM of the PSF in pixels.
     radius = fwhm * 0.5 / pix_scale.to(u.arcsec)
@@ -165,8 +174,8 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         print('Generating star list.')
 
     # Generate the starlist.
-    iraf.starlist(star_fname, nstars=nstars, spatial='uniform', xmin=5., xmax=xlen - 5.,
-                  ymin=5., ymax=ylen - 5., sseed='INDEF', luminosity='uniform', minmag=min_mag, maxmag=max_mag,
+    iraf.starlist(star_fname, nstars=nstars, spatial='uniform', xmin=xmin, xmax=xmax,
+                  ymin=ymin, ymax=ymax, sseed='INDEF', luminosity='uniform', minmag=min_mag, maxmag=max_mag,
                   mzero=mag_zero, lseed='INDEF')
 
     if _print:

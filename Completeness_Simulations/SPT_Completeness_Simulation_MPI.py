@@ -38,6 +38,8 @@ from Completeness_Simulation_Functions import run_sex, make_stars
 from astropy.coordinates import SkyCoord
 from astropy.table import Table, hstack, vstack
 from astropy.wcs import WCS
+from matplotlib.path import Path
+from matplotlib.transforms import Affine2D
 from schwimmbad import MPIPool
 
 # try:
@@ -52,12 +54,15 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = '/Users/btfkwd/Documents/SPT_AGN/'
 
 
-def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_file, param_file, root_dir, mag_diff, model):
+def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_file, param_file, root_dir, mag_diff,
+                 model, reg_file=False):
     """
     Generates a completeness simulation on one image.
 
     Parameters
     ----------
+    reg_file : bool
+        Flag to indicate if an additional region restriction is required for placement.
     image_name : str
         File name for the image to be processed.
     bins : list_like
@@ -99,6 +104,48 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     # Altered image catalog
     alt_out_cat = root_dir + '/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id)
 
+    if reg_file:
+        region_file = root_dir + '/resampled_test/regions/{image_id}.reg'.format(image_id=image_id)
+        with open(region_file, 'r') as region:
+            objs = [ln.strip() for ln in region
+                    if ln.startswith('circle') or ln.startswith('box') or ln.startswith('ellipse')]
+        w = WCS(image_name)
+        try:
+            assert w.pixel_scale_matrix[0, 1] == 0.
+            pix_scale = (w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+        except AssertionError:
+            cd = w.pixel_scale_matrix
+            _, eig_vec = np.linalg.eig(cd)
+            cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
+            pix_scale = (cd_diag[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+
+        mask = objs[0]
+        # Parameters for box shape are as follows:
+        # params[0] : region center RA in degrees
+        # params[1] : region center Dec in degrees
+        # params[2] : region width in arcseconds
+        # params[3] : region height in arcseconds
+        # params[4] : rotation of region about the center in degrees
+        params = np.array(re.findall(r'[+-]?\d+(?:\.\d+)?', mask), dtype=np.float64)
+
+        # Convert the center coordinates into pixel system.
+        cent_x, cent_y = w.wcs_world2pix(params[0], params[1], 0)
+
+        # Vertices of the box are needed for the path object to work.
+        verts = [[cent_x - 0.5 * (params[2] / pix_scale), cent_y + 0.5 * (params[3] / pix_scale)],
+                 [cent_x + 0.5 * (params[2] / pix_scale), cent_y + 0.5 * (params[3] / pix_scale)],
+                 [cent_x + 0.5 * (params[2] / pix_scale), cent_y - 0.5 * (params[3] / pix_scale)],
+                 [cent_x - 0.5 * (params[2] / pix_scale), cent_y - 0.5 * (params[3] / pix_scale)]]
+
+        # For rotations of the box.
+        rot = Affine2D().rotate_deg_around(cent_x, cent_y, degrees=params[4])
+
+        # Generate the mask shape.
+        shape = Path(verts).transformed(rot)
+        placement_bounds = shape.get_extents()
+    else:
+        placement_bounds = None
+
     # Store a copy of the input and output tables
     input_output = []
 
@@ -117,7 +164,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
         for i in range(nsteps):
             # Now generate the image with artificial stars.
             make_stars(image_name, output_image, starlist_dir, model=model, fwhm=fwhm, mag_zero=mag_zero,
-                       min_mag=min_mag, max_mag=max_mag, nstars=10)
+                       min_mag=min_mag, max_mag=max_mag, nstars=10, placement_bounds=placement_bounds)
 
             # Run SExtractor again on the altered image
             run_sex(output_image, alt_out_cat, mag_zero=mag_zero, seeing_fwhm=fwhm, sex_config=config_file,
@@ -211,7 +258,7 @@ irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
                     'image_dir': hcc_prefix + 'Data/SPTPol/images/cluster_cutouts'}
 
 # Image directory
-survey = 'SZ'
+survey = 'pol'
 # survey = 'pol'
 if survey == 'SZ':
     # SPT-SZ/targeted IRAC SPTpol
@@ -221,10 +268,15 @@ else:
     config_dict = irac_data_sptpol
 
 # Channel 2 science images
-ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
+# ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
+
+# Remove two clusters from the SPT-SZ input list as they have blank I2 images that cause problems
+# if survey == 'SZ':
+#     ch2_images = [image_name for image_name in ch2_images
+#                   if not any(cluster_name in image_name for cluster_name in ['SPT-CLJ2332-5358', 'SPT-CLJ2341-5726'])]
 
 # Resampled test image
-# resampled_image = hcc_prefix + 'Data/SPTPol/images/resample_test/I2_SPT-CLJ0000-5748_resample.fits'
+resampled_images = glob.glob(hcc_prefix + 'Data/SPTPol/images/resample_test/I2*_mosaic.cutout.fits')
 
 # Set up the completeness simulation functions partially evaluated except for the image list
 I2_completeness = partial(completeness,
@@ -234,7 +286,7 @@ I2_completeness = partial(completeness,
                           config_file=config_dict['config_file'],
                           param_file=config_dict['param_file'],
                           root_dir=config_dict['root_dir'],
-                          mag_diff=recovery_mag_thresh, model=psf_model)
+                          mag_diff=recovery_mag_thresh, model=psf_model, reg_file=True)
 
 # Record start time
 start_time = time()
@@ -244,7 +296,7 @@ with MPIPool() as pool:
         pool.wait()
         sys.exit(0)
 
-    pool_results = pool.map(I2_completeness, ch2_images)
+    pool_results = pool.map(I2_completeness, resampled_images)
 
     if pool.is_master():
         completeness_results = {cluster_id: recovery_rates for result in pool_results
@@ -255,8 +307,13 @@ print('Simulation run time: {}'.format(time() - start_time))
 completeness_results['magnitude_bins'] = list(mag_bins)
 
 # Save results to disk
+# results_filename = config_dict['root_dir'] + \
+#                    '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+#                        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
+#                        corr=irac_data_sptpol[2]['aper_corr'],
+#                        mag_diff=recovery_mag_thresh)
 results_filename = config_dict['root_dir'] + \
-                   '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+                   '/Results/SPT{survey}_resampled_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
                        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
                        corr=irac_data_sptpol[2]['aper_corr'],
                        mag_diff=recovery_mag_thresh)
