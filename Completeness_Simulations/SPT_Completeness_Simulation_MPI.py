@@ -257,26 +257,32 @@ irac_data_sptpol = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
                     'root_dir': hcc_prefix + 'Data/Comp_Sim/SPTpol',
                     'image_dir': hcc_prefix + 'Data/SPTPol/images/cluster_cutouts'}
 
+irac_data_rereduced = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.05},
+                       2: {'psf_fwhm': 2.02, 'zeropt': 18.316, 'aper_corr': -0.11},
+                       'config_file': hcc_prefix + 'Data/Comp_Sim/rereduced/sex_configs/default.sex',
+                       'param_file': hcc_prefix + 'Data/Comp_Sim/rereduced/sex_configs/default.param',
+                       'root_dir': hcc_prefix + 'Data/Comp_Sim/rereduced',
+                       'image_dir': hcc_prefix + 'Data/SPTPol/images/rereduced_images'}
+
 # Image directory
 survey = 'pol'
 # survey = 'pol'
 if survey == 'SZ':
     # SPT-SZ/targeted IRAC SPTpol
     config_dict = irac_data_sptsz
-else:
+elif survey == 'pol':
     # SSDF SPTpol
     config_dict = irac_data_sptpol
+else:
+    config_dict = irac_data_rereduced
 
 # Channel 2 science images
-# ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
+ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
 
 # Remove two clusters from the SPT-SZ input list as they have blank I2 images that cause problems
-# if survey == 'SZ':
-#     ch2_images = [image_name for image_name in ch2_images
-#                   if not any(cluster_name in image_name for cluster_name in ['SPT-CLJ2332-5358', 'SPT-CLJ2341-5726'])]
-
-# Resampled test image
-resampled_images = glob.glob(hcc_prefix + 'Data/SPTPol/images/rereduced_images/I2*_mosaic.cutout.fits')
+if survey == 'SZ':
+    ch2_images = [image_name for image_name in ch2_images
+                  if not any(cluster_name in image_name for cluster_name in ['SPT-CLJ2332-5358', 'SPT-CLJ2341-5726'])]
 
 # Set up the completeness simulation functions partially evaluated except for the image list
 I2_completeness = partial(completeness,
@@ -296,7 +302,7 @@ with MPIPool() as pool:
         pool.wait()
         sys.exit(0)
 
-    pool_results = pool.map(I2_completeness, resampled_images)
+    pool_results = pool.map(I2_completeness, ch2_images)
 
     if pool.is_master():
         completeness_results = {cluster_id: recovery_rates for result in pool_results
