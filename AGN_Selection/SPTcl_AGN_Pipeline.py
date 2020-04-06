@@ -29,9 +29,10 @@ sptpol_regions_directory = f'{prefix}Data/SPTPol/regions'
 sptpol_masks_directory = f'{prefix}Data/SPTPol/masks'
 
 # Completeness simulation results files
-spt_sz_completeness_sim_results = f'{prefix}Data/Comp_Sim/Results/SPT_I2_results_gaussian_fwhm202_corr011_mag02.json'
+spt_sz_completeness_sim_results = f'{prefix}Data/Comp_Sim/Results/' \
+                                  f'SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 sptpol_completeness_sim_results = f'{prefix}Data/Comp_Sim/SPTpol/Results/' \
-                                  f'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json '
+                                  f'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 
 # Clusters to manually exclude
 spt_sz_clusters_to_exclude = {'SPT-CLJ0045-5757', 'SPT-CLJ0201-6051', 'SPT-CLJ0230-4427', 'SPT-CLJ0456-5623',
@@ -143,7 +144,7 @@ spt_sz_cluster_ids = set(spt_sz_agn_catalog.group_by('SPT_ID').groups.keys['SPT_
 sptpol_cluster_ids = set(sptpol_agn_catalog.group_by('SPT_ID').groups.keys['SPT_ID'].data)
 
 # Create a list of cluster IDs that only have SSDF data
-ssdf_only_cluster_ids = list(sptpol_agn_catalog.difference(spt_sz_cluster_ids))
+ssdf_only_cluster_ids = list(sptpol_cluster_ids.difference(spt_sz_cluster_ids))
 
 # Filter the SPTpol 100d catalog to only include SSDF clusters
 sptpol_agn_catalog = sptpol_agn_catalog[np.in1d(sptpol_agn_catalog['SPT_ID'], ssdf_only_cluster_ids)]

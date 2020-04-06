@@ -142,7 +142,7 @@ class SelectIRAGN:
         """
         Matches the science images to the official SPT catalog.
 
-        Uses the reference pixel coordinate (CRVAL1/2) of the 3.6 um science image to match against the SZ center of the
+        Uses the center pixel coordinate of the 3.6 um science image to match against the SZ center of the
         clusters in the official SPT catalog. Clusters are kept only if their images match an SZ center within the given
         maximum separation. If multiple images match to the same SZ center within our max separation then only the
         closest match is kept.
@@ -150,7 +150,7 @@ class SelectIRAGN:
         Parameters
         ----------
         max_image_catalog_sep : astropy.quantity
-            Maximum separation allowed between the image reference pixel and the SZ center matched in the official SPT
+            Maximum separation allowed between the image center pixel and the SZ center matched in the official SPT
             catalog.
 
         """
@@ -161,12 +161,12 @@ class SelectIRAGN:
         sz_centers = SkyCoord(catalog['RA'], catalog['DEC'], unit=u.degree)
 
         for cluster in self._catalog_dictionary.values():
-            # Get the RA and Dec of the reference pixel in the image.
+            # Get the RA and Dec of the center pixel in the image.
             w = WCS(cluster['ch1_sci_path'])
-            crval = w.wcs.crval
+            center_pixel = np.array(w.array_shape) // 2
 
             # Create astropy skycoord object for the reference pixel of the image.
-            img_coord = SkyCoord(crval[0], crval[1], unit=w.wcs.cunit)
+            img_coord = SkyCoord.from_pixel(center_pixel[1], center_pixel[0], wcs=w, origin=0)
 
             # Match the reference pixel to the SZ centers
             idx, sep, _ = img_coord.match_to_catalog_sky(sz_centers)
