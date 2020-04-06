@@ -1,5 +1,5 @@
 """
-SPT_AGN_emcee.py
+SPT_AGN_emcee_sampler_MPI.py
 Author: Benjamin Floyd
 
 This script will preform the Bayesian analysis on the SPT-AGN data to produce the posterior probability distributions
@@ -7,7 +7,6 @@ for all fitting parameters.
 """
 import json
 import os
-import re
 import sys
 from time import time
 
@@ -15,14 +14,13 @@ import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
-from schwimmbad import MPIPool
-
 from custom_math import trap_weight  # Custom trapezoidal integration
+from schwimmbad import MPIPool
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def model_rate_opted(params, cluster_id, r_r500, completeness_weight):
+def model_rate_opted(params, cluster_id, r_r500):
     """
     Our generating model.
 
@@ -44,7 +42,7 @@ def model_rate_opted(params, cluster_id, r_r500, completeness_weight):
     background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Our amplitude is determined from the cluster data
-    a = completeness_weight * theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
@@ -72,11 +70,11 @@ def lnlike(param):
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, radial_r500_maxr, completeness_weight=1)
+        ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
-        nall = model_rate_opted(param, cluster_id, rall, completeness_weight=1)
+        nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - completeness_ratio * trap_weight(
@@ -141,35 +139,19 @@ def lnpost(param):
     return lp + lnlike(param)
 
 
-# Get the catalog id from the command-line arguments
-cat_id = sys.argv[1]
-
-# Extract the parameter values from the catalog id
-id_params = np.array(re.findall(r'-?\d+(?:\.\d+)', cat_id), dtype=np.float)
-
-# Get the completeness weighting flag from the command-line arguments
-# comp_weight_flag = sys.argv[2].lower() == 'true'
-comp_weight_flag = True
-
-# Get the offset flag from the command-line arguments
-# offset_flag = sys.argv[3].lower()
-offset_flag = 'off'
-offset_suffix = {'off': '', 'full': '_offset', 'half': '_half_offset', 'three-quarters': '_075_offset'}
-# trial_subscript = {'off': 'a', 'full': 'b', 'half': 'c', 'three-quarters': 'd'}
-
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 
-# Set parameter values
-theta_true = id_params[0]  # Amplitude.
-eta_true = id_params[1]  # Redshift slope
-zeta_true = id_params[2]  # Mass slope
-beta_true = 1.0  # Radial slope
-rc_true = 0.1  # Core radius (in r500)
-C_true = 0.371  # Background AGN surface density
+# # Set parameter values
+# theta_true = id_params[0]  # Amplitude.
+# eta_true = id_params[1]  # Redshift slope
+# zeta_true = id_params[2]  # Mass slope
+# beta_true = 1.0  # Radial slope
+# rc_true = 0.1  # Core radius (in r500)
+# C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
-preprocess_file = os.path.abspath(f'../preprocessing/slope_test_{cat_id}_preprocessing.json')
+preprocess_file = os.path.abspath('SPTcl_IRAGN_preprocessing.json')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -178,13 +160,9 @@ with open(preprocess_file, 'r') as f:
 for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['m500'] = cluster_info['m500'] * u.Msun
     catalog_dict[cluster_id]['r500'] = cluster_info['r500'] * u.Mpc
-    catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall' + offset_suffix[offset_flag]]
-    catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(
-        cluster_info['radial_r500_maxr' + offset_suffix[offset_flag]])
-    catalog_dict[cluster_id]['completeness_weight_maxr'] = \
-        np.array(cluster_info['completeness_weight_maxr' + offset_suffix[offset_flag]]) \
-            if comp_weight_flag else np.ones_like(
-            catalog_dict[cluster_id]['radial_r500_maxr' + offset_suffix[offset_flag]])
+    catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall']
+    catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
+    catalog_dict[cluster_id]['completeness_weight_maxr'] = cluster_info['completeness_weight_maxr']
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -213,12 +191,8 @@ with MPIPool() as pool:
         sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_run_w{nwalkers}_s{nsteps}_mock_t{theta}_e{eta}_z{zeta}_b{beta}_rc_{rc}_C{C}_slope_tests.h5' \
-        .format(nwalkers=nwalkers, nsteps=nsteps,
-                theta=theta_true, eta=eta_true, zeta=zeta_true, beta=beta_true, rc=rc_true, C=C_true)
-    backend = emcee.backends.HDFBackend(chain_file,
-                                        name=f'trial5c_{cat_id}')
-    # name=f'trial6{trial_subscript[offset_flag]}_{cat_id}')
+    chain_file = f'emcee_run_w{nwalkers}_s{nsteps}_SPTcl_IRAGN.h5'
+    backend = emcee.backends.HDFBackend(chain_file, name='preliminary')
     backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
@@ -253,9 +227,8 @@ with MPIPool() as pool:
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
-samples = sampler.get_chain()
 labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
+# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
 
 try:
     # Calculate the autocorrelation time
@@ -281,8 +254,8 @@ flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
 for i in range(ndim):
     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
     q = np.diff(mcmc)
-    print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
-          .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
+    print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f}'
+          .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
 
 print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
 
