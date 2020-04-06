@@ -68,7 +68,7 @@ output_catalog = f'{prefix}Data/Output/SPTcl_IRAGN.fits'
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
                        'REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr', 'R500', 'RADIAL_SEP_R500',
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
-                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION']
+                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION', 'MASK_NAME']
 
 # Read in SPT cluster catalog and convert masses to [Msun] rather than [Msun/1e14]
 Bocquet = Table.read(f'{prefix}Data/2500d_cluster_sample_Bocquet18.fits')

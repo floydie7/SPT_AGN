@@ -419,6 +419,9 @@ class SelectIRAGN:
             # Read in the catalog
             sex_catalog = Table.read(cluster_info['sex_cat_path'], format='ascii')
 
+            # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
+            sex_catalog['MASK_NAME'] = re.search(r'Data/.*?\Z', cluster_info['cov_mask_path']).group(0)
+
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
             sex_catalog = sex_catalog[sex_catalog['FLAGS'] < 4]
 

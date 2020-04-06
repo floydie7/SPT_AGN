@@ -164,7 +164,8 @@ def generate_catalog_dict(cluster):
     return cluster_id, cluster_dict
 
 
-hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+hcc_prefix = ''
 max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
@@ -174,8 +175,8 @@ sptcl_catalog = Table.read(f'{hcc_prefix}Data/Output/SPTcl_IRAGN.fits')
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id[0]: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
-             in zip(sptcl_catalog_grp.groups.keys.as_array(),
+mask_dict = {cluster_id: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
+             in zip(sptcl_catalog_grp.groups.keys['SPT_ID'],
                     sptcl_catalog_grp['MASK_NAME'][sptcl_catalog_grp.groups.indices[:-1]])}
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
