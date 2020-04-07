@@ -164,8 +164,7 @@ def generate_catalog_dict(cluster):
     return cluster_id, cluster_dict
 
 
-# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-hcc_prefix = ''
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution

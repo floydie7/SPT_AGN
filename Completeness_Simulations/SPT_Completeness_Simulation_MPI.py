@@ -105,7 +105,7 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     alt_out_cat = root_dir + '/sex_catalogs/{image_id}_stars.cat'.format(image_id=image_id)
 
     if reg_file:
-        region_file = root_dir + '/rereduced_images/regions/{image_id}.reg'.format(image_id=image_id)
+        region_file = hcc_prefix + 'Data/SPTPol/images/rereduced_images/regions/{image_id}.reg'.format(image_id=image_id)
         with open(region_file, 'r') as region:
             objs = [ln.strip() for ln in region
                     if ln.startswith('circle') or ln.startswith('box') or ln.startswith('ellipse')]
