@@ -265,7 +265,7 @@ irac_data_rereduced = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.0
                        'image_dir': hcc_prefix + 'Data/SPTPol/images/rereduced_images'}
 
 # Image directory
-survey = 'pol'
+survey = 'rereduced'
 # survey = 'pol'
 if survey == 'SZ':
     # SPT-SZ/targeted IRAC SPTpol
