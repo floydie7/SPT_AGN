@@ -39,7 +39,6 @@ from astropy.coordinates import SkyCoord
 from astropy.table import Table, hstack, vstack
 from astropy.wcs import WCS
 from matplotlib.path import Path
-from matplotlib.transforms import Affine2D
 from schwimmbad import MPIPool
 
 # try:
@@ -107,42 +106,29 @@ def completeness(image_name, bins, nsteps, fwhm, mag_zero, aper_corr, config_fil
     if reg_file:
         region_file = hcc_prefix + 'Data/SPTPol/images/rereduced_images/regions/{image_id}.reg'.format(image_id=image_id)
         with open(region_file, 'r') as region:
-            objs = [ln.strip() for ln in region
-                    if ln.startswith('circle') or ln.startswith('box') or ln.startswith('ellipse')]
-        w = WCS(image_name)
-        try:
-            assert w.pixel_scale_matrix[0, 1] == 0.
-            pix_scale = (w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
-        except AssertionError:
-            cd = w.pixel_scale_matrix
-            _, eig_vec = np.linalg.eig(cd)
-            cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-            pix_scale = (cd_diag[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+            objs = [ln.strip() for ln in region if ln.startswith('box')]
 
         mask = objs[0]
         # Parameters for box shape are as follows:
-        # params[0] : region center RA in degrees
-        # params[1] : region center Dec in degrees
-        # params[2] : region width in arcseconds
-        # params[3] : region height in arcseconds
+        # params[0] : region center x in pixels
+        # params[1] : region center y in pixels
+        # params[2] : region width in pixels
+        # params[3] : region height in pixels
         # params[4] : rotation of region about the center in degrees
         params = np.array(re.findall(r'[+-]?\d+(?:\.\d+)?', mask), dtype=np.float64)
 
         # Convert the center coordinates into pixel system.
-        cent_x, cent_y = w.wcs_world2pix(params[0], params[1], 0)
+        cent_x, cent_y = params[0], params[1]
 
         # Vertices of the box are needed for the path object to work.
-        verts = [[cent_x - 0.5 * (params[2] / pix_scale), cent_y + 0.5 * (params[3] / pix_scale)],
-                 [cent_x + 0.5 * (params[2] / pix_scale), cent_y + 0.5 * (params[3] / pix_scale)],
-                 [cent_x + 0.5 * (params[2] / pix_scale), cent_y - 0.5 * (params[3] / pix_scale)],
-                 [cent_x - 0.5 * (params[2] / pix_scale), cent_y - 0.5 * (params[3] / pix_scale)]]
-
-        # For rotations of the box.
-        rot = Affine2D().rotate_deg_around(cent_x, cent_y, degrees=params[4])
+        verts = [[cent_x - 0.5 * params[2], cent_y + 0.5 * params[3]],
+                 [cent_x + 0.5 * params[2], cent_y + 0.5 * params[3]],
+                 [cent_x + 0.5 * params[2], cent_y - 0.5 * params[3]],
+                 [cent_x - 0.5 * params[2], cent_y - 0.5 * params[3]]]
 
         # Generate the mask shape.
-        shape = Path(verts).transformed(rot)
-        placement_bounds = shape.get_extents()
+        shape = Path(verts)
+        placement_bounds = np.array(shape.get_extents()).flatten()
     else:
         placement_bounds = None
 

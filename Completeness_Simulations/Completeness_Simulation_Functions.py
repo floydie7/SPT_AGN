@@ -121,7 +121,6 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
     out_image = os.path.abspath(out_image)
 
     # Get the absolute path names to the output directories
-    image_dir = os.path.dirname(out_image)
     starlist_dir = os.path.abspath(starlist_dir)
 
     # If a PSF is given then resolve the relative path to an absolute path
@@ -150,8 +149,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         xmin, xmax = 5., xlen - 5.
         ymin, ymax = 5., ylen - 5.
     else:
-        xmin, ymin, xmax, ymax  = placement_bounds
-
+        xmin, ymin, xmax, ymax = placement_bounds
 
     # Radius used in gaussian of mkobjects is half of the FWHM of the PSF in pixels.
     radius = fwhm * 0.5 / pix_scale.to(u.arcsec)
@@ -160,7 +158,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
     os.chdir(starlist_dir)
 
     # Name of starlist temporary file.
-    star_fname = out_image[-30:-5]+'.dat'
+    star_fname = out_image[-30:-5] + '.dat'
 
     # Check to see if the starlist or if the output image exists and if true then delete them so that the IRAF tasks
     # don't try to append to them. IRAF tasks are stupid and don't just overwrite the file if it exists already.
