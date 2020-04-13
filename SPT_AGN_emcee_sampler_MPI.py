@@ -8,6 +8,7 @@ for all fitting parameters.
 import json
 import os
 import sys
+from argparse import ArgumentParser
 from time import time
 
 import astropy.units as u
@@ -142,6 +143,11 @@ def lnpost(param):
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 
+parser = ArgumentParser(description='Runs MCMC sampler')
+parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
+                    action='store_true')
+args = parser.parse_args()
+
 # # Set parameter values
 # theta_true = id_params[0]  # Amplitude.
 # eta_true = id_params[1]  # Redshift slope
@@ -193,7 +199,8 @@ with MPIPool() as pool:
     # Filename for hd5 backend
     chain_file = f'emcee_run_w{nwalkers}_s{nsteps}_SPTcl_IRAGN.h5'
     backend = emcee.backends.HDFBackend(chain_file, name='preliminary')
-    backend.reset(nwalkers, ndim)
+    if not args.restart:
+        backend.reset(nwalkers, ndim)
 
     # Stretch move proposal. Manually specified to tune the `a` parameter.
     moves = emcee.moves.StretchMove(a=2.75)
