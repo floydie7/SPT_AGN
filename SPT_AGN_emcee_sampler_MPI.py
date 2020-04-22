@@ -7,7 +7,6 @@ for all fitting parameters.
 """
 import json
 import os
-import sys
 from argparse import ArgumentParser
 from time import time
 
@@ -192,9 +191,9 @@ autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
 with MPIPool() as pool:
-    if not pool.is_master():
-        pool.wait()
-        sys.exit(0)
+    # if not pool.is_master():
+    #     pool.wait()
+    #     sys.exit(0)
 
     # Filename for hd5 backend
     chain_file = f'emcee_run_w{nwalkers}_s{nsteps}_SPTcl_IRAGN.h5'

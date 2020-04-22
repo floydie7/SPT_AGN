@@ -127,6 +127,12 @@ def generate_catalog_dict(cluster):
     cluster_completeness = cluster['COMPLETENESS_CORRECTION']
     cluster_radial_r500 = cluster['RADIAL_SEP_R500']
 
+    # Temporary cluster exclusion list
+    temp_exclude = ['SPT-CLJ0353-5043', 'SPT-CLJ0415-4621', 'SPT-CLJ0500-4713', 'SPT-CLJ0536-6109', 'SPT-CLJ0559-6022',
+                    'SPT-CLJ0642-6310', 'SPT-CLJ2039-5723', 'SPT-CLJ2108-4445']
+    if cluster_id in temp_exclude:
+        return
+
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
 
