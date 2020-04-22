@@ -251,8 +251,9 @@ irac_data_rereduced = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.0
                        'image_dir': hcc_prefix + 'Data/SPTPol/images/rereduced_images'}
 
 # Image directory
-survey = 'rereduced'
+survey = 'SZ'
 # survey = 'pol'
+# survey = 'rereduced'
 if survey == 'SZ':
     # SPT-SZ/targeted IRAC SPTpol
     config_dict = irac_data_sptsz
@@ -299,15 +300,15 @@ print('Simulation run time: {}'.format(time() - start_time))
 completeness_results['magnitude_bins'] = list(mag_bins)
 
 # Save results to disk
-# results_filename = config_dict['root_dir'] + \
-#                    '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
-#                        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
-#                        corr=irac_data_sptpol[2]['aper_corr'],
-#                        mag_diff=recovery_mag_thresh)
 results_filename = config_dict['root_dir'] + \
-                   '/Results/SPT{survey}_resampled_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+                   '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
                        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
                        corr=irac_data_sptpol[2]['aper_corr'],
                        mag_diff=recovery_mag_thresh)
+# results_filename = config_dict['root_dir'] + \
+#                    '/Results/SPT{survey}_resampled_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+#                        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
+#                        corr=irac_data_sptpol[2]['aper_corr'],
+#                        mag_diff=recovery_mag_thresh)
 with open(results_filename, 'w') as f:
     json.dump(completeness_results, f, ensure_ascii=False, indent=4, sort_keys=True)
