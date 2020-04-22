@@ -70,11 +70,8 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000'
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
                        'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION', 'MASK_NAME']
 
-# Read in SPT cluster catalog and convert masses to [Msun] rather than [Msun/1e14]
+# Read in SPT-SZ cluster catalog
 Bocquet = Table.read(f'{prefix}Data/2500d_cluster_sample_Bocquet18.fits')
-Bocquet['M500'] *= 1e14
-Bocquet['M500_uerr'] *= 1e14
-Bocquet['M500_lerr'] *= 1e14
 
 # For the 20 common clusters between SPT-SZ 2500d and SPTpol 100d surveys we want to update the cluster information from
 # the more recent survey. Thus, we will merge the SPT-SZ and SPTpol catalogs together.
@@ -89,6 +86,11 @@ SPTcl = join(Bocquet, Huang, join_type='outer')
 SPTcl.sort(keys=['SPT_ID', 'field'])  # Sub-sorting by 'field' puts Huang entries first
 SPTcl = unique(SPTcl, keys='SPT_ID', keep='first')  # Keeping Huang entries over Bocquet
 SPTcl.sort(keys='SPT_ID')  # Resort by ID.
+
+# Convert masses to [Msun] rather than [Msun/1e14]
+SPTcl['M500'] *= 1e14
+SPTcl['M500_uerr'] *= 1e14
+SPTcl['M500_lerr'] *= 1e14
 
 # Remove any unconfirmed clusters
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
