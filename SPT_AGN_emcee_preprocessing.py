@@ -194,7 +194,7 @@ with MPIPool() as pool:
     pool_results = pool.map(generate_catalog_dict, sptcl_catalog_grp.groups)
 
     if pool.is_master():
-        catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in pool_results if pool_results is not None}
+        catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
