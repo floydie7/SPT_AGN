@@ -653,7 +653,7 @@ class SelectIRAGN:
             [3.6] - [4.5] color cut for :method:`object_selection`
         spt_colnames : list_like
             Column names in SPT catalog for :method:`catalog_merge`
-        output_name : str
+        output_name : str or None
             File name of output catalog for :method:`final_catalogs`
         output_colnames : list_like
             Column names to be kept in output catalog for :method:`final_catalogs`

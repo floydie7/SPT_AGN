@@ -9,8 +9,9 @@ from time import time
 
 import astropy.units as u
 import numpy as np
-from Pipeline_functions import SelectIRAGN
 from astropy.table import Table, join, unique, vstack
+
+from AGN_Selection.Pipeline_functions import SelectIRAGN
 
 # Define directories
 # prefix = '/Users/btfkwd/Documents/SPT_AGN/'
@@ -161,7 +162,26 @@ sptcl_agn_catalog.sort('SPT_ID')
 sptcl_agn_catalog.write(output_catalog, overwrite=True)
 
 # List catalog statistics
+# SPT-SZ
+sptsz_agn_catalog_grp = spt_sz_agn_catalog.group_by('SPT_ID')
+number_of_clusters_sz = len(sptsz_agn_catalog_grp.groups.keys)
+total_number_sz = len(sptsz_agn_catalog_grp)
+total_number_corrected_sz = sptsz_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
+number_per_cluster_sz = total_number_corrected_sz / number_of_clusters_sz
+median_z_sz = np.median(spt_sz_agn_catalog['REDSHIFT'])
+median_m_sz = np.median(spt_sz_agn_catalog['M500'])
+
+# SPTpol
+sptpol_agn_catalog_grp = sptpol_agn_catalog.group_by('SPT_ID')
+number_of_clusters_pol = len(sptpol_agn_catalog_grp.groups.keys)
+total_number_pol = len(sptpol_agn_catalog_grp)
+total_number_corrected_pol = sptpol_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
+number_per_cluster_pol = total_number_corrected_pol / number_of_clusters_pol
+median_z_pol = np.median(sptpol_agn_catalog['REDSHIFT'])
+median_m_pol = np.median(sptpol_agn_catalog['M500'])
 sptcl_agn_catalog_grp = sptcl_agn_catalog.group_by('SPT_ID')
+
+# SPTcl
 number_of_clusters = len(sptcl_agn_catalog_grp.groups.keys)
 total_number = len(sptcl_agn_catalog)
 total_number_corrected = sptcl_agn_catalog['COMPLETENESS_CORRECTION'].sum()
@@ -169,7 +189,24 @@ number_per_cluster = total_number_corrected / number_of_clusters
 median_z = np.median(sptcl_agn_catalog['REDSHIFT'])
 median_m = np.median(sptcl_agn_catalog['M500'])
 
-print(f"""Number of clusters:\t{number_of_clusters}
+print(f"""SPT-SZ
+Number of clusters:\t{number_of_clusters_sz}
+Objects selected:\t{total_number_sz}
+Objects selected (completeness corrected):\t{total_number_corrected_sz:.2f}
+Objects per cluster (corrected):\t{number_per_cluster_sz:.2f}
+Median Redshift:\t{median_z_sz:.2f}
+Median Mass:\t{median_m_sz:.2e}
+---------------------------
+SPTpol 100d
+Number of clusters:\t{number_of_clusters_pol}
+Objects selected:\t{total_number_pol}
+Objects selected (completeness corrected):\t{total_number_corrected_pol:.2f}
+Objects per cluster (corrected):\t{number_per_cluster_pol:.2f}
+Median Redshift:\t{median_z_pol:.2f}
+Median Mass:\t{median_m_pol:.2e}
+---------------------------
+SPTcl
+Number of clusters:\t{number_of_clusters}
 Objects selected:\t{total_number}
 Objects selected (completeness corrected):\t{total_number_corrected:.2f}
 Objects per cluster (corrected):\t{number_per_cluster:.2f}
