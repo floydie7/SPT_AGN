@@ -264,7 +264,8 @@ else:
     config_dict = irac_data_rereduced
 
 # Channel 2 science images
-ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
+# ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
+ch2_images = glob.glob(hcc_prefix + 'Data/rotated_sz_images/I2*_mosaic.cutout.fits')
 
 # Remove two clusters from the SPT-SZ input list as they have blank I2 images that cause problems
 if survey == 'SZ':
@@ -301,7 +302,7 @@ completeness_results['magnitude_bins'] = list(mag_bins)
 
 # Save results to disk
 results_filename = config_dict['root_dir'] + \
-                   '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}.json'.format(
+                   '/Results/SPT{survey}_I2_results_{model}_fwhm{fwhm}_corr{corr}_mag{mag_diff}_rotated.json'.format(
                        survey=survey, model=psf_model, fwhm=irac_data_sptpol[2]['psf_fwhm'],
                        corr=irac_data_sptpol[2]['aper_corr'],
                        mag_diff=recovery_mag_thresh)
