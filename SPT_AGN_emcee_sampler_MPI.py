@@ -146,7 +146,7 @@ parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
 parser.add_argument('--prior_scale_factor', help='Scale factor to the standard deviation of the background prior.',
-                    action='store_const', const=1.0)
+                    default=1.0, type=float)
 args = parser.parse_args()
 
 # # Set parameter values
