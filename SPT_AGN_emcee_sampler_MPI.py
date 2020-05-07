@@ -97,9 +97,9 @@ def lnprior(param):
     # h_rc = 0.25
     # h_rc_err = 0.1
     h_C = 0.371
-    h_C_err = 0.157
+    h_C_err = 0.157 * args.prior_scale_factor  # Artificially scaling the background prior
 
-    # Define all priors to be gaussian
+    # Define all priors
     if (0.0 <= theta <= np.inf and
             -1. <= eta <= 6. and
             -3. <= zeta <= 3. and
@@ -145,6 +145,8 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
+parser.add_argument('--prior_scale_factor', help='Scale factor to the standard deviation of the background prior.',
+                    action='store_const', const=1.0, type=float)
 args = parser.parse_args()
 
 # # Set parameter values
@@ -196,8 +198,8 @@ with MPIPool() as pool:
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = f'emcee_run_w{nwalkers}_s{nsteps}_SPTcl_IRAGN.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name='preliminary')
+    chain_file = 'emcee_chains_SPTcl_IRAGN.h5'
+    backend = emcee.backends.HDFBackend(chain_file, name=f'preliminary_narrow_C_prior_{args.prior_scale_factor:.2f}')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 

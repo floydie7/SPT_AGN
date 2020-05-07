@@ -15,7 +15,7 @@ from matplotlib.ticker import MaxNLocator
 labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 
 # Our file storing the full test suite
-filename = 'Data/MCMC/SPT_Data/Chains/emcee_run_w36_s1000000_SPTcl_IRAGN.h5'
+filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
