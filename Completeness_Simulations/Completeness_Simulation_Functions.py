@@ -146,7 +146,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         cd = w.pixel_scale_matrix
         _, eig_vec = np.linalg.eig(cd)
         cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-        pix_scale = (cd_diag[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+        pix_scale = (cd_diag[1, 1] * w.wcs.cunit[1]).to_value(u.arcsec)
 
     # # Get the zero point magnitude from the image.
     # zpoint = fits.getval(image, 'ZEROPT')
@@ -160,7 +160,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         xmin, ymin, xmax, ymax = placement_bounds
 
     # Radius used in gaussian of mkobjects is half of the FWHM of the PSF in pixels.
-    radius = fwhm * 0.5 / pix_scale.to(u.arcsec)
+    radius = fwhm * 0.5 / pix_scale
 
     # Move to the Starlist directory to run the IRAF tasks.
     os.chdir(starlist_dir)
