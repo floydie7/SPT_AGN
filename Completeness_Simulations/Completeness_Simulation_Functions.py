@@ -188,7 +188,7 @@ def make_stars(image, out_image, starlist_dir, model, fwhm, mag_zero, min_mag, m
         print('Placing stars.')
 
     # Place the stars on the image.
-    iraf.mkobjects(image, output=out_image, objects=star_fname, star=model, radius=radius.value, magzero=mag_zero,
+    iraf.mkobjects(image, output=out_image, objects=star_fname, star=model, radius=radius, magzero=mag_zero,
                    seed='INDEF')
 
     # Return to the project directory
