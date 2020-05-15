@@ -46,6 +46,7 @@ for chain_name, sampler in sampler_dict.items():
     axes[-1].set(xlabel='Steps')
 
     fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.pdf', format='pdf')
+    fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.png', format='png')
 
     try:
         # Calculate the autocorrelation time
