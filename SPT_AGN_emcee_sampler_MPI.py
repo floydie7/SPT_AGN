@@ -104,7 +104,8 @@ def lnprior(param):
             -1. <= eta <= 6. and
             -3. <= zeta <= 3. and
             -3. <= beta <= 3. and
-            0.0 <= C < np.inf and
+            # 0.0 <= C < np.inf and
+            np.isclose(C, h_C) and
             0.05 <= rc <= 0.5):
         theta_lnprior = 0.0
         eta_lnprior = 0.0
@@ -112,8 +113,8 @@ def lnprior(param):
         zeta_lnprior = 0.0
         # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
         rc_lnprior = 0.0
-        C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
-        # C_lnprior = 0.0
+        # C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
+        C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
@@ -199,7 +200,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_SPTcl_IRAGN.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'preliminary_narrow_C_prior_{args.prior_scale_factor:.2f}')
+    backend = emcee.backends.HDFBackend(chain_file, name=f'preliminary_fixed_C_prior')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
