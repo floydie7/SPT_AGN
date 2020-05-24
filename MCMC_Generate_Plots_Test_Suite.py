@@ -21,6 +21,8 @@ filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
+chain_names = [chain_name for chain_name in chain_names if 'dirac_delta' in chain_name]
+
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
 
@@ -51,6 +53,7 @@ for chain_name, sampler in sampler_dict.items():
     try:
         # Calculate the autocorrelation time
         tau_est = sampler.get_autocorr_time()
+        assert np.isfinite(tau_est).all()
 
         tau = np.mean(tau_est)
 
@@ -63,6 +66,13 @@ for chain_name, sampler in sampler_dict.items():
     except emcee.autocorr.AutocorrError:
         tau_est = sampler.get_autocorr_time(quiet=True)
         tau = np.mean(tau_est)
+
+        burnin = int(nsteps // 3)
+        thinning = 1
+
+    except AssertionError:
+        tau_est = sampler.get_autocorr_time(quiet=True)
+        tau = np.nanmean(tau_est)
 
         burnin = int(nsteps // 3)
         thinning = 1

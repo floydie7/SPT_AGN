@@ -31,7 +31,9 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, rc, C = params
+    theta, eta, zeta, beta, rc = params
+    C = 0.371  # Fixed background
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -89,9 +91,10 @@ def lnlike(param):
 
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
-def lnprior(param):
+def lnprior(params):
     # Extract our parameters
-    theta, eta, zeta, beta, rc, C = param
+    # theta, eta, zeta, beta, rc, C = param
+    theta, eta, zeta, beta, rc = params
 
     # Set our hyperparameters
     # h_rc = 0.25
@@ -105,7 +108,7 @@ def lnprior(param):
             -3. <= zeta <= 3. and
             -3. <= beta <= 3. and
             # 0.0 <= C < np.inf and
-            np.isclose(C, h_C) and
+            # np.isclose(C, h_C) and
             0.05 <= rc <= 0.5):
         theta_lnprior = 0.0
         eta_lnprior = 0.0
@@ -114,30 +117,31 @@ def lnprior(param):
         # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
         rc_lnprior = 0.0
         # C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
-        C_lnprior = 0.0
+        # C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
         eta_lnprior = -np.inf
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
         rc_lnprior = -np.inf
-        C_lnprior = -np.inf
+        # C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
 
     return total_lnprior
 
 
 # Define the log-posterior probability
-def lnpost(param):
-    lp = lnprior(param)
+def lnpost(params):
+    lp = lnprior(params)
 
     # Check the finiteness of the prior.
     if not np.isfinite(lp):
         return -np.inf
 
-    return lp + lnlike(param)
+    return lp + lnlike(params)
 
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -174,7 +178,7 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 6
+ndim = 5  # Fixed background
 nwalkers = 36
 
 # Also, set the number of steps to run the sampler for.
@@ -186,7 +190,8 @@ pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
                    np.random.normal(loc=0.1, scale=6e-3),  # rc
-                   np.random.normal(loc=0.371, scale=0.157)]  # C
+                   # np.random.normal(loc=0.371, scale=0.157)  # C
+                   ]
                   for i in range(nwalkers)])
 
 # Set up the autocorrelation and convergence variables
@@ -236,7 +241,8 @@ with MPIPool() as pool:
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
 # truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
 
 try:

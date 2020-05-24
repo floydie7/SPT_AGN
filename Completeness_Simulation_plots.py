@@ -13,19 +13,23 @@ import numpy as np
 sptsz_file = 'Data/Comp_Sim/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 sptpol_file = 'Data/Comp_Sim/SPTpol/Results/SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 sptsz_rereduced_file = 'Data/Comp_Sim/rereduced/Results/SPTSZ_rereduced_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
+sptsz_rotated_file = 'Data/Comp_Sim/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2_rotated.json'
 
 # Load in the results
 with open(sptsz_file, 'r') as f_sptsz, \
         open(sptpol_file, 'r') as f_sptpol, \
-        open(sptsz_rereduced_file, 'r') as f_rereduced:
+        open(sptsz_rereduced_file, 'r') as f_rereduced, \
+        open(sptsz_rotated_file, 'r') as f_rotated:
     sptsz = json.load(f_sptsz)
     sptpol = json.load(f_sptpol)
     sptsz_rereduced = json.load(f_rereduced)
+    sptsz_rotated = json.load(f_rotated)
 
 # Remove the magnitude bin entry from all dictionaries
 mag_bins = sptsz.pop('magnitude_bins', None)[:-1]
 del sptpol['magnitude_bins']
 del sptsz_rereduced['magnitude_bins']
+del sptsz_rotated['magnitude_bins']
 
 # Remove any cluster we've already determined unusable
 spt_sz_clusters_to_exclude = {'SPT-CLJ0045-5757', 'SPT-CLJ0201-6051', 'SPT-CLJ0230-4427', 'SPT-CLJ0456-5623',
@@ -57,7 +61,7 @@ for curve in sptsz.values():
     ax.plot(mag_bins, curve, color='k', alpha=0.2)
 ax.plot(mag_bins, np.median(list(list(curve) for curve in sptsz.values()), axis=0), color='r')
 ax.set(title='SPT-SZ 4.5um Completeness Simulations', xlabel='Vega Magnitude', ylabel='Recovery Rate')
-# fig.savefig('Data/Comp_Sim/Plots/SPT-SZ_I2_completeness_sim_curves.pdf', format='pdf')
+fig.savefig('Data/Comp_Sim/Plots/SPT-SZ_I2_completeness_sim_curves.pdf', format='pdf')
 plt.show()
 
 fig, ax = plt.subplots()
@@ -79,3 +83,26 @@ plt.show()
 #     ax.legend()
 # axarr[-1].set(xlabel='Vega Magnitude')
 # fig.savefig('Data/Comp_Sim/rereduced/Plots/Rereduction_Comparison_Plot.pdf', format='pdf')
+
+fig, ax = plt.subplots()
+for cluster_id in sptsz_rotated:
+    ax.plot(mag_bins, sptsz[cluster_id], alpha=0.5, color='C0', label='Old Run')
+    ax.plot(mag_bins, sptsz_rotated[cluster_id], alpha=0.5, color='C2', label='New Run')
+ax.set(title='SPT-SZ 4.5um Completeness Simulations with Rotated WCSs', xlabel='Vega Magnitude', ylabel='Recovery Rate')
+handles, labels = ax.get_legend_handles_labels()
+ax.legend(handles[:2], labels[:2])
+fig.savefig('Data/Comp_Sim/Plots/SPT-SZ_I2_completeness_sim_curves_rotated_comparison.pdf')
+plt.show()
+
+# Replace the bad curves in the original SPT-SZ curves to the corrected curves from sptsz_rotated
+for cluster_id in sptsz_rotated:
+    del sptsz[cluster_id]
+fig, ax = plt.subplots()
+for curve in sptsz.values():
+    ax.plot(mag_bins, curve, color='k', alpha=0.2)
+for curve in sptsz_rotated.values():
+    ax.plot(mag_bins, curve, color='C2', alpha=0.5)
+ax.plot(mag_bins, np.median(list(list(curve) for curve in sptsz.values()), axis=0), color='r')
+ax.set(title='SPT-SZ 4.5um Completeness Simulations', xlabel='Vega Magnitude', ylabel='Recovery Rate')
+fig.savefig('Data/Comp_Sim/Plots/SPT-SZ_I2_completeness_sim_curves_highlight_corrected_rotated.pdf', format='pdf')
+plt.show()

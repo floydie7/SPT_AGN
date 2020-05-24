@@ -76,10 +76,10 @@ str_list.append('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.accept
 text_str = '\n'.join(str_list)
 
 # Make the plot
-plotName = 'Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_5/Slope_tests_trial5c_pretty_corner.pdf'
+plotName = 'Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_5/Slope_tests_trial5c_pretty_corner.png'
 fig = plotGTC(flat_samples, paramNames=labels, truths=truths, priors=[None, None, None, None, None, (C_true, 0.157)],
               figureSize='APJ_page',
-              plotName='Data/MCMC/Mock_Catalog/Plots/Final_tests/Slope_tests/trial_5/Slope_tests_trial5c_pretty_corner.pdf')
+              plotName=plotName)
 fig.text(0.57, 0.6, text_str, transform=fig.transFigure, fontsize=9, bbox=dict(boxstyle='round',
                                                                                facecolor='ghostwhite', alpha=0.5))
-fig.savefig(plotName, format='pdf')
+fig.savefig(plotName)
