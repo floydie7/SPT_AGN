@@ -104,7 +104,7 @@ def lnprior(params):
 
     # Define all priors
     if (0.0 <= theta <= np.inf and
-            -1. <= eta <= 6. and
+            -6. <= eta <= 6. and
             -3. <= zeta <= 3. and
             -3. <= beta <= 3. and
             # 0.0 <= C < np.inf and
@@ -205,7 +205,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_SPTcl_IRAGN.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'preliminary_fixed_C_prior')
+    backend = emcee.backends.HDFBackend(chain_file, name=f'preliminary_fixed_C_prior_wider_eta_prior')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 

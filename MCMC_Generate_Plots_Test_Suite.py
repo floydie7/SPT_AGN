@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MaxNLocator
 
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
 
 # Our file storing the full test suite
 filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
@@ -21,7 +22,7 @@ filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'dirac_delta' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'fixed_C' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -58,7 +59,8 @@ for chain_name, sampler in sampler_dict.items():
         tau = np.mean(tau_est)
 
         # Remove the burn-in. We'll use ~3x the autocorrelation time
-        burnin = int(3 * tau)
+        # burnin = int(3 * tau)
+        burnin = int(nsteps // 3)
 
         # We will also thin by roughly half our autocorrelation time
         thinning = int(tau // 2)
