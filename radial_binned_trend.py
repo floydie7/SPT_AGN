@@ -54,7 +54,16 @@ def small_poisson(n, s=1):
 
 
 def beta_model(r, a, beta, rc):
-    return a * (1 + (r/rc)**2)**(-1.5 * beta + 0.5)
+    C = 0.371 * (med_r500 * cosmo.arcsec_per_kpc_proper(med_z).to(u.arcmin / u.Mpc)).value ** 2
+    return a * (1 + (r / rc) ** 2) ** (-1.5 * beta + 0.5) + C
+
+def r5002_to_arcmin2(r):
+    return r / (med_r500 * cosmo.arcsec_per_kpc_proper(med_z).to(u.arcmin/u.Mpc)).value**2
+
+def convert_axes(ax):
+    min_lim, max_lim = ax.get_ylim()
+    ax_arcmin.set_ylim(r5002_to_arcmin2(min_lim), r5002_to_arcmin2(max_lim))
+    ax.figure.canvas.draw()
 
 
 # Read in the IRAGN table
@@ -67,32 +76,77 @@ n_clusters = len(SPTcl_IRAGN.group_by('SPT_ID').groups.keys)
 med_r500 = np.median(SPTcl_IRAGN['R500']) * u.Mpc
 med_z = np.median(SPTcl_IRAGN['REDSHIFT'])
 
+# Filter the clusters to only be near the median redshift
+# SPTcl_IRAGN = SPTcl_IRAGN[np.abs(SPTcl_IRAGN['REDSHIFT'] - med_z) <= 0.05]
+
+# Filter radial separations by their angular separations and by their r500 separations
+radial_r500 = SPTcl_IRAGN['RADIAL_SEP_R500'][(SPTcl_IRAGN['RADIAL_SEP_R500'] <= 0.6)]
+
 # Generate the number count histogram
-hist, bin_edges = np.histogram(SPTcl_IRAGN['RADIAL_SEP_R500'], bins='auto')
+bin_width = 0.05
+bins = np.arange(0, radial_r500.max(), bin_width)
+hist, bin_edges = np.histogram(radial_r500, bins=bins)
 bin_centers = bin_edges[:-1] + np.diff(bin_edges) / 2
 
 # Calculate the surface areas for each bin
-surface_area_r500 = np.diff(np.pi * bin_edges**2)
-surface_area_arcmin = surface_area_r500 * (med_r500 * cosmo.arcsec_per_kpc_proper(med_z).to(u.arcmin/u.Mpc)).value ** 2
+surface_area_r500 = np.diff(np.pi * bin_edges ** 2)
+surface_area_arcmin = surface_area_r500 * (
+            med_r500 * cosmo.arcsec_per_kpc_proper(med_z).to(u.arcmin / u.Mpc)).value ** 2
 
-surface_den = hist / surface_area_r500 / n_clusters
-surface_den_uerr, surface_den_lerr = small_poisson(hist) / surface_area_r500 / n_clusters
-surface_den_err = np.sqrt(surface_den_uerr * surface_den_lerr)
+surface_den_r500 = hist / surface_area_r500 / n_clusters
+surface_den_r500_uerr, surface_den_r500_lerr = small_poisson(hist) / surface_area_r500 / n_clusters
+surface_den_err_r500 = np.sqrt(surface_den_r500_uerr * surface_den_r500_lerr)
+
+surface_den_arcmin = hist / surface_area_arcmin / n_clusters
+surface_den_arcmin_uerr, surface_den_arcmin_lerr = small_poisson(hist) / surface_area_arcmin / n_clusters
+surface_den_err_arcmin = np.sqrt(surface_den_arcmin_uerr * surface_den_arcmin_lerr)
 
 # Fit the model
 # param_bounds = ([-np.inf, -np.inf, 0.05], [np.inf, np.inf, 2.0])
 param_bounds = ([-np.inf, -np.inf, 0.0], [np.inf, 30, np.inf])
 # param_bounds = ([0, -5, 0.05], [12, 5, 1.0])
-popt, pcov = curve_fit(beta_model, bin_centers, surface_den, sigma=surface_den_err, bounds=param_bounds)
-perr = np.sqrt(np.diag(pcov))
-print(f"""Parameter fits
-a = {popt[0]:.3f} +- {perr[0]:.4f}
-beta = {popt[1]:.3f} +- {perr[1]:.4f}
-rc = {popt[2]:.3f} +- {perr[2]:.4f}""")
+popt_r500, pcov_r500 = curve_fit(beta_model, bin_centers, surface_den_r500, sigma=surface_den_err_r500,
+                                 bounds=param_bounds)
+perr_r500 = np.sqrt(np.diag(pcov_r500))
+print(f"""Parameter fits (r500)
+a = {popt_r500[0]:.3f} +- {perr_r500[0]:.4f}
+beta = {popt_r500[1]:.3f} +- {perr_r500[1]:.4f}
+rc = {popt_r500[2]:.3f} +- {perr_r500[2]:.4f}""")
+# C = {popt_r500[3]:.3f} +- {perr_r500[3]:.4f}
+
+# popt_arcmin, pcov_arcmin = curve_fit(beta_model, bin_centers, surface_den_arcmin, sigma=surface_den_err_arcmin,
+#                                      bounds=param_bounds)
+# perr_arcmin = np.sqrt(np.diag(pcov_arcmin))
+# print(f"""Parameter fits (arcmin)
+# a = {popt_arcmin[0]:.3f} +- {perr_arcmin[0]:.4f}
+# beta = {popt_arcmin[1]:.3f} +- {perr_arcmin[1]:.4f}
+# rc = {popt_arcmin[2]:.3f} +- {perr_arcmin[2]:.4f}""")
+# # C = {popt_arcmin[3]:.3f} +- {perr_arcmin[3]:.4f}
+
+# fig, ax = plt.subplots()
+# ax.errorbar(bin_centers, surface_den_r500, yerr=[surface_den_r500_lerr, surface_den_r500_uerr],
+#             xerr=np.diff(bin_edges) / 2, fmt='.')
+# # ax.plot(bin_centers, beta_model(bin_centers, *popt_r500))
+# ax.set(xlabel=r'$R_{500}$', ylabel=r'$\Sigma_{\rm AGN}$ [$R_{500}^{-2}$ per cluster]')
+# # fig.savefig('Data/Plots/SPTcl_IRAGN_radial_binned_trend.pdf', format='pdf')
+# plt.show()
+#
+# fig, ax = plt.subplots()
+# ax.errorbar(bin_centers, surface_den_arcmin, yerr=[surface_den_arcmin_lerr, surface_den_arcmin_uerr],
+#             xerr=np.diff(bin_edges) / 2, fmt='.')
+# # ax.plot(bin_centers, beta_model(bin_centers, *popt_arcmin))
+# ax.set(xlabel=r'$R_{500}$', ylabel=r'$\Sigma_{\rm AGN}$ [arcmin$^{-2}$ per cluster]')
+# # fig.savefig('Data/Plots/SPTcl_IRAGN_radial_binned_trend.pdf', format='pdf')
+# plt.show()
 
 fig, ax = plt.subplots()
-ax.errorbar(bin_centers, surface_den, yerr=[surface_den_lerr, surface_den_uerr], xerr=np.diff(bin_edges)/2, fmt='.')
-ax.plot(bin_centers, beta_model(bin_centers, *popt))
+ax_arcmin = ax.twinx()
+ax.callbacks.connect('ylim_changed', convert_axes)
+ax.errorbar(bin_centers, surface_den_r500, yerr=[surface_den_r500_lerr, surface_den_r500_uerr],
+            xerr=np.diff(bin_edges) / 2, fmt='.')
+ax.plot(bin_centers, beta_model(bin_centers, *popt_r500))
 ax.set(xlabel=r'$R_{500}$', ylabel=r'$\Sigma_{\rm AGN}$ [$R_{500}^{-2}$ per cluster]')
-fig.savefig('Data/Plots/SPTcl_IRAGN_radial_binned_trend.pdf', format='pdf')
+ax_arcmin.set(ylabel=r'$\Sigma_{\rm AGN}$ [arcmin$^{-2}$ per cluster]')
 plt.show()
+fig.savefig('Data/Plots/SPTcl_IRAGN_radial_binned_0.6r500_with_model.pdf')
+

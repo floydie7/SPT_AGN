@@ -8,7 +8,7 @@ from time import time
 import astropy.units as u
 import numpy as np
 from Pipeline_functions import SelectIRAGN
-from astropy.table import Table, join, unique
+from astropy.table import Table
 
 # Define directories
 # prefix = '/Users/btfkwd/Documents/SPT_AGN/'
@@ -19,12 +19,12 @@ regions_directory = f'{prefix}Data/Regions'
 masks_directory = f'{prefix}Data/Masks'
 
 # Completeness simulation results file
-completeness_sim_results = f'{prefix}Data/Comp_Sim/Results/SPT_I2_results_gaussian_fwhm202_corr011_mag02.json'
+completeness_sim_results = f'{prefix}Data/Comp_Sim/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 
 # Clusters to manually exclude
-clusters_to_exclude = {'SPT-CLJ0045-5757', 'SPT-CLJ0201-6051', 'SPT-CLJ0230-4427',
-                       'SPT-CLJ0456-5623', 'SPT-CLJ0646-6236', 'SPT-CLJ2017-5936', 'SPT-CLJ2133-5410',
-                       'SPT-CLJ2138-6317', 'SPT-CLJ2232-6151', 'SPT-CLJ2332-5358', 'SPT-CLJ2341-5726'}
+clusters_to_exclude = {'SPT-CLJ0045-5757', 'SPT-CLJ0201-6051', 'SPT-CLJ0230-4427', 'SPT-CLJ0456-5623',
+                       'SPT-CLJ0646-6236', 'SPT-CLJ2017-5936', 'SPT-CLJ2133-5410', 'SPT-CLJ2138-6317',
+                       'SPT-CLJ2232-6151', 'SPT-CLJ2332-5358', 'SPT-CLJ2341-5726'}
 
 # Maximum separation allowed between the cluster images' reference pixel and the SPT SZ centers
 max_separation = 1.0 * u.arcmin
@@ -58,21 +58,22 @@ Bocquet['M500'] *= 1e14
 Bocquet['M500_uerr'] *= 1e14
 Bocquet['M500_lerr'] *= 1e14
 
-# For the 20 common clusters between SPT-SZ 2500d and SPTpol 100d surveys we want to update the cluster information from
-# the more recent survey. Thus, we will merge the SPT-SZ and SPTpol catalogs together.
-Huang = Table.read(f'{prefix}Data/sptpol100d_catalog_huang19.fits')
-
-# First we need to rename several columns in the SPTpol 100d catalog to match the format of the SPT-SZ catalog
-Huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],
-                     ['DEC', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC'])
-
-# Now, merge the two catalogs
-SPTcl = join(Bocquet, Huang, join_type='outer')
-SPTcl.sort(keys=['SPT_ID', 'field'])  # Sub-sorting by 'field' puts Huang entries first
-SPTcl = unique(SPTcl, keys='SPT_ID', keep='first')  # Keeping Huang entries over Bocquet
-SPTcl.sort(keys='SPT_ID')  # Resort by ID.
+# # For the 20 common clusters between SPT-SZ 2500d and SPTpol 100d surveys we want to update the cluster information from
+# # the more recent survey. Thus, we will merge the SPT-SZ and SPTpol catalogs together.
+# Huang = Table.read(f'{prefix}Data/sptpol100d_catalog_huang19.fits')
+#
+# # First we need to rename several columns in the SPTpol 100d catalog to match the format of the SPT-SZ catalog
+# Huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],
+#                      ['DEC', 'XI', 'THETA_CORE', 'REDSHIFT', 'REDSHIFT_UNC'])
+#
+# # Now, merge the two catalogs
+# SPTcl = join(Bocquet, Huang, join_type='outer')
+# SPTcl.sort(keys=['SPT_ID', 'field'])  # Sub-sorting by 'field' puts Huang entries first
+# SPTcl = unique(SPTcl, keys='SPT_ID', keep='first')  # Keeping Huang entries over Bocquet
+# SPTcl.sort(keys='SPT_ID')  # Resort by ID.
 
 # Remove any unconfirmed clusters
+SPTcl = Bocquet
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
 # Run the pipeline.
