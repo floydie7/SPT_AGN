@@ -13,17 +13,20 @@ from collections import ChainMap
 from itertools import groupby, product, chain
 
 import numpy as np
+from astro_compendium.utils.k_correction import k_correction
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, unique, vstack
+from astropy.units import Quantity
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
 from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from scipy.interpolate import interp1d
+from synphot import SourceSpectrum, SpectralElement
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -47,9 +50,21 @@ class SelectIRAGN:
         Official SPT cluster catalog.
     completeness_file : str or list of str
         File name of the completeness simulation results.
+    sed : SourceSpectrum
+        Spectral energy distribution template of the source object, used for K-correction.
+    output_filter : SpectralElement
+        Bandpass through which the absolute magnitude should be measured, used for K-correction.
+    output_zero_pt : SourceSpectrum or Quantity or str
+        Reference source or value defining the zero-point flux for the bandpass given by `output_filter`, used for
+        K-correction. If a `Quantity` is provided, the zero point value is assumed to be constant across the wavelengths
+        of `output_filter`. A `SourceSpectrum` may be manually provided. Additionally, the following strings are also
+        accepted: 'vega', 'ab', 'st' use the default Vega spectrum from `synphot`, the AB system with constant
+        profile of :math:`g_\\nu = 3631 Jy`, and the  ST system with constant profile of
+        :math:`g_\\lambda = 3.631e-9 erg s^-1 cm^-2 \\AA^-1` respectively.
     """
 
-    def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file):
+    def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
+                 sed, output_filter, output_zero_pt):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -65,6 +80,15 @@ class SelectIRAGN:
 
         # Initialization of catalog dictionary data structure
         self._catalog_dictionary = {}
+
+        # Set the cosmology to a standard concordance cosmology
+        self._cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+
+        # K-correction parameters
+        self._sed = sed
+        self._output_filter = output_filter
+        self._output_zero_pt = output_zero_pt
+
 
     def file_pairing(self, exclude=None):
         """
@@ -384,7 +408,40 @@ class SelectIRAGN:
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
             new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
-    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color_cut,
+    def cluster_k_correction(self):
+        """
+        This function computes a modified Hogg et al. (2002) definition of the K-correction. The observed filter and
+        zero-point will be the IRAC 4.5 um values.
+
+        """
+
+        # Load in the IRAC 4.5 um filter as the observed filter
+        irac_45 = SpectralElement.from_file('Data/Data_Repository/filter_curves/Spitzer_IRAC/'
+                                            '080924ch2trans_full.txt',
+                                            wave_unit=u.um)
+
+        # Store the official IRAC 4.5 um zero point flux for K-correction computations
+        irac_45_zp = 179.7 * u.Jy
+
+        # If the requested output zero-point is 'vega', pre-load the Vega reference spectrum
+        if self._output_zero_pt.lower() == 'vega':
+            self._output_zero_pt = SourceSpectrum.from_vega()
+
+        for cluster_id, cluster_info in self._catalog_dictionary.items():
+            # Retrieve the cluster redshift from the SPT catalog
+            catalog_idx = cluster_info['SPT_cat_idx']
+            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
+
+            # Compute the K-correction for the cluster's redshift, the given SED and output parameters
+            k_corr = k_correction(z=cluster_z, f_lambda=self._sed, g_lambda_R=irac_45, g_lambda_Q=self._output_filter,
+                                  R=irac_45_zp, Q=self._output_zero_pt)
+
+            # Store the cluster redshift and K-correction in cluster_info for later use
+            cluster_info['redshift'] = cluster_z
+            cluster_info['k-correction'] = k_corr
+
+    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, absolute_mag,
+                         ch1_ch2_color_cut,
                          selection_band='I2_MAG_APER4'):
         """
         Selects the objects in the clusters as AGN subject to a color cut.
@@ -395,6 +452,8 @@ class SelectIRAGN:
            completeness limit in the selection band is kept above 80%.
          - A magnitude cut is applied to the bright-end of both bands to remain under the saturation limit.
          - The [3.6] - [4.5] color cut is applied to select for red objects above which we define as IR-bright AGN.
+         - An absolute magnitude cut is applied to select for only the intrinsically bright AGN in order to have a fair
+           sample across our redshift range.
          - Finally, the surviving objects' positions are checked against the good pixel map to ensure that the object
            lies on an acceptable location.
 
@@ -406,6 +465,8 @@ class SelectIRAGN:
             Bright-end magnitude threshold for 4.5 um band.
         selection_band_faint_mag : float
             Faint-end magnitude threshold for the specified selection band.
+        absolute_mag : float
+            Absolute magnitude threshold for rest-frame band as used in `cluster_k_correction`.
         ch1_ch2_color_cut : float
             [3.6] - [4.5] color cut above which objects will be selected as AGN.
         selection_band : str, optional
@@ -435,6 +496,16 @@ class SelectIRAGN:
 
             # Calculate the IRAC Ch1 - Ch2 color (4" apertures) and preform the color cut
             sex_catalog = sex_catalog[sex_catalog['I1_MAG_APER4'] - sex_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
+
+            # Using the K-corrections computed earlier and the distance modulus, compute the absolute magnitude of
+            # our AGN
+            dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
+            sex_catalog['AGN_ABSOLUTE_MAG'] = sex_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info['k-correction']
+
+            # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
+            # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
+            # redshift range.
+            sex_catalog = sex_catalog[sex_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
@@ -510,8 +581,6 @@ class SelectIRAGN:
 
         """
 
-        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
-
         for cluster_info in self._catalog_dictionary.values():
             catalog = cluster_info['catalog']
 
@@ -523,12 +592,13 @@ class SelectIRAGN:
             separations_arcmin = object_coords.separation(sz_center).to(u.arcmin)
 
             # Compute the r500 radius for the cluster
-            r500 = (3 * catalog['M500'][0]*u.Msun /
-                    (4*np.pi * 500 * cosmo.critical_density(catalog['REDSHIFT'][0]).to(u.Msun/u.Mpc**3)))**(1/3)
+            r500 = (3 * catalog['M500'][0] * u.Msun /
+                    (4 * np.pi * 500 * self._cosmo.critical_density(catalog['REDSHIFT'][0]).to(
+                        u.Msun / u.Mpc ** 3))) ** (1 / 3)
 
             # Convert the angular separations into physical separations relative to the cluster's r500 radius
             separations_r500 = (separations_arcmin / r500
-                                * cosmo.kpc_proper_per_arcmin(catalog['REDSHIFT'][0]).to(u.Mpc/u.arcmin))
+                                * self._cosmo.kpc_proper_per_arcmin(catalog['REDSHIFT'][0]).to(u.Mpc / u.arcmin))
 
             # Add our new columns to the catalog
             catalog['R500'] = r500
@@ -628,7 +698,7 @@ class SelectIRAGN:
                 final_catalog.write(filename, overwrite=True)
 
     def run_selection(self, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov, ch1_bright_mag,
-                      ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color, spt_colnames, output_name,
+                      ch2_bright_mag, selection_band_faint_mag, absolute_mag, ch1_ch2_color, spt_colnames, output_name,
                       output_colnames):
         """
         Executes full selection pipeline using default values.
@@ -649,6 +719,8 @@ class SelectIRAGN:
             Bright-end 4.5 um magnitude for :method:`object_selection`
         selection_band_faint_mag : float
             Faint-end selection band magnitude for :method:`object_selection`
+        absolute_mag : float
+            Absolute magnitude threshold for rest-frame band as used in `cluster_k_correction`.
         ch1_ch2_color : float
             [3.6] - [4.5] color cut for :method:`object_selection`
         spt_colnames : list_like
@@ -669,8 +741,10 @@ class SelectIRAGN:
         self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
         self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
         self.object_mask()
+        self.cluster_k_correction()
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
-                              selection_band_faint_mag=selection_band_faint_mag, ch1_ch2_color_cut=ch1_ch2_color)
+                              selection_band_faint_mag=selection_band_faint_mag, absolute_mag=absolute_mag,
+                              ch1_ch2_color_cut=ch1_ch2_color)
         self.catalog_merge(catalog_cols=spt_colnames)
         self.object_separations()
         self.completeness_value()

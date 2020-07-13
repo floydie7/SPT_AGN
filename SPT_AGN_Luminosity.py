@@ -12,7 +12,7 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize as op
-from astro_compendium.utils.k_corection import k_correction
+from astro_compendium.utils.k_correction import k_correction
 from astropy.cosmology import FlatLambdaCDM
 from astropy.table import Table, vstack
 from synphot import SourceSpectrum, SpectralElement, units
