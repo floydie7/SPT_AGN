@@ -34,19 +34,25 @@ irac_45 = SpectralElement.from_file('Data/Data_Repository/filter_curves/Spitzer_
 # Create an artificial filter centered at 2.8 um with a resolution of R = 5.
 f280 = SpectralElement(Box1D, amplitude=1, x_0=2.8 * u.um, width=2.8 * u.um / 5)
 
+# Read in the FLAMINGOS J-band filter for comparison with Assef et al. (2011)
+flamingos_j = SpectralElement.from_file('Data/Data_Repository/filter_curves/Gemini/South/FLAMINGOS/'
+                                        'FLAMINGOS.BARR.J.ColdWitness.txt',
+                                        wave_unit=u.nm)
+
 start_time = time.process_time()
 # Compute the F280 absolute magnitudes
 sub_tables = []
 for cluster in sptcl_agn.group_by('SPT_ID').groups:
     # As the K-correction only depends on the redshift, we only need to compute it once per cluster
     cluster_z = cluster['REDSHIFT'][0]
-    k_corr = k_correction(cluster_z, f_lambda=qso2_sed, g_lambda_R=179.7 * u.Jy, g_lambda_Q='vega', R=irac_45, Q=f280)
+    k_corr = k_correction(cluster_z, f_lambda=qso2_sed, g_lambda_R=179.7 * u.Jy, g_lambda_Q='vega', R=irac_45, Q=flamingos_j)
 
     # Also compute the distance modulus
     dist_mod = cosmo.distmod(cluster_z).value
 
     # Compute the absolute magnitudes
-    cluster['F280_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr.value
+    # cluster['F280_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr
+    cluster['J_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr
     sub_tables.append(cluster)
 print(f'Absolute Magnitudes Computed, run time: {time.process_time() - start_time:.2f} s')
 
@@ -54,12 +60,13 @@ print(f'Absolute Magnitudes Computed, run time: {time.process_time() - start_tim
 sptcl_agn = vstack(sub_tables)
 
 # From the absolute magnitude, convert to luminosity
-sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['F280_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
+# sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['F280_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
+sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['J_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
 
 #%% Fit a Gaussian to the histogram
 bin_width = 0.15
-mag_bins = np.arange(sptcl_agn['F280_ABS_MAG'].min(), sptcl_agn['F280_ABS_MAG'].max() + bin_width, bin_width)
-abs_mag_hist, mag_bins = np.histogram(sptcl_agn['F280_ABS_MAG'], bins=mag_bins)
+mag_bins = np.arange(sptcl_agn['J_ABS_MAG'].min(), sptcl_agn['J_ABS_MAG'].max() + bin_width, bin_width)
+abs_mag_hist, mag_bins = np.histogram(sptcl_agn['J_ABS_MAG'], bins=mag_bins)
 bin_centers = mag_bins[:-1] + np.diff(mag_bins) / 2
 cutoff = bin_centers[np.argmax(abs_mag_hist)] + 2 * bin_width
 fitted_points = (-28.5 < bin_centers) & (bin_centers <= cutoff)
@@ -78,11 +85,29 @@ mean_luminosity = u.Lsun * 10**(-(popt[1] - 4.74) / 2.5)
 print(f'Mean Luminosity: {mean_luminosity:.2e} = {mean_luminosity.to(u.erg/u.s):.2e}')
 
 fig, ax = plt.subplots()
-ax.hist(sptcl_agn['F280_ABS_MAG'], bins=mag_bins)
-ax.plot(bin_centers[fitted_points], gaussian(bin_centers[fitted_points], *popt), 'C1-')
-ax.plot(bin_centers, gaussian(bin_centers, *popt), 'C1--')
+ax.hist(sptcl_agn['J_ABS_MAG'], bins=mag_bins)
+# ax.plot(bin_centers[fitted_points], gaussian(bin_centers[fitted_points], *popt), 'C1-')
+# ax.plot(bin_centers, gaussian(bin_centers, *popt), 'C1--')
 # ax.plot(bin_centers[bin_centers <= -24], gaussian(bin_centers[bin_centers <= -24], *popt), 'C1--')
-ax.set(xlabel='[F280] Absolute Vega Magnitude', ylabel=r'$N_{\rm AGN}$',
-       title=rf'Gaussian: $\mu={popt[1]:.2f}\pm{perr[1]:.3f}, \sigma={popt[2]:.2f}\pm{perr[2]:.3f}$')
-fig.savefig('Data/Plots/SPTcl-IRAGN_Abs_Mag.pdf')
+ax.set(xlabel='J-band Absolute Vega Magnitude', ylabel=r'$N_{\rm AGN}$')
+       # title=rf'Gaussian: $\mu={popt[1]:.2f}\pm{perr[1]:.3f}, \sigma={popt[2]:.2f}\pm{perr[2]:.3f}$')
+fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_J_Abs_Mag.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['J_ABS_MAG'], marker='.')
+ax.set(xlabel='Cluster Redshift', ylabel='J-band Absolute Vega Magnitude')
+ax.invert_yaxis()
+fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_J_Abs_Mag_redshift.pdf')
+plt.show()
+
+#%%
+fig, ax = plt.subplots()
+ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['Luminosity'], marker='.')
+ax.set(xlabel='Cluster Redshift', ylabel=r'$L_{\rm AGN}$ [erg s$^{-1}$]', yscale='log')
+min_y, max_y = ax.get_ylim()
+ax1 = ax.twinx()
+ax1.set(ylabel=r'$L_{\rm AGN}\, /\, L_\odot$', ylim=[min_y / u.Lsun.to(u.erg / u.s), max_y / u.Lsun.to(u.erg / u.s)],
+        yscale='log')
+# fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_Lum_redshift.pdf')
 plt.show()

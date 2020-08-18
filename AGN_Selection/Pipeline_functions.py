@@ -89,7 +89,6 @@ class SelectIRAGN:
         self._output_filter = output_filter
         self._output_zero_pt = output_zero_pt
 
-
     def file_pairing(self, exclude=None):
         """
         Collates the different files for each cluster into a dictionary.
@@ -382,6 +381,7 @@ class SelectIRAGN:
 
                     # Generate the mask shape
                     shape = Ellipse(cent_xy, width=params[2] / pix_scale, height=params[3] / pix_scale, angle=params[4])
+                    shape = shape.get_path()
 
                 # Return error if mask shape isn't known.
                 else:
@@ -424,7 +424,7 @@ class SelectIRAGN:
         irac_45_zp = 179.7 * u.Jy
 
         # If the requested output zero-point is 'vega', pre-load the Vega reference spectrum
-        if self._output_zero_pt.lower() == 'vega':
+        if isinstance(self._output_zero_pt, str) and self._output_zero_pt.lower() == 'vega':
             self._output_zero_pt = SourceSpectrum.from_vega()
 
         for cluster_id, cluster_info in self._catalog_dictionary.items():
@@ -466,7 +466,7 @@ class SelectIRAGN:
         selection_band_faint_mag : float
             Faint-end magnitude threshold for the specified selection band.
         absolute_mag : float
-            Absolute magnitude threshold for rest-frame band as used in `cluster_k_correction`.
+            Absolute magnitude threshold for rest-frame band as used in :method:`cluster_k_correction`.
         ch1_ch2_color_cut : float
             [3.6] - [4.5] color cut above which objects will be selected as AGN.
         selection_band : str, optional
@@ -720,7 +720,7 @@ class SelectIRAGN:
         selection_band_faint_mag : float
             Faint-end selection band magnitude for :method:`object_selection`
         absolute_mag : float
-            Absolute magnitude threshold for rest-frame band as used in `cluster_k_correction`.
+            Absolute magnitude threshold for :method:`object_selection`
         ch1_ch2_color : float
             [3.6] - [4.5] color cut for :method:`object_selection`
         spt_colnames : list_like
