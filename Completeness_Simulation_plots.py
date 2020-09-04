@@ -41,7 +41,7 @@ for cluster_id in spt_sz_clusters_to_exclude:
 for cluster_id in sptpol_clusters_to_exclude:
     sptpol.pop(cluster_id, None)
 
-# Because the SPT-SZ results are stored using observed ids not the offical ids, we need to load in a look-up dictionary
+# Because the SPT-SZ results are stored using observed ids not the official ids, we need to load in a look-up dictionary
 with open('Data/SPT-SZ_observed_to_official_ids.json', 'r') as f, \
         open('Data/SPT-SZ_official_to_observed_ids.json', 'r') as g:
     obs_to_official_ids = json.load(f)

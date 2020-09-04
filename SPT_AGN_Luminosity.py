@@ -11,7 +11,6 @@ import time
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.optimize as op
 from astro_compendium.utils.k_correction import k_correction
 from astropy.cosmology import FlatLambdaCDM
 from astropy.table import Table, vstack
@@ -45,14 +44,14 @@ sub_tables = []
 for cluster in sptcl_agn.group_by('SPT_ID').groups:
     # As the K-correction only depends on the redshift, we only need to compute it once per cluster
     cluster_z = cluster['REDSHIFT'][0]
-    k_corr = k_correction(cluster_z, f_lambda=qso2_sed, g_lambda_R=179.7 * u.Jy, g_lambda_Q='vega', R=irac_45, Q=flamingos_j)
+    k_corr = k_correction(cluster_z, f_lambda=qso2_sed, g_lambda_R=179.7 * u.Jy, g_lambda_Q='vega', R=irac_45, Q=f280)
 
     # Also compute the distance modulus
     dist_mod = cosmo.distmod(cluster_z).value
 
     # Compute the absolute magnitudes
-    # cluster['F280_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr
-    cluster['J_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr
+    cluster['F280_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr
+    # cluster['J_ABS_MAG'] = cluster['I2_MAG_APER4'].data - dist_mod - k_corr
     sub_tables.append(cluster)
 print(f'Absolute Magnitudes Computed, run time: {time.process_time() - start_time:.2f} s')
 
@@ -60,48 +59,46 @@ print(f'Absolute Magnitudes Computed, run time: {time.process_time() - start_tim
 sptcl_agn = vstack(sub_tables)
 
 # From the absolute magnitude, convert to luminosity
-# sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['F280_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
-sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['J_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
+sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['F280_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
+# sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['J_ABS_MAG'] - 4.74) / 2.5) * u.Lsun.to(u.erg / u.s)
 
-#%% Fit a Gaussian to the histogram
-bin_width = 0.15
-mag_bins = np.arange(sptcl_agn['J_ABS_MAG'].min(), sptcl_agn['J_ABS_MAG'].max() + bin_width, bin_width)
-abs_mag_hist, mag_bins = np.histogram(sptcl_agn['J_ABS_MAG'], bins=mag_bins)
-bin_centers = mag_bins[:-1] + np.diff(mag_bins) / 2
-cutoff = bin_centers[np.argmax(abs_mag_hist)] + 2 * bin_width
-fitted_points = (-28.5 < bin_centers) & (bin_centers <= cutoff)
-
-gaussian = lambda x, a, mu, sigma: a * np.exp(-(x - mu)**2 / (2 * sigma**2))
-
-popt, pcov = op.curve_fit(gaussian, bin_centers[fitted_points], abs_mag_hist[fitted_points],
-                          sigma=np.sqrt(abs_mag_hist[fitted_points]), p0=(200, -24.5, 1.25))
-perr = np.sqrt(np.diag(pcov))
-
-print(f'Fit parameters:\na={popt[0]:.2f}+-{perr[0]:.3f}, '
-      f'mu={popt[1]:.2f}+-{perr[1]:.3f}, '
-      f'sigma={popt[2]:.2f}+-{perr[2]:.3f}')
-
-mean_luminosity = u.Lsun * 10**(-(popt[1] - 4.74) / 2.5)
-print(f'Mean Luminosity: {mean_luminosity:.2e} = {mean_luminosity.to(u.erg/u.s):.2e}')
-
+#%% Absolute magnitude - redshift
 fig, ax = plt.subplots()
-ax.hist(sptcl_agn['J_ABS_MAG'], bins=mag_bins)
-# ax.plot(bin_centers[fitted_points], gaussian(bin_centers[fitted_points], *popt), 'C1-')
-# ax.plot(bin_centers, gaussian(bin_centers, *popt), 'C1--')
-# ax.plot(bin_centers[bin_centers <= -24], gaussian(bin_centers[bin_centers <= -24], *popt), 'C1--')
-ax.set(xlabel='J-band Absolute Vega Magnitude', ylabel=r'$N_{\rm AGN}$')
-       # title=rf'Gaussian: $\mu={popt[1]:.2f}\pm{perr[1]:.3f}, \sigma={popt[2]:.2f}\pm{perr[2]:.3f}$')
-fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_J_Abs_Mag.pdf')
-plt.show()
-
-fig, ax = plt.subplots()
-ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['J_ABS_MAG'], marker='.')
-ax.set(xlabel='Cluster Redshift', ylabel='J-band Absolute Vega Magnitude')
+ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['F280_ABS_MAG'], marker='.')
+ax.set(xlabel='Cluster Redshift', ylabel='[F280] Absolute Vega Magnitude')
 ax.invert_yaxis()
-fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_J_Abs_Mag_redshift.pdf')
+fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_f280_Abs_Mag_redshift.pdf')
+# plt.show()
+
+#%% Absolute magnitude - redshift with histograms
+fig = plt.figure(figsize=(8, 8))
+gs = fig.add_gridspec(2, 2, width_ratios=(7,2), height_ratios=(2, 7),
+                      left=0.1, right=0.9, bottom=0.1, top=0.9,
+                      wspace=0.05, hspace=0.05)
+ax = fig.add_subplot(gs[1, 0])
+ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['F280_ABS_MAG'], marker='.')
+ax.set(xlabel='Cluster Redshift', ylabel='[F280] Absolute Vega Magnitude')
+ax.invert_yaxis()
+
+ax_histx = fig.add_subplot(gs[0, 0], sharex=ax)
+ax_histy = fig.add_subplot(gs[1, 1], sharey=ax)
+ax_histx.tick_params(axis='x', labelbottom=False)
+ax_histy.tick_params(axis='y', labelleft=False)
+
+x_bin_width = 0.1
+y_bin_width = 0.25
+x_bins = np.arange(sptcl_agn['REDSHIFT'].min(), sptcl_agn['REDSHIFT'].max() + x_bin_width, x_bin_width)
+y_bins = np.arange(sptcl_agn['F280_ABS_MAG'].min(), sptcl_agn['F280_ABS_MAG'].max() + y_bin_width, y_bin_width)
+ax_histx.hist(sptcl_agn['REDSHIFT'], bins=x_bins)
+ax_histy.hist(sptcl_agn['F280_ABS_MAG'], bins=y_bins, orientation='horizontal')
+
+ax_histx.set(ylabel=r'$N_{\rm AGN}$')
+ax_histy.set(xlabel=r'$N_{\rm AGN}$')
+
+fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_f280_Abs_Mag_redshift_hist.pdf')
 plt.show()
 
-#%%
+#%% Bolometric luminosity - redshift
 fig, ax = plt.subplots()
 ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['Luminosity'], marker='.')
 ax.set(xlabel='Cluster Redshift', ylabel=r'$L_{\rm AGN}$ [erg s$^{-1}$]', yscale='log')
@@ -109,5 +106,6 @@ min_y, max_y = ax.get_ylim()
 ax1 = ax.twinx()
 ax1.set(ylabel=r'$L_{\rm AGN}\, /\, L_\odot$', ylim=[min_y / u.Lsun.to(u.erg / u.s), max_y / u.Lsun.to(u.erg / u.s)],
         yscale='log')
-# fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_Lum_redshift.pdf')
-plt.show()
+fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_f280_Lum_redshift.pdf')
+# plt.show()
+
