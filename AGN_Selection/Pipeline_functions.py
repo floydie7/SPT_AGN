@@ -25,7 +25,9 @@ from astropy.wcs import WCS
 from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
+from scipy.integrate import quad, quad_vec
 from scipy.interpolate import interp1d
+from scipy.stats import norm
 from synphot import SourceSpectrum, SpectralElement
 
 # Suppress Astropy warnings
@@ -61,10 +63,14 @@ class SelectIRAGN:
         accepted: 'vega', 'ab', 'st' use the default Vega spectrum from `synphot`, the AB system with constant
         profile of :math:`g_\\nu = 3631 Jy`, and the  ST system with constant profile of
         :math:`g_\\lambda = 3.631e-9 erg s^-1 cm^-2 \\AA^-1` respectively.
+    field_number_dist_file : str
+        Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
+        using the SDWFS field sample and the associated color bins.
+
     """
 
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 sed, output_filter, output_zero_pt):
+                 sed, output_filter, output_zero_pt, field_number_dist_file):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -88,6 +94,9 @@ class SelectIRAGN:
         self._sed = sed
         self._output_filter = output_filter
         self._output_zero_pt = output_zero_pt
+
+        # Number count distribution from SDWFS used to remove Eddington bias
+        self._field_number_dist = field_number_dist_file
 
     def file_pairing(self, exclude=None):
         """
@@ -433,8 +442,9 @@ class SelectIRAGN:
             cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
 
             # Compute the K-correction for the cluster's redshift, the given SED and output parameters
-            k_corr = k_correction(z=cluster_z, f_lambda=self._sed, g_lambda_R=irac_45, g_lambda_Q=self._output_filter,
-                                  R=irac_45_zp, Q=self._output_zero_pt)
+            k_corr = k_correction(z=cluster_z, f_lambda=self._sed,
+                                  g_lambda_R=irac_45_zp, g_lambda_Q=self._output_zero_pt,
+                                  R=irac_45, Q=self._output_filter)
 
             # Store the cluster redshift and K-correction in cluster_info for later use
             cluster_info['redshift'] = cluster_z
@@ -530,6 +540,67 @@ class SelectIRAGN:
             # to the data structure
             if sex_catalog:
                 cluster_info['catalog'] = sex_catalog
+            else:
+                clusters_to_remove.append(cluster_id)
+
+        # Remove any cluster that has no objects surviving our selection cuts
+        for cluster_id in clusters_to_remove:
+            self._catalog_dictionary.pop(cluster_id, None)
+
+    def purify_selection(self, ch1_ch2_color_cut):
+        """
+        Purifies the selected sample of AGN by incorporating the color error to remove the Eddington bias the flat color
+        selection has as many blue objects can scatter into our sample.
+
+        Parameters
+        ----------
+        ch1_ch2_color_cut : float
+            [3.6] - [4.5] color cut above which objects will be selected as AGN.
+
+        """
+
+        # Read in the number count distribution file
+        with open(self._field_number_dist, 'r') as f:
+            field_number_distribution = json.load(f)
+        field_number_counts = field_number_distribution['normalized_number_counts']
+        color_bins = field_number_distribution['color_bins']
+
+        # Create an interpolation of our number count distribution
+        color_probability_distribution = interp1d(color_bins, field_number_counts)
+
+        # For the probability computed later for each object, find the normalization factor
+        color_prob_in_denom = quad(color_probability_distribution, a=ch1_ch2_color_cut, b=color_bins.max())[0]
+
+        clusters_to_remove = []
+        for cluster_id, cluster_info in self._catalog_dictionary.items():
+            # Get the photometric catalog for the cluster
+            se_catalog = cluster_info['catalog']
+
+            # Compute the color and color errors for each object
+            I1_I2_color = se_catalog['I1_MAG_APER4'] - se_catalog['I2_MAG_APER4']
+            I1_I2_color_err = np.sqrt((2.5 * se_catalog['I1_FLUXERR_APER4'] /
+                                       (se_catalog['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                      (2.5 * se_catalog['I2_FLUXERR_APER4'] /
+                                       (se_catalog['I2_FLUX_APER4'] * np.log(10))) ** 2)
+
+            # Convolve the error distribution for each object with the overall number count distribution
+            def object_integrand(x):
+                norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
+
+            # Compute the probability contained within the selection region by each object's color error
+            color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bins.max())[0]
+            color_prob_in = color_prob_in_numer / color_prob_in_denom
+
+            # Draw a random number for rejection sampling
+            alpha = np.random.uniform(0, 1, len(se_catalog))
+
+            # Select for each object using rejection sampling considering the color errors for each object
+            se_catalog = se_catalog[color_prob_in >= alpha]
+
+            # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
+            # photometric catalog in our database
+            if se_catalog:
+                cluster_info['catalog'] = se_catalog
             else:
                 clusters_to_remove.append(cluster_id)
 
@@ -745,6 +816,7 @@ class SelectIRAGN:
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
                               selection_band_faint_mag=selection_band_faint_mag, absolute_mag=absolute_mag,
                               ch1_ch2_color_cut=ch1_ch2_color)
+        self.purify_selection(ch1_ch2_color_cut=ch1_ch2_color)
         self.catalog_merge(catalog_cols=spt_colnames)
         self.object_separations()
         self.completeness_value()
