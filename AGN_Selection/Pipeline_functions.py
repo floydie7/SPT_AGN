@@ -25,7 +25,7 @@ from astropy.wcs import WCS
 from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
-from scipy.integrate import quad, quad_vec
+from scipy.integrate import quad_vec, quadrature
 from scipy.interpolate import interp1d
 from scipy.stats import norm
 from synphot import SourceSpectrum, SpectralElement
@@ -214,8 +214,8 @@ class SelectIRAGN:
 
         # If there are any duplicate matches in the sample remaining we need to remove the match that is the poorer
         # match. We will only keep the closest matches.
-        match_info = Table(np.array([[cluster['SPT_cat_idx'], cluster['center_sep'], cluster_id]
-                                     for cluster_id, cluster in self._catalog_dictionary.items()]),
+        match_info = Table(rows=[[cluster['SPT_cat_idx'], cluster['center_sep'], cluster_id]
+                                 for cluster_id, cluster in self._catalog_dictionary.items()],
                            names=['SPT_cat_idx', 'center_sep', 'cluster_id'])
 
         # Sort the table by the catalog index.
@@ -511,7 +511,8 @@ class SelectIRAGN:
             # our AGN
             if 'k-correction' in cluster_info:
                 dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
-                sex_catalog['AGN_ABSOLUTE_MAG'] = sex_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info['k-correction']
+                sex_catalog['AGN_ABSOLUTE_MAG'] = sex_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info[
+                    'k-correction']
 
                 # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
                 # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
@@ -570,7 +571,8 @@ class SelectIRAGN:
         color_probability_distribution = interp1d(color_bins, field_number_counts)
 
         # For the probability computed later for each object, find the normalization factor
-        color_prob_in_denom = quad(color_probability_distribution, a=ch1_ch2_color_cut, b=color_bins.max())[0]
+        color_prob_in_denom = quadrature(color_probability_distribution,
+                                         a=ch1_ch2_color_cut, b=np.max(color_bins), maxiter=10000)[0]
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
@@ -586,10 +588,10 @@ class SelectIRAGN:
 
             # Convolve the error distribution for each object with the overall number count distribution
             def object_integrand(x):
-                norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
+                return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
 
             # Compute the probability contained within the selection region by each object's color error
-            color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bins.max())[0]
+            color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=np.max(color_bins))[0]
             color_prob_in = color_prob_in_numer / color_prob_in_denom
 
             # Draw a random number for rejection sampling
@@ -645,17 +647,11 @@ class SelectIRAGN:
 
             cluster_info['catalog'] = sex_catalog
 
-    def object_separations(self, is_cluster=True):
+    def object_separations(self):
         """
         Calculates the separations of each object relative to the SZ center.
 
         Finds both the angular separations and physical separations relative to the cluster's r500 radius.
-
-        Parameters
-        ----------
-        is_cluster : bool, optional
-            Boolean flag that will allow skipping of the r500 relative separations. Used for field catalogs. Defaults to
-            `True`.
 
         """
 
@@ -669,19 +665,18 @@ class SelectIRAGN:
             # Calculate the angular separations between the objects and the SZ center in arcminutes
             separations_arcmin = object_coords.separation(sz_center).to(u.arcmin)
 
-            if is_cluster:
-                # Compute the r500 radius for the cluster
-                r500 = (3 * catalog['M500'][0] * u.Msun /
-                        (4 * np.pi * 500 * self._cosmo.critical_density(catalog['REDSHIFT'][0]).to(
-                            u.Msun / u.Mpc ** 3))) ** (1 / 3)
+            # Compute the r500 radius for the cluster
+            r500 = (3 * catalog['M500'][0] * u.Msun /
+                    (4 * np.pi * 500 * self._cosmo.critical_density(catalog['REDSHIFT'][0]).to(
+                        u.Msun / u.Mpc ** 3))) ** (1 / 3)
 
-                # Convert the angular separations into physical separations relative to the cluster's r500 radius
-                separations_r500 = (separations_arcmin / r500
-                                    * self._cosmo.kpc_proper_per_arcmin(catalog['REDSHIFT'][0]).to(u.Mpc / u.arcmin))
+            # Convert the angular separations into physical separations relative to the cluster's r500 radius
+            separations_r500 = (separations_arcmin / r500
+                                * self._cosmo.kpc_proper_per_arcmin(catalog['REDSHIFT'][0]).to(u.Mpc / u.arcmin))
 
-                # Add our new columns to the catalog
-                catalog['R500'] = r500
-                catalog['RADIAL_SEP_R500'] = separations_r500
+            # Add our new columns to the catalog
+            catalog['R500'] = r500
+            catalog['RADIAL_SEP_R500'] = separations_r500
             catalog['RADIAL_SEP_ARCMIN'] = separations_arcmin
 
             # Update the catalog in the data structure
