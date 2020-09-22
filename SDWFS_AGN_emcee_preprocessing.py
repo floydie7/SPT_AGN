@@ -161,7 +161,7 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-sdwfs_catalog = Table.read(f'{hcc_prefix}Data/Output/SDWFS_IRAGN.fits')
+sdwfs_catalog = Table.read(f'{hcc_prefix}Data/Output/SDWFS_cutout_IRAGN.fits')
 
 # Read in the mask files for each cluster
 sdwfs_catalog_grp = sdwfs_catalog.group_by('Cutout_ID')
