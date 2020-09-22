@@ -509,13 +509,14 @@ class SelectIRAGN:
 
             # Using the K-corrections computed earlier and the distance modulus, compute the absolute magnitude of
             # our AGN
-            dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
-            sex_catalog['AGN_ABSOLUTE_MAG'] = sex_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info['k-correction']
+            if 'k-correction' in cluster_info:
+                dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
+                sex_catalog['AGN_ABSOLUTE_MAG'] = sex_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info['k-correction']
 
-            # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
-            # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
-            # redshift range.
-            sex_catalog = sex_catalog[sex_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
+                # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
+                # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
+                # redshift range.
+                sex_catalog = sex_catalog[sex_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
@@ -644,11 +645,17 @@ class SelectIRAGN:
 
             cluster_info['catalog'] = sex_catalog
 
-    def object_separations(self):
+    def object_separations(self, is_cluster=True):
         """
         Calculates the separations of each object relative to the SZ center.
 
         Finds both the angular separations and physical separations relative to the cluster's r500 radius.
+
+        Parameters
+        ----------
+        is_cluster : bool, optional
+            Boolean flag that will allow skipping of the r500 relative separations. Used for field catalogs. Defaults to
+            `True`.
 
         """
 
@@ -662,19 +669,20 @@ class SelectIRAGN:
             # Calculate the angular separations between the objects and the SZ center in arcminutes
             separations_arcmin = object_coords.separation(sz_center).to(u.arcmin)
 
-            # Compute the r500 radius for the cluster
-            r500 = (3 * catalog['M500'][0] * u.Msun /
-                    (4 * np.pi * 500 * self._cosmo.critical_density(catalog['REDSHIFT'][0]).to(
-                        u.Msun / u.Mpc ** 3))) ** (1 / 3)
+            if is_cluster:
+                # Compute the r500 radius for the cluster
+                r500 = (3 * catalog['M500'][0] * u.Msun /
+                        (4 * np.pi * 500 * self._cosmo.critical_density(catalog['REDSHIFT'][0]).to(
+                            u.Msun / u.Mpc ** 3))) ** (1 / 3)
 
-            # Convert the angular separations into physical separations relative to the cluster's r500 radius
-            separations_r500 = (separations_arcmin / r500
-                                * self._cosmo.kpc_proper_per_arcmin(catalog['REDSHIFT'][0]).to(u.Mpc / u.arcmin))
+                # Convert the angular separations into physical separations relative to the cluster's r500 radius
+                separations_r500 = (separations_arcmin / r500
+                                    * self._cosmo.kpc_proper_per_arcmin(catalog['REDSHIFT'][0]).to(u.Mpc / u.arcmin))
 
-            # Add our new columns to the catalog
-            catalog['R500'] = r500
+                # Add our new columns to the catalog
+                catalog['R500'] = r500
+                catalog['RADIAL_SEP_R500'] = separations_r500
             catalog['RADIAL_SEP_ARCMIN'] = separations_arcmin
-            catalog['RADIAL_SEP_R500'] = separations_r500
 
             # Update the catalog in the data structure
             cluster_info['catalog'] = catalog
@@ -827,4 +835,5 @@ class SelectIRAGN:
     @staticmethod
     def __keyfunct(f):
         """Generate a key function that isolates the cluster ID for sorting and grouping"""
-        return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
+        # return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
+        return re.search(r'SDWFS_cutout_\d+', f).group(0)
