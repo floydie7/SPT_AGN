@@ -137,7 +137,7 @@ def generate_catalog_dict(cluster):
         pix_scale = cd_diag[1, 1] * mask_wcs.wcs.cunit[1]
 
     # Generate a radial integration mesh.
-    rall = np.arange(0., max_radius, pix_scale / rescale_fact)
+    rall = np.arange(0., max_radius, pix_scale.to_value(u.arcmin) / rescale_fact)
 
     # Compute the good pixel fractions
     cluster_gpf_all = good_pixel_fraction(rall, cutout_sz_cent, cutout_id,
