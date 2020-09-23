@@ -82,7 +82,7 @@ def good_pixel_fraction(r, center, cluster_id, rescale_factor=None):
 
     # Convert our radius to pixels
     r_pix = r / pix_scale.to_value(u.arcmin)
-    r_pix = r_pix.value
+    # r_pix = r_pix.value
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
     # our mask. To do this, we will pad the mask with a zeros out to the radius we need.
