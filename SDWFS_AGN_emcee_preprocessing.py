@@ -81,7 +81,7 @@ def good_pixel_fraction(r, center, cluster_id, rescale_factor=None):
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
 
     # Convert our radius to pixels
-    r_pix = (r / pix_scale).decompose()
+    r_pix = r / pix_scale.to_value(u.arcmin)
     r_pix = r_pix.value
 
     # Because we potentially integrate to larger radii than can be fit on the image we will need to increase the size of
