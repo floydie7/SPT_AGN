@@ -128,6 +128,8 @@ with open(preprocess_file, 'r') as f:
 # Go through the catalog dictionary and recasting the cluster's mass and r500 to quantities and recast the radial
 # position and completeness lists to arrays.
 for cutout_id, cluster_info in catalog_dict.items():
+    catalog_dict[cutout_id]['gpf_rall'] = np.array(cluster_info['gpf_rall'])
+    catalog_dict[cutout_id]['rall'] = np.array(cluster_info['rall'])
     catalog_dict[cutout_id]['radial_arcmin_maxr'] = np.array(cluster_info['radial_arcmin_maxr'])
 
 # Set up our MCMC sampler.
