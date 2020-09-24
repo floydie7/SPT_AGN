@@ -13,7 +13,7 @@ from collections import ChainMap
 from itertools import groupby, product, chain
 
 import numpy as np
-from astro_compendium.utils.k_correction import k_correction
+# from astro_compendium.utils.k_correction import k_correction
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
@@ -25,6 +25,7 @@ from astropy.wcs import WCS
 from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
+from numpy.random import default_rng
 from scipy.integrate import quad_vec, quadrature
 from scipy.interpolate import interp1d
 from scipy.stats import norm
@@ -66,11 +67,14 @@ class SelectIRAGN:
     field_number_dist_file : str
         Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
         using the SDWFS field sample and the associated color bins.
+    seed : np.random.SeedSequence, optional
+        SeedSequence to initialize the random number generator. If not provided, the RNG will be initiallized with a
+        random seed.
 
     """
 
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 sed, output_filter, output_zero_pt, field_number_dist_file):
+                 sed, output_filter, output_zero_pt, field_number_dist_file, seed=None):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -97,6 +101,9 @@ class SelectIRAGN:
 
         # Number count distribution from SDWFS used to remove Eddington bias
         self._field_number_dist = field_number_dist_file
+
+        # Generate a random number generator with the seed sequence provided
+        self._rng = default_rng(seed)
 
     def file_pairing(self, exclude=None):
         """
@@ -269,7 +276,7 @@ class SelectIRAGN:
             # Write out the coverage mask.
             mask_pathname = f'{self._mask_dir}/{spt_id}_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits'
             combined_cov_hdu = fits.PrimaryHDU(combined_cov, header=header)
-            combined_cov_hdu.writeto(mask_pathname, overwrite=True)
+            # combined_cov_hdu.writeto(mask_pathname, overwrite=True)
 
             # Append the new coverage mask path name and both the catalog and the masking flag from cluster_info
             # to the new output list.
@@ -415,7 +422,7 @@ class SelectIRAGN:
 
             # Write the new mask to disk overwriting the old mask.
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
-            new_mask_hdu.writeto(pixel_map_path, overwrite=True)
+            # new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
     def cluster_k_correction(self):
         """
@@ -571,6 +578,7 @@ class SelectIRAGN:
         color_probability_distribution = interp1d(color_bins, field_number_counts)
 
         # For the probability computed later for each object, find the normalization factor
+        # noinspection PyTypeChecker
         color_prob_in_denom = quadrature(color_probability_distribution,
                                          a=ch1_ch2_color_cut, b=np.max(color_bins), maxiter=10000)[0]
 
@@ -595,7 +603,7 @@ class SelectIRAGN:
             color_prob_in = color_prob_in_numer / color_prob_in_denom
 
             # Draw a random number for rejection sampling
-            alpha = np.random.uniform(0, 1, len(se_catalog))
+            alpha = self._rng.random(size=len(se_catalog))
 
             # Select for each object using rejection sampling considering the color errors for each object
             se_catalog = se_catalog[color_prob_in >= alpha]
@@ -815,7 +823,7 @@ class SelectIRAGN:
         self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
         self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
         self.object_mask()
-        self.cluster_k_correction()
+        # self.cluster_k_correction()
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
                               selection_band_faint_mag=selection_band_faint_mag, absolute_mag=absolute_mag,
                               ch1_ch2_color_cut=ch1_ch2_color)
@@ -830,5 +838,5 @@ class SelectIRAGN:
     @staticmethod
     def __keyfunct(f):
         """Generate a key function that isolates the cluster ID for sorting and grouping"""
-        # return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
-        return re.search(r'SDWFS_cutout_\d+', f).group(0)
+        return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
+        # return re.search(r'SDWFS_cutout_\d+', f).group(0)
