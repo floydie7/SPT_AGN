@@ -38,7 +38,7 @@ def model_rate_opted(params, r):
     a, C, sigma_C = params
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = a * np.exp(-0.5 * ((r - C) / sigma_C)**2)
+    background = a * np.exp(-0.5 * ((r - C) / sigma_C) ** 2)
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = background
@@ -144,7 +144,9 @@ nwalkers = 15
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = np.vstack([[np.random.uniform(0., 1.)  # C
+pos0 = np.vstack([[np.random.uniform(0., 1.),  # a
+                   np.random.uniform(0., 1.),  # C
+                   np.random.uniform(0., 1.)  # sigma_c
                    ]
                   for i in range(nwalkers)])
 
