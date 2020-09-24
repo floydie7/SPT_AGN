@@ -10,7 +10,6 @@ import os
 from argparse import ArgumentParser
 from time import time
 
-import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -20,7 +19,7 @@ from schwimmbad import MPIPool
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def model_rate_opted(params):
+def model_rate_opted(params, r):
     """
     Our generating model
 
@@ -36,15 +35,15 @@ def model_rate_opted(params):
     """
 
     # Unpack our parameters
-    C, = params
+    a, C, sigma_C = params
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C / u.arcmin ** 2
+    background = a * np.exp(-0.5 * ((r - C) / sigma_C)**2)
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = background
 
-    return model.value
+    return model
 
 
 # Set our log-likelihood
@@ -67,11 +66,11 @@ def lnlike(param):
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param)
+        ni = model_rate_opted(param, radial_arcmin_maxr)
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
-        nall = model_rate_opted(param)
+        nall = model_rate_opted(param, rall)
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_arcmin_maxr)) - completeness_ratio * trap_weight(
@@ -87,16 +86,20 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params):
     # Extract our parameters
-    C, = params
+    a, C, sigma_C = params
 
     # Define all priors
-    if 0.0 <= C < 5.0:
+    if 0.0 <= C < 5.0 and 0.0 <= a <= 100. and 0. <= sigma_C <= 5.:
         C_lnprior = 0.0
+        sigma_C_lnprior = 0.0
+        a_lnprior = 0.0
     else:
         C_lnprior = -np.inf
+        sigma_C_lnprior = -np.inf
+        a_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = C_lnprior
+    total_lnprior = C_lnprior + sigma_C_lnprior + a_lnprior
 
     return total_lnprior
 
@@ -134,8 +137,8 @@ for cutout_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 1
-nwalkers = 5
+ndim = 3
+nwalkers = 15
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
@@ -192,7 +195,7 @@ with MPIPool() as pool:
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
-labels = [r'$C$']
+labels = [r'$a$', r'$C$', r'$\sigma_C$']
 
 try:
     # Calculate the autocorrelation time

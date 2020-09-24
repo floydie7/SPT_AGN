@@ -13,16 +13,18 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator
 
 # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
+labels = [r'$C$']
 
 # Our file storing the full test suite
-filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
+# filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
+filename = 'Data/MCMC/SDWFS_Background/Chains/emcee_chains_SDWFS_IRAGN.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'wider_eta' in chain_name]
+# chain_names = [chain_name for chain_name in chain_names if 'wider_eta' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -40,16 +42,21 @@ for chain_name, sampler in sampler_dict.items():
     # Plot the chains
     fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
     for i in range(ndim):
-        ax = axes[i]
+        # ax = axes[i]
+        ax = axes
         ax.plot(samples[:, :, i], color='k', alpha=0.3)
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set(xlim=[0, len(samples)], ylabel=labels[i])
 
-    axes[0].set(title=chain_name)
-    axes[-1].set(xlabel='Steps')
+    # axes[0].set(title=chain_name)
+    # axes[-1].set(xlabel='Steps')
+    axes.set(title=chain_name)
+    axes.set(xlabel='Steps')
 
-    fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.pdf', format='pdf')
-    fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.png', format='png')
+    # fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.pdf', format='pdf')
+    # fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.png', format='png')
+    fig.savefig(f'Data/MCMC/SDWFS_Background/Plots/Param_chains_SDWFS_Background_{chain_name}.pdf')
+    fig.savefig(f'Data/MCMC/SDWFS_Background/Plots/Param_chains_SDWFS_Background_{chain_name}.png')
 
     try:
         # Calculate the autocorrelation time
@@ -86,8 +93,10 @@ for chain_name, sampler in sampler_dict.items():
 
     # Produce the corner plot
     fig = corner.corner(flat_samples, labels=labels, quantiles=[0.16, 0.5, 0.84], show_titles=True)
-    fig.suptitle(chain_name)
-    fig.savefig(f'Data/MCMC/SPT_Data/Plots/Corner_plot_SPTcl_{chain_name}.pdf', format='pdf')
+    # fig.suptitle(chain_name)
+    # plt.tight_layout()
+    # fig.savefig(f'Data/MCMC/SPT_Data/Plots/Corner_plot_SPTcl_{chain_name}.pdf', format='pdf')
+    fig.savefig(f'Data/MCMC/SDWFS_Background/Plots/Corner_plot_SDWFS_Background_{chain_name}.pdf', format='pdf')
 
     print(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
