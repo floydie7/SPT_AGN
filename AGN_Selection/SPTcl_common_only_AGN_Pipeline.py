@@ -7,38 +7,38 @@ sanity check that the purification process has worked to correct the deeper SPT-
 depth in color.
 """
 
-import logging
+# import os
+# os.environ['XDG_CONFIG_HOME'] = '/work/mei/bfloyd/.work_config/'
+# os.environ['XDG_CACHE_HOME'] = '/work/mei/bfloyd/.work_cache/'
+
 from time import time
 
 import astropy.units as u
 import numpy as np
-from Pipeline_functions import SelectIRAGN
 from astropy.table import Table, join, unique, vstack
-from mpi4py import MPI
 from numpy.random import SeedSequence
-from schwimmbad import MPIPool
 
-from mpi_logger import MPIFileHandler
+from AGN_Selection.Pipeline_functions import SelectIRAGN
 
 # Initialize the random number seed sequence
 ss = SeedSequence(123456)
 
 # Set up logging
-comm = MPI.COMM_WORLD
-logger = logging.getLogger('node[{rank:d}]: {name}'.format(rank=comm.rank, name=__name__))
-logger.setLevel(logging.INFO)
-mpi_handler = MPIFileHandler('SPTcl_common_only_realizations.log')
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-mpi_handler.setFormatter(formatter)
-logger.addHandler(mpi_handler)
+# comm = MPI.COMM_WORLD
+# logger = logging.getLogger('node[{rank:d}]: {name}'.format(rank=comm.rank, name=__name__))
+# logger.setLevel(logging.INFO)
+# mpi_handler = MPIFileHandler('SPTcl_common_only_fuzzy.log')
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# mpi_handler.setFormatter(formatter)
+# logger.addHandler(mpi_handler)
 
 # Specify the number of realizations we want to create
 n_realizations = 100
 
 # Define directories
 # prefix = '/Users/btfkwd/Documents/SPT_AGN/'
-# prefix = '/home/ben/PycharmProjects/SPT_AGN/'
-prefix = '/work/mei/bfloyd/SPT_AGN/'
+prefix = '/home/ben/PycharmProjects/SPT_AGN/'
+# prefix = '/work/mei/bfloyd/SPT_AGN/'
 
 # SPT-SZ Directories
 spt_sz_catalog_directory = f'{prefix}Data/Catalogs'
@@ -93,7 +93,8 @@ spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr'
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
                        'REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr', 'R500', 'RADIAL_SEP_R500',
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
-                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION', 'MASK_NAME']
+                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION', 'MASK_NAME',
+                       'selection_membership']
 
 # Read in SPT-SZ cluster catalog
 Bocquet = Table.read(f'{prefix}Data/2500d_cluster_sample_Bocquet18.fits')
@@ -112,6 +113,9 @@ SPTcl.sort(keys=['SPT_ID', 'field'])  # Sub-sorting by 'field' puts Huang entrie
 SPTcl = unique(SPTcl, keys='SPT_ID', keep='first')  # Keeping Huang entries over Bocquet
 SPTcl.sort(keys='SPT_ID')  # Resort by ID.
 
+# Convert bytestring columns to unicode
+SPTcl.convert_bytestring_to_unicode()
+
 # Only select the clusters that are common to both surveys.
 common_ids = ['SPT-CLJ0000-5748', 'SPT-CLJ0001-5440', 'SPT-CLJ2259-5431', 'SPT-CLJ2300-5331', 'SPT-CLJ2301-5546',
               'SPT-CLJ2311-5820', 'SPT-CLJ2337-5912', 'SPT-CLJ2337-5942', 'SPT-CLJ2341-5119', 'SPT-CLJ2342-5411',
@@ -127,138 +131,139 @@ SPTcl['M500_lerr'] *= 1e14
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
 
-def run_realizations(n, seed_seq):
-    # Spawn 2 more seeds to differentiate the two survey catalogs
-    grandchild_seeds = seed_seq.spawn(2)
-    # Run the pipeline.
-    logger.info(f'Starting Pipeline.\nRealizaton: {n}')
-    pipeline_start_time = time()
-    spt_sz_selector_start_time = time()
+# def run_realizations(args):
+#     n, seed_seq = args
+#     # Spawn 2 more seeds to differentiate the two survey catalogs
+#     grandchild_seeds = seed_seq.spawn(2)
+# Run the pipeline.
+print(f'Starting Pipeline.')
+pipeline_start_time = time()
+spt_sz_selector_start_time = time()
 
-    # Initialize the SPT-SZ selector
-    spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_image_dir=spt_sz_image_directory,
-                                  region_file_dir=spt_sz_regions_directory, mask_dir=spt_sz_masks_directory,
-                                  spt_catalog=SPTcl,
-                                  completeness_file=spt_sz_completeness_sim_results,
-                                  sed=None, output_filter=None, output_zero_pt=None,
-                                  field_number_dist_file=sdwfs_number_count_dist,
-                                  seed=grandchild_seeds[0])
+# Initialize the SPT-SZ selector
+spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_image_dir=spt_sz_image_directory,
+                              region_file_dir=spt_sz_regions_directory, mask_dir=spt_sz_masks_directory,
+                              spt_catalog=SPTcl,
+                              completeness_file=spt_sz_completeness_sim_results,
+                              sed=None, output_filter=None, output_zero_pt=None,
+                              field_number_dist_file=sdwfs_number_count_dist)
+                              # seed=grandchild_seeds[0])
 
-    # Run the SPT-SZ pipeline and store the catalog for later
-    spt_sz_agn_catalog = spt_sz_selector.run_selection(excluded_clusters=spt_sz_clusters_to_exclude,
-                                                       max_image_catalog_sep=max_separation,
-                                                       ch1_min_cov=spt_sz_ch1_min_coverage,
-                                                       ch2_min_cov=spt_sz_ch2_min_coverage,
-                                                       ch1_bright_mag=ch1_bright_mag,
-                                                       ch2_bright_mag=ch2_bright_mag,
-                                                       selection_band_faint_mag=ch2_faint_mag,
-                                                       absolute_mag=None,
-                                                       ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
-                                                       output_name=None,
-                                                       output_colnames=output_column_names)
-    logger.info('SPT-SZ selection finished. Run time: {:.2f}s'.format(time() - spt_sz_selector_start_time))
-    sptpol_selector_start_time = time()
+# Run the SPT-SZ pipeline and store the catalog for later
+spt_sz_agn_catalog = spt_sz_selector.run_selection(excluded_clusters=spt_sz_clusters_to_exclude,
+                                                   max_image_catalog_sep=max_separation,
+                                                   ch1_min_cov=spt_sz_ch1_min_coverage,
+                                                   ch2_min_cov=spt_sz_ch2_min_coverage,
+                                                   ch1_bright_mag=ch1_bright_mag,
+                                                   ch2_bright_mag=ch2_bright_mag,
+                                                   selection_band_faint_mag=ch2_faint_mag,
+                                                   absolute_mag=None,
+                                                   ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
+                                                   output_name=None,
+                                                   output_colnames=output_column_names)
+print('SPT-SZ selection finished. Run time: {:.2f}s'.format(time() - spt_sz_selector_start_time))
+sptpol_selector_start_time = time()
 
-    # Initialize the SPTpol 100d selector
-    sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_image_dir=sptpol_image_directory,
-                                  region_file_dir=sptpol_regions_directory, mask_dir=sptpol_masks_directory,
-                                  spt_catalog=SPTcl,
-                                  completeness_file=sptpol_completeness_sim_results,
-                                  sed=None, output_filter=None, output_zero_pt=None,
-                                  field_number_dist_file=sdwfs_number_count_dist,
-                                  seed=grandchild_seeds[1])
+# Initialize the SPTpol 100d selector
+sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_image_dir=sptpol_image_directory,
+                              region_file_dir=sptpol_regions_directory, mask_dir=sptpol_masks_directory,
+                              spt_catalog=SPTcl,
+                              completeness_file=sptpol_completeness_sim_results,
+                              sed=None, output_filter=None, output_zero_pt=None,
+                              field_number_dist_file=sdwfs_number_count_dist)
+                              # seed=grandchild_seeds[1])
 
-    # Run the SPTpol pipeline and store the catalog for later
-    sptpol_agn_catalog = sptpol_selector.run_selection(excluded_clusters=sptpol_clusters_to_exclude,
-                                                       max_image_catalog_sep=max_separation,
-                                                       ch1_min_cov=sptpol_ch1_min_coverage,
-                                                       ch2_min_cov=sptpol_ch2_min_coverage,
-                                                       ch1_bright_mag=ch1_bright_mag,
-                                                       ch2_bright_mag=ch2_bright_mag,
-                                                       selection_band_faint_mag=ch2_faint_mag,
-                                                       absolute_mag=None,
-                                                       ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
-                                                       output_name=None,
-                                                       output_colnames=output_column_names)
-    logger.info('SPTpol 100d selection finished. Run time: {:.2f}s'.format(time() - sptpol_selector_start_time))
-    logger.info('Full pipeline finished. Run time: {:.2f}s'.format(time() - pipeline_start_time))
+# Run the SPTpol pipeline and store the catalog for later
+sptpol_agn_catalog = sptpol_selector.run_selection(excluded_clusters=sptpol_clusters_to_exclude,
+                                                   max_image_catalog_sep=max_separation,
+                                                   ch1_min_cov=sptpol_ch1_min_coverage,
+                                                   ch2_min_cov=sptpol_ch2_min_coverage,
+                                                   ch1_bright_mag=ch1_bright_mag,
+                                                   ch2_bright_mag=ch2_bright_mag,
+                                                   selection_band_faint_mag=ch2_faint_mag,
+                                                   absolute_mag=None,
+                                                   ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
+                                                   output_name=None,
+                                                   output_colnames=output_column_names)
+print('SPTpol 100d selection finished. Run time: {:.2f}s'.format(time() - sptpol_selector_start_time))
+print('Full pipeline finished. Run time: {:.2f}s'.format(time() - pipeline_start_time))
 
-    # To merge the catalogs we will add a new column to both catalog that identifies which survey they originate from.
-    spt_sz_agn_catalog['SURVEY'] = 'SPT-SZ'
-    sptpol_agn_catalog['SURVEY'] = 'SPTpol_100d'
+# To merge the catalogs we will add a new column to both catalog that identifies which survey they originate from.
+spt_sz_agn_catalog['SURVEY'] = 'SPT-SZ'
+sptpol_agn_catalog['SURVEY'] = 'SPTpol_100d'
 
-    # Combine the two cluster catalogs
-    sptcl_agn_catalog = vstack([spt_sz_agn_catalog, sptpol_agn_catalog])
+# Combine the two cluster catalogs
+sptcl_agn_catalog = vstack([spt_sz_agn_catalog, sptpol_agn_catalog])
 
-    # Sort by cluster ID
-    sptcl_agn_catalog.sort('SPT_ID')
+# Sort by cluster ID
+sptcl_agn_catalog.sort('SPT_ID')
 
-    # Output catalog file name
-    output_catalog = f'{prefix}Data/Output/common_only_realizations/SPTcl_common_only_IRAGN_purified_{n:03}.fits'
+# Output catalog file name
+output_catalog = f'{prefix}Data/Output/common_only_realizations/SPTcl_common_only_IRAGN_fuzzy.fits'
 
-    # Write the catalog to disk
-    sptcl_agn_catalog.write(output_catalog, overwrite=True)
+# Write the catalog to disk
+sptcl_agn_catalog.write(output_catalog, overwrite=True)
 
-    # List catalog statistics
-    # SPT-SZ
-    sptsz_agn_catalog_grp = spt_sz_agn_catalog.group_by('SPT_ID')
-    number_of_clusters_sz = len(sptsz_agn_catalog_grp.groups.keys)
-    total_number_sz = len(sptsz_agn_catalog_grp)
-    total_number_corrected_sz = sptsz_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
-    number_per_cluster_sz = total_number_corrected_sz / number_of_clusters_sz
-    median_z_sz = np.median(spt_sz_agn_catalog['REDSHIFT'])
-    median_m_sz = np.median(spt_sz_agn_catalog['M500'])
+# List catalog statistics
+# SPT-SZ
+sptsz_agn_catalog_grp = spt_sz_agn_catalog.group_by('SPT_ID')
+number_of_clusters_sz = len(sptsz_agn_catalog_grp.groups.keys)
+total_number_sz = len(sptsz_agn_catalog_grp)
+total_number_corrected_sz = sptsz_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
+number_per_cluster_sz = total_number_corrected_sz / number_of_clusters_sz
+median_z_sz = np.median(spt_sz_agn_catalog['REDSHIFT'])
+median_m_sz = np.median(spt_sz_agn_catalog['M500'])
 
-    # SPTpol
-    sptpol_agn_catalog_grp = sptpol_agn_catalog.group_by('SPT_ID')
-    number_of_clusters_pol = len(sptpol_agn_catalog_grp.groups.keys)
-    total_number_pol = len(sptpol_agn_catalog_grp)
-    total_number_corrected_pol = sptpol_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
-    number_per_cluster_pol = total_number_corrected_pol / number_of_clusters_pol
-    median_z_pol = np.median(sptpol_agn_catalog['REDSHIFT'])
-    median_m_pol = np.median(sptpol_agn_catalog['M500'])
-    sptcl_agn_catalog_grp = sptcl_agn_catalog.group_by('SPT_ID')
+# SPTpol
+sptpol_agn_catalog_grp = sptpol_agn_catalog.group_by('SPT_ID')
+number_of_clusters_pol = len(sptpol_agn_catalog_grp.groups.keys)
+total_number_pol = len(sptpol_agn_catalog_grp)
+total_number_corrected_pol = sptpol_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
+number_per_cluster_pol = total_number_corrected_pol / number_of_clusters_pol
+median_z_pol = np.median(sptpol_agn_catalog['REDSHIFT'])
+median_m_pol = np.median(sptpol_agn_catalog['M500'])
+sptcl_agn_catalog_grp = sptcl_agn_catalog.group_by('SPT_ID')
 
-    # SPTcl
-    number_of_clusters = len(sptcl_agn_catalog_grp.groups.keys)
-    total_number = len(sptcl_agn_catalog)
-    total_number_corrected = sptcl_agn_catalog['COMPLETENESS_CORRECTION'].sum()
-    number_per_cluster = total_number_corrected / number_of_clusters
-    median_z = np.median(sptcl_agn_catalog['REDSHIFT'])
-    median_m = np.median(sptcl_agn_catalog['M500'])
+# SPTcl
+number_of_clusters = len(sptcl_agn_catalog_grp.groups.keys)
+total_number = len(sptcl_agn_catalog)
+total_number_corrected = sptcl_agn_catalog['COMPLETENESS_CORRECTION'].sum()
+number_per_cluster = total_number_corrected / number_of_clusters
+median_z = np.median(sptcl_agn_catalog['REDSHIFT'])
+median_m = np.median(sptcl_agn_catalog['M500'])
 
-    logger.info(f"""Realization {n:03}
-    SPT-SZ
-    Number of clusters:\t{number_of_clusters_sz}
-    Objects selected:\t{total_number_sz}
-    Objects selected (completeness corrected):\t{total_number_corrected_sz:.2f}
-    Objects per cluster (corrected):\t{number_per_cluster_sz:.2f}
-    Median Redshift:\t{median_z_sz:.2f}
-    Median Mass:\t{median_m_sz:.2e}
-    ---------------------------
-    SPTpol 100d
-    Number of clusters:\t{number_of_clusters_pol}
-    Objects selected:\t{total_number_pol}
-    Objects selected (completeness corrected):\t{total_number_corrected_pol:.2f}
-    Objects per cluster (corrected):\t{number_per_cluster_pol:.2f}
-    Median Redshift:\t{median_z_pol:.2f}
-    Median Mass:\t{median_m_pol:.2e}
-    ---------------------------
-    SPTcl
-    Number of clusters:\t{number_of_clusters}
-    Objects selected:\t{total_number}
-    Objects selected (completeness corrected):\t{total_number_corrected:.2f}
-    Objects per cluster (corrected):\t{number_per_cluster:.2f}
-    Median Redshift:\t{median_z:.2f}
-    Median Mass:\t{median_m:.2e}""")
+print(f"""
+SPT-SZ
+Number of clusters:\t{number_of_clusters_sz}
+Objects selected:\t{total_number_sz}
+Objects selected (completeness corrected):\t{total_number_corrected_sz:.2f}
+Objects per cluster (corrected):\t{number_per_cluster_sz:.2f}
+Median Redshift:\t{median_z_sz:.2f}
+Median Mass:\t{median_m_sz:.2e}
+---------------------------
+SPTpol 100d
+Number of clusters:\t{number_of_clusters_pol}
+Objects selected:\t{total_number_pol}
+Objects selected (completeness corrected):\t{total_number_corrected_pol:.2f}
+Objects per cluster (corrected):\t{number_per_cluster_pol:.2f}
+Median Redshift:\t{median_z_pol:.2f}
+Median Mass:\t{median_m_pol:.2e}
+---------------------------
+SPTcl
+Number of clusters:\t{number_of_clusters}
+Objects selected:\t{total_number}
+Objects selected (completeness corrected):\t{total_number_corrected:.2f}
+Objects per cluster (corrected):\t{number_per_cluster:.2f}
+Median Redshift:\t{median_z:.2f}
+Median Mass:\t{median_m:.2e}""")
 
 
-# Generate Child seeds
-child_seeds = ss.spawn(n_realizations)
-
-realization_start_time = time()
-with MPIPool() as pool:
-    pool.map(run_realizations, zip(range(n_realizations), child_seeds))
-
-    if pool.is_master():
-        logger.info('All realizations finished. Run time: {:.2f}s'.format(time() - realization_start_time))
+# # Generate Child seeds
+# child_seeds = ss.spawn(n_realizations)
+#
+# realization_start_time = time()
+# with MPIPool() as pool:
+#     pool.map(run_realizations, list(zip(range(n_realizations), child_seeds)))
+#
+#     if pool.is_master():
+#         logger.info('All realizations finished. Run time: {:.2f}s'.format(time() - realization_start_time))

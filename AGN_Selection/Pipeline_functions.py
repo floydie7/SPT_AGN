@@ -26,7 +26,7 @@ from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from numpy.random import default_rng
-from scipy.integrate import quad_vec, quadrature
+from scipy.integrate import quad_vec
 from scipy.interpolate import interp1d
 from scipy.stats import norm
 from synphot import SourceSpectrum, SpectralElement
@@ -512,7 +512,7 @@ class SelectIRAGN:
             sex_catalog = sex_catalog[sex_catalog['I2_MAG_APER4'] > ch2_bright_mag]  # [4.5] saturation limit
 
             # Calculate the IRAC Ch1 - Ch2 color (4" apertures) and preform the color cut
-            sex_catalog = sex_catalog[sex_catalog['I1_MAG_APER4'] - sex_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
+            # sex_catalog = sex_catalog[sex_catalog['I1_MAG_APER4'] - sex_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
 
             # Using the K-corrections computed earlier and the distance modulus, compute the absolute magnitude of
             # our AGN
@@ -579,8 +579,8 @@ class SelectIRAGN:
 
         # For the probability computed later for each object, find the normalization factor
         # noinspection PyTypeChecker
-        color_prob_in_denom = quadrature(color_probability_distribution,
-                                         a=ch1_ch2_color_cut, b=np.max(color_bins), maxiter=10000)[0]
+        # color_prob_in_denom = quadrature(color_probability_distribution,
+        #                                  a=ch1_ch2_color_cut, b=np.max(color_bins), maxiter=10000)[0]
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
@@ -600,13 +600,20 @@ class SelectIRAGN:
 
             # Compute the probability contained within the selection region by each object's color error
             color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=np.max(color_bins))[0]
+            color_prob_in_denom = quad_vec(object_integrand, a=np.min(color_bins), b=np.max(color_bins))[0]
             color_prob_in = color_prob_in_numer / color_prob_in_denom
 
             # Draw a random number for rejection sampling
-            alpha = self._rng.random(size=len(se_catalog))
+            # alpha = self._rng.random(size=len(se_catalog))
 
             # Select for each object using rejection sampling considering the color errors for each object
-            se_catalog = se_catalog[color_prob_in >= alpha]
+            # se_catalog = se_catalog[color_prob_in >= alpha]
+
+            # Store the degree of membership into the catalog
+            se_catalog['selection_membership'] = color_prob_in
+
+            # As objects with degrees of membership of 0 do not contribute to the sample, we can safely remove them.
+            se_catalog = se_catalog[se_catalog['selection_membership'] > 0]
 
             # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
             # photometric catalog in our database

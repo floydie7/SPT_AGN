@@ -65,10 +65,13 @@ sptcl_agn['Luminosity'] = 10 ** (-(sptcl_agn['F280_ABS_MAG'] - 4.74) / 2.5) * u.
 #%% Absolute magnitude - redshift
 fig, ax = plt.subplots()
 ax.scatter(sptcl_agn['REDSHIFT'], sptcl_agn['F280_ABS_MAG'], marker='.')
-ax.set(xlabel='Cluster Redshift', ylabel='[F280] Absolute Vega Magnitude')
+ax.axvline(0.55, ls='--', c='k', alpha=0.5)
+ax.axvline(1.5, ls='--', c='k', alpha=0.5)
+ax.axhline(-25.75, ls='--', c='k', alpha=0.5)
+ax.set(xlabel='Cluster Redshift', ylabel=r'[$2.8\,\mu$m] Absolute Vega Magnitude')
 ax.invert_yaxis()
-fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_f280_Abs_Mag_redshift.pdf')
-# plt.show()
+# fig.savefig('Data/Data_Repository/Project_Data/SPT-IRAGN/Absolute_Mags/Plots/SPTcl-IRAGN_f280_Abs_Mag_redshift_labels.pdf')
+plt.show()
 
 #%% Absolute magnitude - redshift with histograms
 fig = plt.figure(figsize=(8, 8))
