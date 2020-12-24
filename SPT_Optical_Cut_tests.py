@@ -53,7 +53,7 @@ for cluster_id in common_ids_with_pisco:
     # Apply SNR cuts to the PISCO catalog F/dF = -2.5 / (ln(10) * dm)
     SNR_cut = 5
     dm_snr_prefactor = 2.5 / np.log(10)
-    pisco_catalog = pisco_catalog[(dm_snr_prefactor / np.abs(pisco_catalog['RERR']) >= SNR_cut) &
+    pisco_catalog = pisco_catalog[(dm_snr_prefactor / np.abs(pisco_catalog['GERR']) >= SNR_cut) &
                                   (dm_snr_prefactor / np.abs(pisco_catalog['RERR']) >= SNR_cut) &
                                   (dm_snr_prefactor / np.abs(pisco_catalog['IERR']) >= SNR_cut) &
                                   (dm_snr_prefactor / np.abs(pisco_catalog['ZERR']) >= SNR_cut)]
