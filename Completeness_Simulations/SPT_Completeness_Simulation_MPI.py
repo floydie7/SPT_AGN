@@ -251,8 +251,8 @@ irac_data_rereduced = {1: {'psf_fwhm': 1.95, 'zeropt': 18.789, 'aper_corr': -0.0
                        'image_dir': hcc_prefix + 'Data/SPTPol/images/rereduced_images'}
 
 # Image directory
-survey = 'SZ'
-# survey = 'pol'
+# survey = 'SZ'
+survey = 'pol'
 # survey = 'rereduced'
 if survey == 'SZ':
     # SPT-SZ/targeted IRAC SPTpol
@@ -264,8 +264,8 @@ else:
     config_dict = irac_data_rereduced
 
 # Channel 2 science images
-# ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
-ch2_images = glob.glob(hcc_prefix + 'Data/rotated_sz_images/I2*_mosaic.cutout.fits')
+ch2_images = glob.glob(config_dict['image_dir'] + '/I2*_mosaic.cutout.fits')
+# ch2_images = glob.glob(hcc_prefix + 'Data/rotated_sz_images/I2*_mosaic.cutout.fits')
 
 # Remove two clusters from the SPT-SZ input list as they have blank I2 images that cause problems
 if survey == 'SZ':
