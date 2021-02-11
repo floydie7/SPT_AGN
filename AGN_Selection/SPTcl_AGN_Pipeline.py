@@ -15,28 +15,28 @@ from AGN_Selection.Pipeline_functions import SelectIRAGN
 
 # Define directories
 # prefix = '/Users/btfkwd/Documents/SPT_AGN/'
-prefix = '/home/ben/PycharmProjects/SPT_AGN/'
+prefix = '/home/ben-work/PycharmProjects/SPT_AGN/'
 
 # SPT-SZ Directories
-spt_sz_catalog_directory = f'{prefix}Data/Catalogs'
-spt_sz_image_directory = f'{prefix}Data/Images'
-spt_sz_regions_directory = f'{prefix}Data/Regions'
-spt_sz_masks_directory = f'{prefix}Data/Masks'
+spt_sz_catalog_directory = f'{prefix}Data_Repository/Catalogs/SPT/Spitzer_catalogs/SPT-SZ_2500d'
+spt_sz_image_directory = f'{prefix}Data_Repository/Images/SPT/Spitzer_IRAC/SPT-SZ_2500d'
+spt_sz_regions_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Regions/SPT-SZ_2500d'
+spt_sz_masks_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SPT-SZ_2500d'
 
 # SPTpol 100d Directories
-sptpol_catalog_directory = f'{prefix}Data/SPTPol/catalogs/cluster_cutouts'
-sptpol_image_directory = f'{prefix}Data/SPTPol/images/cluster_cutouts'
-sptpol_regions_directory = f'{prefix}Data/SPTPol/regions'
-sptpol_masks_directory = f'{prefix}Data/SPTPol/masks'
+sptpol_catalog_directory = f'{prefix}Data_Repository/Catalogs/SPT/Spitzer_catalogs/SPTpol_100d'
+sptpol_image_directory = f'{prefix}Data_Repository/Images/SPT/Spitzer_IRAC/SPTpol_100d'
+sptpol_regions_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Regions/SPTpol_100d'
+sptpol_masks_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d'
 
 # SDWFS number count distribution file (for purification)
-sdwfs_number_count_dist = f'{prefix}Data/Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
+sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
                           f'SDWFS_number_count_distribution_normed.json'
 
 # Completeness simulation results files
-spt_sz_completeness_sim_results = f'{prefix}Data/Comp_Sim/Results/' \
+spt_sz_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPT-SZ_2500d/Results/' \
                                   f'SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
-sptpol_completeness_sim_results = f'{prefix}Data/Comp_Sim/SPTpol/Results/' \
+sptpol_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPTpol_100d/Results/' \
                                   f'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
 
 # Clusters to manually exclude
@@ -67,20 +67,21 @@ ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-output_catalog = f'{prefix}Data/Output/SPTcl_IRAGN_purified.fits'
+output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_eddington.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
                        'REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr', 'R500', 'RADIAL_SEP_R500',
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
-                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION', 'MASK_NAME']
+                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'CORRECTED_COLOR',
+                       'COMPLETENESS_CORRECTION', 'MASK_NAME']
 
 # Read in SPT-SZ cluster catalog
-Bocquet = Table.read(f'{prefix}Data/2500d_cluster_sample_Bocquet18.fits')
+Bocquet = Table.read(f'{prefix}Data_Repository/Catalogs/SPT/SPT_catalogs/2500d_cluster_sample_Bocquet18.fits')
 
 # For the 20 common clusters between SPT-SZ 2500d and SPTpol 100d surveys we want to update the cluster information from
 # the more recent survey. Thus, we will merge the SPT-SZ and SPTpol catalogs together.
-Huang = Table.read(f'{prefix}Data/sptpol100d_catalog_huang19.fits')
+Huang = Table.read(f'{prefix}Data_Repository/Catalogs/SPT/SPT_catalogs/sptpol100d_catalog_huang19.fits')
 
 # First we need to rename several columns in the SPTpol 100d catalog to match the format of the SPT-SZ catalog
 Huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],
@@ -114,7 +115,8 @@ spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_
                               field_number_dist_file=sdwfs_number_count_dist)
 
 # Run the SPT-SZ pipeline and store the catalog for later
-spt_sz_agn_catalog = spt_sz_selector.run_selection(excluded_clusters=spt_sz_clusters_to_exclude,
+spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
+                                                   excluded_clusters=spt_sz_clusters_to_exclude,
                                                    max_image_catalog_sep=max_separation,
                                                    ch1_min_cov=spt_sz_ch1_min_coverage,
                                                    ch2_min_cov=spt_sz_ch2_min_coverage,
@@ -137,7 +139,8 @@ sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_
                               field_number_dist_file=sdwfs_number_count_dist)
 
 # Run the SPTpol pipeline and store the catalog for later
-sptpol_agn_catalog = sptpol_selector.run_selection(excluded_clusters=sptpol_clusters_to_exclude,
+sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,
+                                                   excluded_clusters=sptpol_clusters_to_exclude,
                                                    max_image_catalog_sep=max_separation,
                                                    ch1_min_cov=sptpol_ch1_min_coverage,
                                                    ch2_min_cov=sptpol_ch2_min_coverage,

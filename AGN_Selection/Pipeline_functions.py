@@ -13,7 +13,7 @@ from collections import ChainMap
 from itertools import groupby, product, chain
 
 import numpy as np
-# from astro_compendium.utils.k_correction import k_correction
+from astro_compendium.utils.k_correction import k_correction
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
@@ -28,6 +28,7 @@ from matplotlib.transforms import Affine2D
 from numpy.random import default_rng
 from scipy.integrate import quad_vec
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize, minimize_scalar
 from scipy.stats import norm
 from synphot import SourceSpectrum, SpectralElement
 
@@ -68,7 +69,7 @@ class SelectIRAGN:
         Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
         using the SDWFS field sample and the associated color bins.
     seed : np.random.SeedSequence, optional
-        SeedSequence to initialize the random number generator. If not provided, the RNG will be initiallized with a
+        SeedSequence to initialize the random number generator. If not provided, the RNG will be initialized with a
         random seed.
 
     """
@@ -105,7 +106,7 @@ class SelectIRAGN:
         # Generate a random number generator with the seed sequence provided
         self._rng = default_rng(seed)
 
-    def file_pairing(self, exclude=None):
+    def file_pairing(self, include=None, exclude=None):
         """
         Collates the different files for each cluster into a dictionary.
 
@@ -113,6 +114,9 @@ class SelectIRAGN:
 
         Parameters
         ----------
+        include : list_like, optional
+            A list containing the names of the clusters we wish to filter for from the original sample.
+
         exclude : list_like, optional
             A list containing the names of the clusters we wish to remove from our sample.
 
@@ -121,6 +125,12 @@ class SelectIRAGN:
         UserWarning
             A warning is printed if a cluster is missing any necessary files. These clusters will be automatically
             removed from the sample.
+
+        Notes
+        -----
+        The list provided by `include` is filtered for first before the `exclude` list is processed. This allows the
+        sample to be filtered for a set of clusters we want to run the selection on while still allowing us to mark
+        certain clusters to be removed from the sample.
 
         """
 
@@ -142,6 +152,11 @@ class SelectIRAGN:
         self._catalog_dictionary = {cluster_id: list(files)
                                     for cluster_id, files in groupby(cat_image_files, key=self.__keyfunct)}
 
+        # If we want to only run on a set of clusters we can filter for them now
+        if include is not None:
+            self._catalog_dictionary = {cluster_id: files for cluster_id, files in self._catalog_dictionary.items()
+                                        if cluster_id in include}
+
         # If we want to exclude some clusters manually we can remove them now
         if exclude is not None:
             for cluster_id in exclude:
@@ -152,7 +167,7 @@ class SelectIRAGN:
             self._catalog_dictionary[cluster_id] = {}
             for f in files:
                 if f.endswith('.cat'):
-                    self._catalog_dictionary[cluster_id]['sex_cat_path'] = f
+                    self._catalog_dictionary[cluster_id]['se_cat_path'] = f
                 elif 'I1' in f and '_cov' not in f:
                     self._catalog_dictionary[cluster_id]['ch1_sci_path'] = f
                 elif 'I1' in f and '_cov' in f:
@@ -165,7 +180,7 @@ class SelectIRAGN:
         # Verify that all the clusters in our sample have all the necessary files
         problem_clusters = []
         for cluster_id, cluster_files in self._catalog_dictionary.items():
-            file_keys = {'ch1_sci_path', 'ch1_cov_path', 'ch2_sci_path', 'ch2_cov_path', 'sex_cat_path'}
+            file_keys = {'ch1_sci_path', 'ch1_cov_path', 'ch2_sci_path', 'ch2_cov_path', 'se_cat_path'}
             try:
                 assert file_keys == cluster_files.keys()
             except AssertionError:
@@ -276,7 +291,7 @@ class SelectIRAGN:
             # Write out the coverage mask.
             mask_pathname = f'{self._mask_dir}/{spt_id}_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits'
             combined_cov_hdu = fits.PrimaryHDU(combined_cov, header=header)
-            # combined_cov_hdu.writeto(mask_pathname, overwrite=True)
+            combined_cov_hdu.writeto(mask_pathname, overwrite=True)
 
             # Append the new coverage mask path name and both the catalog and the masking flag from cluster_info
             # to the new output list.
@@ -422,7 +437,7 @@ class SelectIRAGN:
 
             # Write the new mask to disk overwriting the old mask.
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
-            # new_mask_hdu.writeto(pixel_map_path, overwrite=True)
+            new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
     def cluster_k_correction(self):
         """
@@ -495,36 +510,36 @@ class SelectIRAGN:
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Read in the catalog
-            sex_catalog = Table.read(cluster_info['sex_cat_path'], format='ascii')
+            se_catalog = Table.read(cluster_info['se_cat_path'], format='ascii')
 
             # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
-            sex_catalog['MASK_NAME'] = re.search(r'Data/.*?\Z', cluster_info['cov_mask_path']).group(0)
+            se_catalog['MASK_NAME'] = re.search(r'Data/.*?\Z', cluster_info['cov_mask_path']).group(0)
 
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
-            sex_catalog = sex_catalog[sex_catalog['FLAGS'] < 4]
+            se_catalog = se_catalog[se_catalog['FLAGS'] < 4]
 
             # Preform a faint-end magnitude cut in selection band.
-            sex_catalog = sex_catalog[sex_catalog[selection_band] <= selection_band_faint_mag]
+            se_catalog = se_catalog[se_catalog[selection_band] <= selection_band_faint_mag]
 
             # Preform bright-end cuts
             # Limits from Eisenhardt+04 for ch1 = 10.0 and ch2 = 9.8
-            sex_catalog = sex_catalog[sex_catalog['I1_MAG_APER4'] > ch1_bright_mag]  # [3.6] saturation limit
-            sex_catalog = sex_catalog[sex_catalog['I2_MAG_APER4'] > ch2_bright_mag]  # [4.5] saturation limit
+            se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] > ch1_bright_mag]  # [3.6] saturation limit
+            se_catalog = se_catalog[se_catalog['I2_MAG_APER4'] > ch2_bright_mag]  # [4.5] saturation limit
 
             # Calculate the IRAC Ch1 - Ch2 color (4" apertures) and preform the color cut
-            # sex_catalog = sex_catalog[sex_catalog['I1_MAG_APER4'] - sex_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
+            se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] - se_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
 
             # Using the K-corrections computed earlier and the distance modulus, compute the absolute magnitude of
             # our AGN
             if 'k-correction' in cluster_info:
                 dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
-                sex_catalog['AGN_ABSOLUTE_MAG'] = sex_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info[
+                se_catalog['AGN_ABSOLUTE_MAG'] = se_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info[
                     'k-correction']
 
                 # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
                 # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
                 # redshift range.
-                sex_catalog = sex_catalog[sex_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
+                se_catalog = se_catalog[se_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
@@ -537,18 +552,18 @@ class SelectIRAGN:
             w = WCS(header)
 
             # Get the objects pixel coordinates
-            xy_data = np.array(w.wcs_world2pix(sex_catalog['ALPHA_J2000'], sex_catalog['DELTA_J2000'], 0))
+            xy_data = np.array(w.wcs_world2pix(se_catalog['ALPHA_J2000'], se_catalog['DELTA_J2000'], 0))
 
             # Floor the values and cast as integers so we have the pixel indices into the mask
             xy_pix_idxs = np.floor(xy_data).astype(int)
 
             # Filter the catalog according to the boolean value in the mask at the objects' locations.
-            sex_catalog = sex_catalog[mask[xy_pix_idxs[1], xy_pix_idxs[0]]]
+            se_catalog = se_catalog[mask[xy_pix_idxs[1], xy_pix_idxs[0]]]
 
             # If we have completely exhausted the cluster of any object, we should mark it for removal otherwise add it
             # to the data structure
-            if sex_catalog:
-                cluster_info['catalog'] = sex_catalog
+            if se_catalog:
+                cluster_info['catalog'] = se_catalog
             else:
                 clusters_to_remove.append(cluster_id)
 
@@ -577,11 +592,6 @@ class SelectIRAGN:
         # Create an interpolation of our number count distribution
         color_probability_distribution = interp1d(color_bins, field_number_counts)
 
-        # For the probability computed later for each object, find the normalization factor
-        # noinspection PyTypeChecker
-        # color_prob_in_denom = quadrature(color_probability_distribution,
-        #                                  a=ch1_ch2_color_cut, b=np.max(color_bins), maxiter=10000)[0]
-
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Get the photometric catalog for the cluster
@@ -599,21 +609,30 @@ class SelectIRAGN:
                 return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
 
             # Compute the probability contained within the selection region by each object's color error
-            color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=np.max(color_bins))[0]
+            # color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=np.max(color_bins))[0]
             color_prob_in_denom = quad_vec(object_integrand, a=np.min(color_bins), b=np.max(color_bins))[0]
-            color_prob_in = color_prob_in_numer / color_prob_in_denom
-
-            # Draw a random number for rejection sampling
-            # alpha = self._rng.random(size=len(se_catalog))
-
-            # Select for each object using rejection sampling considering the color errors for each object
-            # se_catalog = se_catalog[color_prob_in >= alpha]
+            # color_prob_in = color_prob_in_numer / color_prob_in_denom
 
             # Store the degree of membership into the catalog
-            se_catalog['selection_membership'] = color_prob_in
+            # se_catalog['selection_membership'] = color_prob_in
 
             # As objects with degrees of membership of 0 do not contribute to the sample, we can safely remove them.
-            se_catalog = se_catalog[se_catalog['selection_membership'] > 0]
+            # se_catalog = se_catalog[se_catalog['selection_membership'] > 0]
+
+            def new_color_prob(x, color, color_err, denom_idx):
+                return -1. * norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x) / \
+                       color_prob_in_denom[denom_idx]
+
+            # Maximize the probability distribution
+            new_color = [minimize_scalar(new_color_prob, args=(color, color_err, denom_idx),
+                                         bounds=(np.min(color_bins), np.max(color_bins)), method='bounded').x
+                         for denom_idx, (color, color_err) in enumerate(zip(I1_I2_color, I1_I2_color_err))]
+
+            # Store the new color in the catalog
+            se_catalog['CORRECTED_COLOR'] = new_color
+
+            # Select only objects that have a (new) color redder than our threshold
+            se_catalog = se_catalog[se_catalog['CORRECTED_COLOR'] >= ch1_ch2_color_cut]
 
             # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
             # photometric catalog in our database
@@ -642,25 +661,25 @@ class SelectIRAGN:
         for cluster_info in self._catalog_dictionary.values():
             # Array element names
             catalog_idx = cluster_info['SPT_cat_idx']
-            sex_catalog = cluster_info['catalog']
+            se_catalog = cluster_info['catalog']
 
             # Replace the existing SPT_ID in the SExtractor catalog with the official cluster ID.
-            sex_catalog.columns[0].name = 'SPT_ID'
-            del sex_catalog['SPT_ID']
+            # se_catalog.columns[0].name = 'SPT_ID'
+            # del se_catalog['SPT_ID']
 
             # Then replace the column values with the official ID.
-            sex_catalog['SPT_ID'] = self._spt_catalog['SPT_ID'][catalog_idx]
+            se_catalog['SPT_ID'] = self._spt_catalog['SPT_ID'][catalog_idx]
 
             # Add the SZ center coordinates to the catalog
-            sex_catalog['SZ_RA'] = self._spt_catalog['RA'][catalog_idx]
-            sex_catalog['SZ_DEC'] = self._spt_catalog['DEC'][catalog_idx]
+            se_catalog['SZ_RA'] = self._spt_catalog['RA'][catalog_idx]
+            se_catalog['SZ_DEC'] = self._spt_catalog['DEC'][catalog_idx]
 
             # For all requested columns from the master catalog add the value to all columns in the SExtractor catalog.
             if catalog_cols is not None:
                 for col_name in catalog_cols:
-                    sex_catalog[col_name] = self._spt_catalog[col_name][catalog_idx]
+                    se_catalog[col_name] = self._spt_catalog[col_name][catalog_idx]
 
-            cluster_info['catalog'] = sex_catalog
+            cluster_info['catalog'] = se_catalog
 
     def object_separations(self):
         """
@@ -727,7 +746,7 @@ class SelectIRAGN:
 
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Array element names
-            sex_catalog = cluster_info['catalog']
+            se_catalog = cluster_info['catalog']
 
             # Select the correct entry in the dictionary corresponding to our cluster.
             completeness_data = completeness_dict[cluster_id]
@@ -741,16 +760,16 @@ class SelectIRAGN:
 
             # For the objects' magnitude specified by `selection_band` query the completeness function to find the
             # completeness value.
-            completeness_values = completeness_funct(sex_catalog[selection_band])
+            completeness_values = completeness_funct(se_catalog[selection_band])
 
             # The completeness correction values are defined as 1/[completeness value]
             completeness_corrections = 1 / completeness_values
 
             # Add the completeness values and corrections to the SExtractor catalog.
-            sex_catalog['COMPLETENESS_VALUE'] = completeness_values
-            sex_catalog['COMPLETENESS_CORRECTION'] = completeness_corrections
+            se_catalog['COMPLETENESS_VALUE'] = completeness_values
+            se_catalog['COMPLETENESS_CORRECTION'] = completeness_corrections
 
-            cluster_info.update({'catalog': sex_catalog})
+            cluster_info.update({'catalog': se_catalog})
 
     def final_catalogs(self, filename=None, catalog_cols=None):
         """
@@ -786,9 +805,9 @@ class SelectIRAGN:
             else:
                 final_catalog.write(filename, overwrite=True)
 
-    def run_selection(self, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov, ch1_bright_mag,
-                      ch2_bright_mag, selection_band_faint_mag, absolute_mag, ch1_ch2_color, spt_colnames, output_name,
-                      output_colnames):
+    def run_selection(self, included_clusters, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov,
+                      ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, absolute_mag, ch1_ch2_color,
+                      spt_colnames, output_name, output_colnames):
         """
         Executes full selection pipeline using default values.
 
@@ -826,7 +845,7 @@ class SelectIRAGN:
             write the final catalog to disk automatically.
 
         """
-        self.file_pairing(exclude=excluded_clusters)
+        self.file_pairing(include=included_clusters, exclude=excluded_clusters)
         self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
         self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
         self.object_mask()
