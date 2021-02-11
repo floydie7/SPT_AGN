@@ -23,7 +23,7 @@ warnings.simplefilter('ignore', AstropyWarning)
 
 
 def spt_id(f):
-    return re.search(r'SPT-CLJ\d+-\d+(-\d+)?', f).group(0)
+    return re.search(r'SPT-CLJ\d+[+-]?\d+(?:-\d+)?', f).group(0)
 
 
 def pixel_scale(wcs):
