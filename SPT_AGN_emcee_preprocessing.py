@@ -126,6 +126,7 @@ def generate_catalog_dict(cluster):
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     cluster_completeness = cluster['COMPLETENESS_CORRECTION']
     cluster_radial_r500 = cluster['RADIAL_SEP_R500']
+    cluster_agn_membership = cluster['SELECTION_MEMBERSHIP']
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -154,12 +155,14 @@ def generate_catalog_dict(cluster):
     # Select only the objects within the same radial limit we are using for integration.
     radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
     completeness_weight_maxr = cluster_completeness[cluster_radial_r500 <= rall[-1]]
+    agn_membership_maxr = cluster_agn_membership[cluster_radial_r500 <= rall[-1]]
 
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500.value, 'r500': cluster_r500.value,
                     'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_r500_maxr': list(radial_r500_maxr),
-                    'completeness_weight_maxr': list(completeness_weight_maxr)}
+                    'completeness_weight_maxr': list(completeness_weight_maxr),
+                    'agn_membership_maxr': list(agn_membership_maxr)}
 
     return cluster_id, cluster_dict
 
@@ -170,7 +173,7 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-sptcl_catalog = Table.read(f'{hcc_prefix}Data/Output/SPTcl_IRAGN.fits')
+sptcl_catalog = Table.read(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/fuzzy_selection/mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100_maxr5.00_clseed890_objseed930_fuzzy_selection.fits')
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')

@@ -65,11 +65,17 @@ def lnlike(param):
         # Get the completeness weights for the AGN
         completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
 
+        # Get the AGN sample degrees of membership
+        agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
+
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
 
         # Compute the completeness ratio for this cluster
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
+
+        # Compute the joint probability of AGN sample membership
+        membership_degree = np.prod(agn_membership)
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
@@ -79,7 +85,7 @@ def lnlike(param):
         nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - completeness_ratio * trap_weight(
+        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - completeness_ratio * membership_degree * trap_weight(
             nall * 2 * np.pi * rall,
             rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
@@ -93,8 +99,8 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params):
     # Extract our parameters
-    # theta, eta, zeta, beta, rc, C = param
-    theta, eta, zeta, beta, rc = params
+    theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, rc = params
 
     # Set our hyperparameters
     # h_rc = 0.25
@@ -107,7 +113,7 @@ def lnprior(params):
             -6. <= eta <= 6. and
             -3. <= zeta <= 3. and
             -3. <= beta <= 3. and
-            # 0.0 <= C < np.inf and
+            0.0 <= C < np.inf and
             # np.isclose(C, h_C) and
             0.05 <= rc <= 0.5):
         theta_lnprior = 0.0
@@ -116,7 +122,7 @@ def lnprior(params):
         zeta_lnprior = 0.0
         # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
         rc_lnprior = 0.0
-        # C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
+        C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
     else:
         theta_lnprior = -np.inf
@@ -124,11 +130,11 @@ def lnprior(params):
         beta_lnprior = -np.inf
         zeta_lnprior = -np.inf
         rc_lnprior = -np.inf
-        # C_lnprior = -np.inf
+        C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
 
     return total_lnprior
 
@@ -175,10 +181,11 @@ for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall']
     catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
     catalog_dict[cluster_id]['completeness_weight_maxr'] = cluster_info['completeness_weight_maxr']
+    catalog_dict[cluster_id]['agn_membership_maxr'] = cluster_info['agn_membership_maxr']
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 5  # Fixed background
+ndim = 6  # Fixed background
 nwalkers = 36
 
 # Also, set the number of steps to run the sampler for.
@@ -190,7 +197,7 @@ pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
                    np.random.uniform(-3., 3.),  # zeta
                    np.random.uniform(-3., 3.),  # beta
                    np.random.normal(loc=0.1, scale=6e-3),  # rc
-                   # np.random.normal(loc=0.371, scale=0.157)  # C
+                   np.random.normal(loc=0.371, scale=0.157)  # C
                    ]
                   for i in range(nwalkers)])
 
@@ -204,8 +211,8 @@ with MPIPool() as pool:
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_chains_SPTcl_IRAGN.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'preliminary_fixed_C_prior_wider_eta_prior')
+    chain_file = 'emcee_chains_Mock_fuzzy_selection.h5'
+    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
