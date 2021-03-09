@@ -67,14 +67,14 @@ ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_eddington.fits'
+output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_fuzzy.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
                        'REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr', 'R500', 'RADIAL_SEP_R500',
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
-                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'CORRECTED_COLOR',
-                       'COMPLETENESS_CORRECTION', 'MASK_NAME']
+                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION',
+                       'SELECTION_MEMBERSHIP', 'MASK_NAME']
 
 # Read in SPT-SZ cluster catalog
 Bocquet = Table.read(f'{prefix}Data_Repository/Catalogs/SPT/SPT_catalogs/2500d_cluster_sample_Bocquet18.fits')
@@ -111,7 +111,6 @@ spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_
                               region_file_dir=spt_sz_regions_directory, mask_dir=spt_sz_masks_directory,
                               spt_catalog=SPTcl,
                               completeness_file=spt_sz_completeness_sim_results,
-                              sed=None, output_filter=None, output_zero_pt=None,
                               field_number_dist_file=sdwfs_number_count_dist)
 
 # Run the SPT-SZ pipeline and store the catalog for later
@@ -123,7 +122,6 @@ spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
                                                    ch1_bright_mag=ch1_bright_mag,
                                                    ch2_bright_mag=ch2_bright_mag,
                                                    selection_band_faint_mag=ch2_faint_mag,
-                                                   absolute_mag=None,
                                                    ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
                                                    output_name=None,
                                                    output_colnames=output_column_names)
@@ -135,7 +133,6 @@ sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_
                               region_file_dir=sptpol_regions_directory, mask_dir=sptpol_masks_directory,
                               spt_catalog=SPTcl,
                               completeness_file=sptpol_completeness_sim_results,
-                              sed=None, output_filter=None, output_zero_pt=None,
                               field_number_dist_file=sdwfs_number_count_dist)
 
 # Run the SPTpol pipeline and store the catalog for later
@@ -147,7 +144,6 @@ sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,
                                                    ch1_bright_mag=ch1_bright_mag,
                                                    ch2_bright_mag=ch2_bright_mag,
                                                    selection_band_faint_mag=ch2_faint_mag,
-                                                   absolute_mag=None,
                                                    ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
                                                    output_name=None,
                                                    output_colnames=output_column_names)

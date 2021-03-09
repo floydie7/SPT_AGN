@@ -26,11 +26,12 @@ from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from numpy.random import default_rng
-from scipy.integrate import quad_vec
+from scipy.integrate import quad_vec, quad
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize, minimize_scalar
 from scipy.stats import norm
 from synphot import SourceSpectrum, SpectralElement
+from schwimmbad import MultiPool
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -54,20 +55,20 @@ class SelectIRAGN:
         Official SPT cluster catalog.
     completeness_file : str or list of str
         File name of the completeness simulation results.
-    sed : SourceSpectrum
+    field_number_dist_file : str
+        Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
+        using the SDWFS field sample and the associated color bins.
+    sed : SourceSpectrum, optional
         Spectral energy distribution template of the source object, used for K-correction.
-    output_filter : SpectralElement
+    output_filter : SpectralElement, optional
         Bandpass through which the absolute magnitude should be measured, used for K-correction.
-    output_zero_pt : SourceSpectrum or Quantity or str
+    output_zero_pt : SourceSpectrum or Quantity or str, optional
         Reference source or value defining the zero-point flux for the bandpass given by `output_filter`, used for
         K-correction. If a `Quantity` is provided, the zero point value is assumed to be constant across the wavelengths
         of `output_filter`. A `SourceSpectrum` may be manually provided. Additionally, the following strings are also
         accepted: 'vega', 'ab', 'st' use the default Vega spectrum from `synphot`, the AB system with constant
         profile of :math:`g_\\nu = 3631 Jy`, and the  ST system with constant profile of
         :math:`g_\\lambda = 3.631e-9 erg s^-1 cm^-2 \\AA^-1` respectively.
-    field_number_dist_file : str
-        Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
-        using the SDWFS field sample and the associated color bins.
     seed : np.random.SeedSequence, optional
         SeedSequence to initialize the random number generator. If not provided, the RNG will be initialized with a
         random seed.
@@ -75,7 +76,7 @@ class SelectIRAGN:
     """
 
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 sed, output_filter, output_zero_pt, field_number_dist_file, seed=None):
+                 field_number_dist_file, sed=None, output_filter=None, output_zero_pt=None, seed=None):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -588,6 +589,7 @@ class SelectIRAGN:
             field_number_distribution = json.load(f)
         field_number_counts = field_number_distribution['normalized_number_counts']
         color_bins = field_number_distribution['color_bins']
+        color_bin_min, color_bin_max = np.min(color_bins), np.max(color_bins)
 
         # Create an interpolation of our number count distribution
         color_probability_distribution = interp1d(color_bins, field_number_counts)
@@ -605,34 +607,42 @@ class SelectIRAGN:
                                        (se_catalog['I2_FLUX_APER4'] * np.log(10))) ** 2)
 
             # Convolve the error distribution for each object with the overall number count distribution
-            def object_integrand(x):
-                return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
+            # def object_integrand(x, color, color_err):
+            #     return norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x)
 
             # Compute the probability contained within the selection region by each object's color error
-            # color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=np.max(color_bins))[0]
-            color_prob_in_denom = quad_vec(object_integrand, a=np.min(color_bins), b=np.max(color_bins))[0]
-            # color_prob_in = color_prob_in_numer / color_prob_in_denom
+            def degree_of_membership(color, color_err):
+                color_prob_in_numer = quad(
+                    lambda x: norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x),
+                    a=ch1_ch2_color_cut, b=color_bin_max)[0]
+                color_prob_in_denom = quad(
+                    lambda x: norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x),
+                    a=color_bin_min, b=color_bin_max, args=(color, color_err))[0]
+                return color_prob_in_numer / color_prob_in_denom
+
+            with MultiPool() as pool:
+                color_prob_in = pool.map(degree_of_membership, zip(I1_I2_color, I1_I2_color_err))
 
             # Store the degree of membership into the catalog
-            # se_catalog['selection_membership'] = color_prob_in
+            se_catalog['SELECTION_MEMBERSHIP'] = color_prob_in
 
             # As objects with degrees of membership of 0 do not contribute to the sample, we can safely remove them.
-            # se_catalog = se_catalog[se_catalog['selection_membership'] > 0]
+            se_catalog = se_catalog[se_catalog['SELECTION_MEMBERSHIP'] > 0]
 
-            def new_color_prob(x, color, color_err, denom_idx):
-                return -1. * norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x) / \
-                       color_prob_in_denom[denom_idx]
+            # def new_color_prob(x, color, color_err, denom_idx):
+            #     return -1. * norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x) / \
+            #            color_prob_in_denom[denom_idx]
 
-            # Maximize the probability distribution
-            new_color = [minimize_scalar(new_color_prob, args=(color, color_err, denom_idx),
-                                         bounds=(np.min(color_bins), np.max(color_bins)), method='bounded').x
-                         for denom_idx, (color, color_err) in enumerate(zip(I1_I2_color, I1_I2_color_err))]
-
-            # Store the new color in the catalog
-            se_catalog['CORRECTED_COLOR'] = new_color
-
-            # Select only objects that have a (new) color redder than our threshold
-            se_catalog = se_catalog[se_catalog['CORRECTED_COLOR'] >= ch1_ch2_color_cut]
+            # # Maximize the probability distribution
+            # new_color = [minimize_scalar(new_color_prob, args=(color, color_err, denom_idx),
+            #                              bounds=(np.min(color_bins), np.max(color_bins)), method='bounded').x
+            #              for denom_idx, (color, color_err) in enumerate(zip(I1_I2_color, I1_I2_color_err))]
+            #
+            # # Store the new color in the catalog
+            # se_catalog['CORRECTED_COLOR'] = new_color
+            #
+            # # Select only objects that have a (new) color redder than our threshold
+            # se_catalog = se_catalog[se_catalog['CORRECTED_COLOR'] >= ch1_ch2_color_cut]
 
             # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
             # photometric catalog in our database
@@ -806,13 +816,15 @@ class SelectIRAGN:
                 final_catalog.write(filename, overwrite=True)
 
     def run_selection(self, included_clusters, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov,
-                      ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, absolute_mag, ch1_ch2_color,
-                      spt_colnames, output_name, output_colnames):
+                      ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color, spt_colnames,
+                      output_name, output_colnames, absolute_mag=None):
         """
         Executes full selection pipeline using default values.
 
         Parameters
         ----------
+        included_clusters : list_like
+            List of clusters to
         excluded_clusters : list_like
             Excluded clusters for  :method:`file_pairing`.
         max_image_catalog_sep : astropy.quantity
@@ -827,8 +839,6 @@ class SelectIRAGN:
             Bright-end 4.5 um magnitude for :method:`object_selection`
         selection_band_faint_mag : float
             Faint-end selection band magnitude for :method:`object_selection`
-        absolute_mag : float
-            Absolute magnitude threshold for :method:`object_selection`
         ch1_ch2_color : float
             [3.6] - [4.5] color cut for :method:`object_selection`
         spt_colnames : list_like
@@ -837,6 +847,8 @@ class SelectIRAGN:
             File name of output catalog for :method:`final_catalogs`
         output_colnames : list_like
             Column names to be kept in output catalog for :method:`final_catalogs`
+        absolute_mag : float, optional
+            Absolute magnitude threshold for :method:`object_selection`
 
         Returns
         -------
