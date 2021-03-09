@@ -31,9 +31,9 @@ def model_rate_opted(params, cluster_id, r_r500):
     """
 
     # Unpack our parameters
-    # theta, eta, zeta, beta, rc, C = params
-    theta, eta, zeta, beta, rc = params
-    C = 0.371  # Fixed background
+    theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, rc = params
+    # C = 0.371  # Fixed background
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
