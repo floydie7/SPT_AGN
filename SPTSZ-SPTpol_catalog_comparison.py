@@ -362,10 +362,10 @@ def color_mag_snr_plot(ax, channel, targeted_cat, ssdf_cat):
     # Plot the scatter points
     targeted_cm = ax.scatter(targeted_cat[f'I{channel}_MAG_APER4'],
                              targeted_cat['I1_MAG_APER4'] - targeted_cat['I2_MAG_APER4'],
-                             c=targeted_snr, cmap='Reds_r', vmax=30, marker='s', label='Targeted')
+                             c=targeted_snr, cmap='Reds_r', vmin=5, vmax=30, marker='s', label='Targeted')
     ssdf_cm = ax.scatter(ssdf_cat[f'I{channel}_MAG_APER4'],
                          ssdf_cat['I1_MAG_APER4'] - ssdf_cat['I2_MAG_APER4'],
-                         c=ssdf_snr, cmap='Blues_r', marker='o', label='SSDF')
+                         c=ssdf_snr, cmap='Blues_r', vmin=5, vmax=30, marker='o', label='SSDF')
 
     # Plot a line indicating the AGN selection threshold
     ax.axhline(y=0.7, ls='--', c='k', alpha=0.6)
@@ -374,9 +374,9 @@ def color_mag_snr_plot(ax, channel, targeted_cat, ssdf_cat):
     ax.set(ylabel='[3.6] - [4.5] (Vega)')
 
     # Add the color bars
-    targeted_cbar = plt.colorbar(targeted_cm, ax=[ax], location='bottom', extend='max')
+    targeted_cbar = plt.colorbar(targeted_cm, ax=[ax], location='bottom', extend='both')
     targeted_cbar.set_label(f'Targeted I{channel} SNR')
-    ssdf_cbar = plt.colorbar(ssdf_cm, ax=[ax], location='left' if channel == 1 else 'right')
+    ssdf_cbar = plt.colorbar(ssdf_cm, ax=[ax], location='left' if channel == 1 else 'right', extend='both')
     ssdf_cbar.set_label(f'SSDF I{channel} SNR')
 
 
@@ -550,7 +550,7 @@ for cat_type, (targeted_catalogs, ssdf_catalogs) in zip(['no_cuts', 'new_mag_cut
                     f'{cat_type}/flux_error/{cluster_id}_{cat_type}_flux_error.pdf')
 
         # Make the color-mag-snr plot
-        fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9))
+        fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
         color_mag_snr_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
         color_mag_snr_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
         fig.suptitle(f'{cluster_id}')
@@ -566,8 +566,7 @@ for cat_type, (targeted_catalogs, ssdf_catalogs) in zip(['no_cuts', 'new_mag_cut
     if cat_type is not 'no_cut':
         targeted_stacked_agn = targeted_stacked[
             targeted_stacked['I1_MAG_APER4'] - targeted_stacked['I2_MAG_APER4'] >= 0.7]
-        ssdf_stacked_agn = ssdf_stacked[
-            ssdf_stacked['I1_MAG_APER4'] - ssdf_stacked['I2_MAG_APER4'] >= 0.7]
+        ssdf_stacked_agn = ssdf_stacked[ssdf_stacked['I1_MAG_APER4'] - ssdf_stacked['I2_MAG_APER4'] >= 0.7]
     else:
         targeted_stacked_agn = None
         ssdf_stacked_agn = None
@@ -577,7 +576,7 @@ for cat_type, (targeted_catalogs, ssdf_catalogs) in zip(['no_cuts', 'new_mag_cut
     source_count_plot(ax=ax, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked,
                       targeted_agn_cat=targeted_stacked_agn, ssdf_agn_cat=ssdf_stacked_agn,
                       cumulative=False)
-    ax.set(title='All Common Clusters Stacked', xlabel=r'$\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$', ylabel='Number')
+    ax.set(title='All Common Clusters', xlabel=r'$\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$', ylabel='Number')
     plt.tight_layout()
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/{cat_type}/'
                 f'common_clusters_stacked_{cat_type}_noncum_hist.pdf')
@@ -586,6 +585,7 @@ for cat_type, (targeted_catalogs, ssdf_catalogs) in zip(['no_cuts', 'new_mag_cut
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
     stacked_flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
     stacked_flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+    fig.suptitle('All Common Clusters')
     plt.tight_layout()
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/{cat_type}/'
                 f'common_clusters_stacked_{cat_type}_phot_comparison.pdf')
