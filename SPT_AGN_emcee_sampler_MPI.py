@@ -85,9 +85,9 @@ def lnlike(param):
         nall = model_rate_opted(param, cluster_id, rall)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr)) - completeness_ratio * membership_degree * trap_weight(
-            nall * 2 * np.pi * rall,
-            rall, weight=gpf_all)
+        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) \
+                         - completeness_ratio * membership_degree * trap_weight(nall * 2 * np.pi * rall,
+                                                                                rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -212,7 +212,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_Mock_fuzzy_selection.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection')
+    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection_mod_like_sum_term')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
@@ -248,8 +248,8 @@ with MPIPool() as pool:
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
 # Get the chain from the sampler
-# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
 # truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
 
 try:
