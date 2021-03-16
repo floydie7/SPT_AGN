@@ -75,7 +75,7 @@ def lnlike(param):
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the joint probability of AGN sample membership
-        membership_degree = np.prod(agn_membership)
+        # membership_degree = np.prod(agn_membership)
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
@@ -86,8 +86,8 @@ def lnlike(param):
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) \
-                         - completeness_ratio * membership_degree * trap_weight(nall * 2 * np.pi * rall,
-                                                                                rall, weight=gpf_all)
+                         - completeness_ratio * trap_weight(nall * 2 * np.pi * rall, rall, weight=gpf_all)
+
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -212,7 +212,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_Mock_fuzzy_selection.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection_mod_like_sum_term')
+    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection_mod_like_sum_term_only')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
