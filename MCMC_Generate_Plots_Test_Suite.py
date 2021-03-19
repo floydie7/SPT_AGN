@@ -77,8 +77,8 @@ for chain_name, sampler in sampler_dict.items():
         tau = np.mean(tau_est)
 
         # Remove the burn-in. We'll use ~3x the autocorrelation time
-        # burnin = int(3 * tau)
-        burnin = int(nsteps // 3)
+        burnin = int(3 * tau)
+        # burnin = int(nsteps // 3)
 
         # We will also thin by roughly half our autocorrelation time
         thinning = int(tau // 2)
