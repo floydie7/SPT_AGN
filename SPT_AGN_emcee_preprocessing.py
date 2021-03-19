@@ -7,6 +7,7 @@ a JSON file for later use.
 """
 
 import json
+from argparse import ArgumentParser
 from time import time
 
 import astropy.units as u
@@ -167,13 +168,17 @@ def generate_catalog_dict(cluster):
     return cluster_id, cluster_dict
 
 
+parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
+parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
+args = parser.parse_args()
+
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-sptcl_catalog = Table.read(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/fuzzy_selection/mock_AGN_catalog_t2.500_e1.20_z-1.00_b1.00_C0.371_rc0.100_maxr5.00_clseed890_objseed930_fuzzy_selection.fits')
+sptcl_catalog = Table.read(args.catalog)
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
