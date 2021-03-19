@@ -67,7 +67,10 @@ ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_fuzzy.fits'
+sptsz_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPT-SZ_2500d.fits'
+sptpol_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPTpol_100d.fits'
+sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits'
+sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
@@ -157,67 +160,98 @@ sptpol_cluster_ids = set(sptpol_agn_catalog.group_by('SPT_ID').groups.keys['SPT_
 
 # Create a list of cluster IDs that only have SSDF data
 ssdf_only_cluster_ids = list(sptpol_cluster_ids.difference(spt_sz_cluster_ids))
+spt_sz_only_cluster_ids = list(spt_sz_cluster_ids.difference(sptpol_cluster_ids))
 
 # Filter the SPTpol 100d catalog to only include SSDF clusters
-sptpol_agn_catalog = sptpol_agn_catalog[np.in1d(sptpol_agn_catalog['SPT_ID'], ssdf_only_cluster_ids)]
+sptpol_agn_catalog_ssdf_only = sptpol_agn_catalog[np.in1d(sptpol_agn_catalog['SPT_ID'], ssdf_only_cluster_ids)]
+spt_sz_agn_catalog_target_only = spt_sz_agn_catalog[np.in1d(spt_sz_agn_catalog['SPT_ID'], spt_sz_only_cluster_ids)]
 
 # Combine the two cluster catalogs
-sptcl_agn_catalog = vstack([spt_sz_agn_catalog, sptpol_agn_catalog])
+sptcl_agn_catalog_standard = vstack([spt_sz_agn_catalog, sptpol_agn_catalog_ssdf_only])
+sptcl_agn_catalog_inverse = vstack([spt_sz_agn_catalog_target_only, sptpol_agn_catalog])
 
 # Sort by cluster ID
-sptcl_agn_catalog.sort('SPT_ID')
+spt_sz_agn_catalog.sort('SPT_ID')
+sptpol_agn_catalog.sort('SPT_ID')
+sptcl_agn_catalog_standard.sort('SPT_ID')
+sptcl_agn_catalog_inverse.sort('SPT_ID')
 
-# Write the catalog to disk
-sptcl_agn_catalog.write(output_catalog, overwrite=True)
+# Write the catalog(s) to disk
+spt_sz_agn_catalog.write(sptsz_output_catalog, overwrite=True)
+sptpol_agn_catalog.write(sptpol_output_catalog, overwrite=True)
+sptcl_agn_catalog_standard.write(sptcl_std_output_catalog, overwrite=True)
+sptcl_agn_catalog_inverse.write(sptcl_inv_output_catalog, overwrite=True)
 
 # List catalog statistics
 # SPT-SZ
-sptsz_agn_catalog_grp = spt_sz_agn_catalog.group_by('SPT_ID')
-number_of_clusters_sz = len(sptsz_agn_catalog_grp.groups.keys)
-total_number_sz = len(sptsz_agn_catalog_grp)
-total_number_corrected_sz = sptsz_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
+number_of_clusters_sz = len(spt_sz_agn_catalog.group_by('SPT_ID').groups.keys)
+total_number_sz = len(spt_sz_agn_catalog)
+total_number_comp_corrected_sz = spt_sz_agn_catalog['COMPLETENESS_CORRECTION'].sum()
+total_number_corrected_sz = total_number_comp_corrected_sz * spt_sz_agn_catalog['SELECTION_MEMBERSHIP'].prod()
 number_per_cluster_sz = total_number_corrected_sz / number_of_clusters_sz
 median_z_sz = np.median(spt_sz_agn_catalog['REDSHIFT'])
 median_m_sz = np.median(spt_sz_agn_catalog['M500'])
 
 # SPTpol
-sptpol_agn_catalog_grp = sptpol_agn_catalog.group_by('SPT_ID')
-number_of_clusters_pol = len(sptpol_agn_catalog_grp.groups.keys)
-total_number_pol = len(sptpol_agn_catalog_grp)
-total_number_corrected_pol = sptpol_agn_catalog_grp['COMPLETENESS_CORRECTION'].sum()
+number_of_clusters_pol = len(sptpol_agn_catalog.group_by('SPT_ID').groups.keys)
+total_number_pol = len(sptpol_agn_catalog)
+total_number_comp_corrected_pol = sptpol_agn_catalog['COMPLETENESS_CORRECTION'].sum()
+total_number_corrected_pol = total_number_comp_corrected_pol * sptpol_agn_catalog['SELECTION_MEMBERSHIP'].prod()
 number_per_cluster_pol = total_number_corrected_pol / number_of_clusters_pol
 median_z_pol = np.median(sptpol_agn_catalog['REDSHIFT'])
 median_m_pol = np.median(sptpol_agn_catalog['M500'])
-sptcl_agn_catalog_grp = sptcl_agn_catalog.group_by('SPT_ID')
 
-# SPTcl
-number_of_clusters = len(sptcl_agn_catalog_grp.groups.keys)
-total_number = len(sptcl_agn_catalog)
-total_number_corrected = sptcl_agn_catalog['COMPLETENESS_CORRECTION'].sum()
-number_per_cluster = total_number_corrected / number_of_clusters
-median_z = np.median(sptcl_agn_catalog['REDSHIFT'])
-median_m = np.median(sptcl_agn_catalog['M500'])
+
+# SPTcl (standard)
+number_of_clusters_cl_std = len(sptcl_agn_catalog_standard.group_by('SPT_ID').groups.keys)
+total_number_cl_std = len(sptcl_agn_catalog_standard)
+total_number_comp_corrected_cl_std = sptcl_agn_catalog_standard['COMPLETENESS_CORRECTION'].sum()
+total_number_corrected_cl_std = total_number_comp_corrected_cl_std * sptcl_agn_catalog_standard['SELECTION_MEMBERSHIP'].prod()
+number_per_cluster_cl_std = total_number_corrected_cl_std / number_of_clusters_cl_std
+median_z_cl_std = np.median(sptcl_agn_catalog_standard['REDSHIFT'])
+median_m_cl_std = np.median(sptcl_agn_catalog_standard['M500'])
+
+# SPTcl (inverse)
+number_of_clusters_cl_inv = len(sptcl_agn_catalog_inverse.group_by('SPT_ID').groups.keys)
+total_number_cl_inv = len(sptcl_agn_catalog_inverse)
+total_number_comp_corrected_cl_inv = sptcl_agn_catalog_inverse['COMPLETENESS_CORRECTION'].sum()
+total_number_corrected_cl_inv = total_number_comp_corrected_cl_inv * sptcl_agn_catalog_inverse['SELECTION_MEMBERSHIP'].prod()
+number_per_cluster_cl_inv = total_number_corrected_cl_inv / total_number_cl_inv
+median_z_cl_inv = np.median(sptcl_agn_catalog_inverse['REDSHIFT'])
+median_m_cl_inv = np.median(sptcl_agn_catalog_inverse['M500'])
 
 print(f"""SPT-SZ
 Number of clusters:\t{number_of_clusters_sz}
 Objects selected:\t{total_number_sz}
-Objects selected (completeness corrected):\t{total_number_corrected_sz:.2f}
-Objects per cluster (corrected):\t{number_per_cluster_sz:.2f}
+Objects selected (completeness corrected):\t{total_number_comp_corrected_sz:.2f}
+Objects selected (comp + membership corrected):\t{total_number_corrected_sz:.2f}
+Objects per cluster (comp + mem corrected):\t{number_per_cluster_sz:.2f}
 Median Redshift:\t{median_z_sz:.2f}
 Median Mass:\t{median_m_sz:.2e}
 ---------------------------
 SPTpol 100d
 Number of clusters:\t{number_of_clusters_pol}
 Objects selected:\t{total_number_pol}
-Objects selected (completeness corrected):\t{total_number_corrected_pol:.2f}
-Objects per cluster (corrected):\t{number_per_cluster_pol:.2f}
+Objects selected (completeness corrected):\t{total_number_comp_corrected_pol:.2f}
+Objects selected (comp + membership corrected):\t{total_number_corrected_pol:.2f}
+Objects per cluster (comp + mem corrected):\t{number_per_cluster_pol:.2f}
 Median Redshift:\t{median_z_pol:.2f}
 Median Mass:\t{median_m_pol:.2e}
 ---------------------------
-SPTcl
-Number of clusters:\t{number_of_clusters}
-Objects selected:\t{total_number}
-Objects selected (completeness corrected):\t{total_number_corrected:.2f}
-Objects per cluster (corrected):\t{number_per_cluster:.2f}
-Median Redshift:\t{median_z:.2f}
-Median Mass:\t{median_m:.2e}""")
+SPTcl (standard)
+Number of clusters:\t{number_of_clusters_cl_std}
+Objects selected:\t{total_number_cl_std}
+Objects selected (completeness corrected):\t{total_number_comp_corrected_cl_std:.2f}
+Objects selected (comp + membership corrected):\t{total_number_corrected_cl_std:.2f}
+Objects per cluster (corrected):\t{number_per_cluster_cl_std:.2f}
+Median Redshift:\t{median_z_cl_std:.2f}
+Median Mass:\t{median_m_cl_std:.2e}
+---------------------------
+SPTcl (inverse)
+Number of clusters:\t{number_of_clusters_cl_inv}
+Objects selected:\t{total_number_cl_inv}
+Objects selected (completeness corrected):\t{total_number_comp_corrected_cl_inv:.2f}
+Objects selected (comp + membership corrected):\t{total_number_corrected_cl_inv:.2f}
+Objects per cluster (corrected):\t{number_per_cluster_cl_inv:.2f}
+Median Redshift:\t{median_z_cl_inv:.2f}
+Median Mass:\t{median_m_cl_inv:.2e}""")
