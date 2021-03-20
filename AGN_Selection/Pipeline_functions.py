@@ -514,7 +514,7 @@ class SelectIRAGN:
             se_catalog = Table.read(cluster_info['se_cat_path'], format='ascii')
 
             # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
-            se_catalog['MASK_NAME'] = re.search(r'Data/.*?\Z', cluster_info['cov_mask_path']).group(0)
+            se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', cluster_info['cov_mask_path']).group(0)
 
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
             se_catalog = se_catalog[se_catalog['FLAGS'] < 4]

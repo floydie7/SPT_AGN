@@ -187,7 +187,8 @@ sptcl_agn_catalog_inverse.write(sptcl_inv_output_catalog, overwrite=True)
 number_of_clusters_sz = len(spt_sz_agn_catalog.group_by('SPT_ID').groups.keys)
 total_number_sz = len(spt_sz_agn_catalog)
 total_number_comp_corrected_sz = spt_sz_agn_catalog['COMPLETENESS_CORRECTION'].sum()
-total_number_corrected_sz = total_number_comp_corrected_sz * spt_sz_agn_catalog['SELECTION_MEMBERSHIP'].prod()
+total_number_corrected_sz = np.sum(spt_sz_agn_catalog['COMPLETENESS_CORRECTION']
+                                   * spt_sz_agn_catalog['SELECTION_MEMBERSHIP'])
 number_per_cluster_sz = total_number_corrected_sz / number_of_clusters_sz
 median_z_sz = np.median(spt_sz_agn_catalog['REDSHIFT'])
 median_m_sz = np.median(spt_sz_agn_catalog['M500'])
@@ -196,7 +197,8 @@ median_m_sz = np.median(spt_sz_agn_catalog['M500'])
 number_of_clusters_pol = len(sptpol_agn_catalog.group_by('SPT_ID').groups.keys)
 total_number_pol = len(sptpol_agn_catalog)
 total_number_comp_corrected_pol = sptpol_agn_catalog['COMPLETENESS_CORRECTION'].sum()
-total_number_corrected_pol = total_number_comp_corrected_pol * sptpol_agn_catalog['SELECTION_MEMBERSHIP'].prod()
+total_number_corrected_pol = np.sum(sptpol_agn_catalog['COMPLETENESS_CORRECTION']
+                                    * sptpol_agn_catalog['SELECTION_MEMBERSHIP'])
 number_per_cluster_pol = total_number_corrected_pol / number_of_clusters_pol
 median_z_pol = np.median(sptpol_agn_catalog['REDSHIFT'])
 median_m_pol = np.median(sptpol_agn_catalog['M500'])
@@ -206,7 +208,8 @@ median_m_pol = np.median(sptpol_agn_catalog['M500'])
 number_of_clusters_cl_std = len(sptcl_agn_catalog_standard.group_by('SPT_ID').groups.keys)
 total_number_cl_std = len(sptcl_agn_catalog_standard)
 total_number_comp_corrected_cl_std = sptcl_agn_catalog_standard['COMPLETENESS_CORRECTION'].sum()
-total_number_corrected_cl_std = total_number_comp_corrected_cl_std * sptcl_agn_catalog_standard['SELECTION_MEMBERSHIP'].prod()
+total_number_corrected_cl_std = np.sum(sptcl_agn_catalog_standard['COMPLETENESS_CORRECTION']
+                                       * sptcl_agn_catalog_standard['SELECTION_MEMBERSHIP'])
 number_per_cluster_cl_std = total_number_corrected_cl_std / number_of_clusters_cl_std
 median_z_cl_std = np.median(sptcl_agn_catalog_standard['REDSHIFT'])
 median_m_cl_std = np.median(sptcl_agn_catalog_standard['M500'])
@@ -215,8 +218,9 @@ median_m_cl_std = np.median(sptcl_agn_catalog_standard['M500'])
 number_of_clusters_cl_inv = len(sptcl_agn_catalog_inverse.group_by('SPT_ID').groups.keys)
 total_number_cl_inv = len(sptcl_agn_catalog_inverse)
 total_number_comp_corrected_cl_inv = sptcl_agn_catalog_inverse['COMPLETENESS_CORRECTION'].sum()
-total_number_corrected_cl_inv = total_number_comp_corrected_cl_inv * sptcl_agn_catalog_inverse['SELECTION_MEMBERSHIP'].prod()
-number_per_cluster_cl_inv = total_number_corrected_cl_inv / total_number_cl_inv
+total_number_corrected_cl_inv = np.sum(sptcl_agn_catalog_inverse['COMPLETENESS_CORRECTION']
+                                       * sptcl_agn_catalog_inverse['SELECTION_MEMBERSHIP'])
+number_per_cluster_cl_inv = total_number_corrected_cl_inv / number_of_clusters_cl_inv
 median_z_cl_inv = np.median(sptcl_agn_catalog_inverse['REDSHIFT'])
 median_m_cl_inv = np.median(sptcl_agn_catalog_inverse['M500'])
 
