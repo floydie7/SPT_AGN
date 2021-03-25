@@ -69,14 +69,11 @@ class SelectIRAGN:
         accepted: 'vega', 'ab', 'st' use the default Vega spectrum from `synphot`, the AB system with constant
         profile of :math:`g_\\nu = 3631 Jy`, and the  ST system with constant profile of
         :math:`g_\\lambda = 3.631e-9 erg s^-1 cm^-2 \\AA^-1` respectively.
-    seed : np.random.SeedSequence, optional
-        SeedSequence to initialize the random number generator. If not provided, the RNG will be initialized with a
-        random seed.
 
     """
 
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 field_number_dist_file, sed=None, output_filter=None, output_zero_pt=None, seed=None):
+                 field_number_dist_file, sed=None, output_filter=None, output_zero_pt=None):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -103,9 +100,6 @@ class SelectIRAGN:
 
         # Number count distribution from SDWFS used to remove Eddington bias
         self._field_number_dist = field_number_dist_file
-
-        # Generate a random number generator with the seed sequence provided
-        self._rng = default_rng(seed)
 
     def file_pairing(self, include=None, exclude=None):
         """
@@ -147,11 +141,11 @@ class SelectIRAGN:
             cat_files = glob.glob(f'{self._sextractor_cat_dir}/*.cat')
 
         # Combine and sort both file lists
-        cat_image_files = sorted(cat_files + image_files, key=self.__keyfunct)
+        cat_image_files = sorted(cat_files + image_files, key=self._keyfunct)
 
         # Group the file names together
         self._catalog_dictionary = {cluster_id: list(files)
-                                    for cluster_id, files in groupby(cat_image_files, key=self.__keyfunct)}
+                                    for cluster_id, files in groupby(cat_image_files, key=self._keyfunct)}
 
         # If we want to only run on a set of clusters we can filter for them now
         if include is not None:
@@ -273,7 +267,7 @@ class SelectIRAGN:
 
         """
 
-        for cluster_info in self._catalog_dictionary.values():
+        for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Array element names
             irac_ch1_cov_path = cluster_info['ch1_cov_path']
             irac_ch2_cov_path = cluster_info['ch2_cov_path']
@@ -319,10 +313,10 @@ class SelectIRAGN:
 
         # Region file directory files
         if isinstance(self._region_file_dir, list):
-            reg_files = {self.__keyfunct(f): f for f in chain.from_iterable(glob.glob(f'{reg_dir}/*.reg')
-                                                                            for reg_dir in self._region_file_dir)}
+            reg_files = {self._keyfunct(f): f for f in chain.from_iterable(glob.glob(f'{reg_dir}/*.reg')
+                                                                           for reg_dir in self._region_file_dir)}
         else:
-            reg_files = {self.__keyfunct(f): f for f in glob.glob(f'{self._region_file_dir}/*.reg')}
+            reg_files = {self._keyfunct(f): f for f in glob.glob(f'{self._region_file_dir}/*.reg')}
 
         # Select out the IDs of the clusters needing additional masking
         clusters_to_mask = set(reg_files).intersection(self._catalog_dictionary)
@@ -876,8 +870,42 @@ class SelectIRAGN:
         if final_catalog is not None:
             return final_catalog
 
-    @staticmethod
-    def __keyfunct(f):
+    @classmethod
+    def _keyfunct(cls, f):
         """Generate a key function that isolates the cluster ID for sorting and grouping"""
         return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
-        # return re.search(r'SDWFS_cutout_\d+', f).group(0)
+
+
+class SelectSDWFS(SelectIRAGN):
+    def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, sdwfs_master_catalog,
+                 completeness_file, field_number_dist_file):
+        super().__init__(sextractor_cat_dir=sextractor_cat_dir,
+                         irac_image_dir=irac_image_dir,
+                         region_file_dir=region_file_dir,
+                         mask_dir=mask_dir,
+                         spt_catalog=sdwfs_master_catalog,
+                         completeness_file=completeness_file,
+                         field_number_dist_file=field_number_dist_file)
+
+    def object_separations(self):
+        """Calculates the angular separations of each object relative to the image center."""
+
+        for cutout_info in self._catalog_dictionary.values():
+            catalog = cutout_info['catalog']
+
+            # Create SkyCoord objects for all objects in the catalog as well as the image center
+            object_coords = SkyCoord(catalog['ALPHA_J2000'], catalog['DELTA_J2000'], unit=u.deg)
+            center_coord = SkyCoord(catalog['SZ_RA'][0], catalog['SZ_DEC'][0], unit=u.deg)
+
+            # Calculate the angular separations between the objects and the image center in arcminutes
+            separations_arcmin = object_coords.separation(center_coord).to(u.arcmin)
+
+            # Add our new column to the catalog
+            catalog['RADIAL_SEP_ARCMIN'] = separations_arcmin
+
+            # Update the catalog in the data structure
+            cutout_info['catalog'] = catalog
+
+    @classmethod
+    def _keyfunct(cls, f):
+        return re.search(r'SDWFS_cutout_\d+', f).group(0)

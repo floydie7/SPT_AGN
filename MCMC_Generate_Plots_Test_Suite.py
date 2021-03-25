@@ -12,13 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MaxNLocator
 
-theta_true = 2.5
-eta_true = 1.2
-zeta_true = -1.0
-beta_true = 1.0
-rc_true = 0.1
-C_true = 0.371
-truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
+# theta_true = 2.5
+# eta_true = 1.2
+# zeta_true = -1.0
+# beta_true = 1.0
+# rc_true = 0.1
+# C_true = 0.371
+# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
 labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
 # labels = [r'$C$']
@@ -26,8 +26,9 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 # Our file storing the full test suite
 # filename = 'Data/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_IRAGN.h5'
 # filename = 'Data/MCMC/SDWFS_Background/Chains/emcee_chains_SDWFS_IRAGN.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/' \
-           'emcee_chains_Mock_fuzzy_selection.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/' \
+#            'emcee_chains_Mock_fuzzy_selection.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_fuzzy_selection.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
@@ -54,7 +55,7 @@ for chain_name, sampler in sampler_dict.items():
         ax = axes[i]
         # ax = axes
         ax.plot(samples[:, :, i], color='k', alpha=0.3)
-        ax.axhline(truths[i], color='b')
+        # ax.axhline(truths[i], color='b')
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set(xlim=[0, len(samples)], ylabel=labels[i])
 
@@ -63,10 +64,10 @@ for chain_name, sampler in sampler_dict.items():
     # axes.set(title=chain_name)
     # axes.set(xlabel='Steps')
 
-    # fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.pdf', format='pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/Param_chains_SPTcl_{chain_name}.png')
     # fig.savefig(f'Data/MCMC/SPT_Data/Plots/Param_chains_SPTcl_{chain_name}.png', format='png')
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
-                f'Param_chains_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}_{chain_name}.pdf')
+    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
+    #             f'Param_chains_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}_{chain_name}.pdf')
     # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/Param_chains_SDWFS_Background_{chain_name}.png')
 
     try:
@@ -103,23 +104,24 @@ for chain_name, sampler in sampler_dict.items():
     # labels[-1] = r'$\ln(Post)$'
 
     # Produce the corner plot
-    # fig = corner.corner(flat_samples, labels=labels, quantiles=[0.16, 0.5, 0.84], show_titles=True)
-    fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True,
-                        title_fmt='.3f', smooth=1, plot_datapoints=False)
-    # fig.suptitle(chain_name)
+    fig = corner.corner(flat_samples, labels=labels, quantiles=[0.16, 0.5, 0.84], show_titles=True, title_fmt='.3f',
+                        smooth=1, plot_datapoints=False)
+    # fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True,
+    #                     title_fmt='.3f', smooth=1, plot_datapoints=False)
+    fig.suptitle(chain_name)
     # plt.tight_layout()
-    # fig.savefig(f'Data/MCMC/SPT_Data/Plots/Corner_plot_SPTcl_{chain_name}.pdf', format='pdf')
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
-                f'Corner_plot_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}_{chain_name}.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/Corner_plot_SPTcl_{chain_name}.pdf', format='pdf')
+    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
+    #             f'Corner_plot_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}_{chain_name}.pdf')
 
     print(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
         mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
         q = np.diff(mcmc)
-        # print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f}'
-        #       .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
-        print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
-              .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
+        print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f}'
+              .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
+        # print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
+        #       .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0], true=truths[i]))
 
     print(f'Mean acceptance fraction: {np.mean(sampler.accepted / sampler.iteration):.2f}')
 
