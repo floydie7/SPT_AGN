@@ -80,7 +80,7 @@ sdwfs_selector = SelectSDWFS(sextractor_cat_dir=sdwfs_catalog_directory, irac_im
 sdwfs_agn_catalog = sdwfs_selector.run_selection(included_clusters=None,
                                                  excluded_clusters=sdwfs_cutouts_to_exclude,
                                                  max_image_catalog_sep=max_separation,
-                                                 ch1_min_cov=ch1_bright_mag,
+                                                 ch1_min_cov=sdwfs_ch1_min_coverage,
                                                  ch2_min_cov=sdwfs_ch2_min_coverage,
                                                  ch1_bright_mag=ch1_bright_mag,
                                                  ch2_bright_mag=ch2_bright_mag,
