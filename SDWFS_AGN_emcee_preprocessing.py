@@ -123,6 +123,7 @@ def generate_catalog_dict(cluster):
     cutout_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     cutout_completeness = cluster['COMPLETENESS_CORRECTION']
     cutout_radial_arcmin = cluster['RADIAL_SEP_ARCMIN']
+    cutout_agn_membership = cluster['SELECTION_MEMBERSHIP']
 
     # Find the appropriate mesh step size.
     mask_wcs = WCS(mask_dict[cutout_id][1])
@@ -146,11 +147,13 @@ def generate_catalog_dict(cluster):
     # Select only the objects within the same radial limit we are using for integration.
     radial_arcmin_maxr = cutout_radial_arcmin[cutout_radial_arcmin <= rall[-1]]
     completeness_weight_maxr = cutout_completeness[cutout_radial_arcmin <= rall[-1]]
+    agn_membership_maxr = cutout_agn_membership[cutout_radial_arcmin <= rall[-1]]
 
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
     cluster_dict = {'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_arcmin_maxr': list(radial_arcmin_maxr),
-                    'completeness_weight_maxr': list(completeness_weight_maxr)}
+                    'completeness_weight_maxr': list(completeness_weight_maxr),
+                    'agn_membership_maxr': list(agn_membership_maxr)}
 
     return cutout_id, cluster_dict
 
@@ -161,7 +164,7 @@ max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-sdwfs_catalog = Table.read(f'{hcc_prefix}Data/Output/SDWFS_cutout_IRAGN.fits')
+sdwfs_catalog = Table.read(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
 
 # Read in the mask files for each cluster
 sdwfs_catalog_grp = sdwfs_catalog.group_by('Cutout_ID')

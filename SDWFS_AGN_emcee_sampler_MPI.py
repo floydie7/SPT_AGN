@@ -60,6 +60,9 @@ def lnlike(param):
         # Get the completeness weights for the AGN
         completeness_weight_maxr = catalog_dict[cutout_id]['completeness_weight_maxr']
 
+        # Get the AGN sample degrees of membership
+        agn_membership = catalog_dict[cutout_id]['agn_membership_maxr']
+
         # Get the radial mesh for integration
         rall = catalog_dict[cutout_id]['rall']
 
@@ -74,7 +77,7 @@ def lnlike(param):
         nall = model_rate_opted(param)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_arcmin_maxr)) - completeness_ratio * trap_weight(
+        cluster_lnlike = np.sum(np.log(ni * radial_arcmin_maxr * agn_membership)) - completeness_ratio * trap_weight(
             nall * 2 * np.pi * rall, rall, weight=gpf_all)
         lnlike_list.append(cluster_lnlike)
 
@@ -131,6 +134,7 @@ for cutout_id, cluster_info in catalog_dict.items():
     catalog_dict[cutout_id]['gpf_rall'] = np.array(cluster_info['gpf_rall'])
     catalog_dict[cutout_id]['rall'] = np.array(cluster_info['rall'])
     catalog_dict[cutout_id]['radial_arcmin_maxr'] = np.array(cluster_info['radial_arcmin_maxr'])
+    catalog_dict[cutout_id]['agn_membership_maxr'] = cluster_info['agn_membership_maxr']
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
