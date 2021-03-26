@@ -105,8 +105,8 @@ def lnprior(params):
     # Set our hyperparameters
     # h_rc = 0.25
     # h_rc_err = 0.1
-    h_C = 0.371
-    h_C_err = 0.157 * args.prior_scale_factor  # Artificially scaling the background prior
+    h_C = 0.376
+    h_C_err = 0.026 * args.prior_scale_factor  # Artificially scaling the background prior
 
     # Define all priors
     if (0.0 <= theta <= np.inf and
@@ -212,7 +212,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_Mock_fuzzy_selection.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection_mod_like_sum_term_only')
+    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection_mod_like_sum_term_only_new_bkg_prior')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
