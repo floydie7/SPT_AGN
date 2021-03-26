@@ -167,7 +167,7 @@ rescale_fact = 6  # Factor by which we will rescale the mask images to gain high
 sdwfs_catalog = Table.read(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
 
 # Read in the mask files for each cluster
-sdwfs_catalog_grp = sdwfs_catalog.group_by('Cutout_ID')
+sdwfs_catalog_grp = sdwfs_catalog.group_by('CUTOUT_ID')
 mask_dict = {cluster_id: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
              in zip(sdwfs_catalog_grp.groups.keys['Cutout_ID'],
                     sdwfs_catalog_grp['MASK_NAME'][sdwfs_catalog_grp.groups.indices[:-1]])}
