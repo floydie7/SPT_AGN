@@ -119,7 +119,7 @@ def good_pixel_fraction(r, center, cluster_id, rescale_factor=None):
 
 
 def generate_catalog_dict(cluster):
-    cutout_id = cluster['Cutout_ID'][0]
+    cutout_id = cluster['CUTOUT_ID'][0]
     cutout_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     cutout_completeness = cluster['COMPLETENESS_CORRECTION']
     cutout_radial_arcmin = cluster['RADIAL_SEP_ARCMIN']
