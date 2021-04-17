@@ -10,6 +10,7 @@ from time import time
 import astropy.units as u
 import numpy as np
 from astropy.table import Table, join, unique, vstack
+from synphot import SourceSpectrum, units
 
 from AGN_Selection.Pipeline_functions import SelectIRAGN
 
@@ -32,6 +33,10 @@ sptpol_masks_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/
 # SDWFS number count distribution file (for purification)
 sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
                           f'SDWFS_number_count_distribution_normed.json'
+
+# Polletta QSO2 SED used for computing the J-band absolute magnitudes
+polletta_qso2 = SourceSpectrum.from_file(f'{prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
+                                         wave_unit=u.Angstrom, flux_unit=units.FLAM)
 
 # Completeness simulation results files
 spt_sz_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPT-SZ_2500d/Results/' \
@@ -76,7 +81,7 @@ sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Outp
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
                        'REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr', 'R500', 'RADIAL_SEP_R500',
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
-                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'COMPLETENESS_CORRECTION',
+                       'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'J_ABS_MAG', 'COMPLETENESS_CORRECTION',
                        'SELECTION_MEMBERSHIP', 'MASK_NAME']
 
 # Read in SPT-SZ cluster catalog
@@ -114,7 +119,11 @@ spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_
                               region_file_dir=spt_sz_regions_directory, mask_dir=spt_sz_masks_directory,
                               spt_catalog=SPTcl,
                               completeness_file=spt_sz_completeness_sim_results,
-                              field_number_dist_file=sdwfs_number_count_dist)
+                              field_number_dist_file=sdwfs_number_count_dist,
+                              sed=polletta_qso2,
+                              irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
+                              j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+                                            f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
 
 # Run the SPT-SZ pipeline and store the catalog for later
 spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
@@ -136,7 +145,11 @@ sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_
                               region_file_dir=sptpol_regions_directory, mask_dir=sptpol_masks_directory,
                               spt_catalog=SPTcl,
                               completeness_file=sptpol_completeness_sim_results,
-                              field_number_dist_file=sdwfs_number_count_dist)
+                              field_number_dist_file=sdwfs_number_count_dist,
+                              sed=polletta_qso2,
+                              irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
+                              j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+                                            f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
 
 # Run the SPTpol pipeline and store the catalog for later
 sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,

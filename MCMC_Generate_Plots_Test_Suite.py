@@ -83,7 +83,8 @@ for chain_name, sampler in sampler_dict.items():
         # burnin = int(nsteps // 3)
 
         # We will also thin by roughly half our autocorrelation time
-        thinning = int(tau // 2)
+        # thinning = int(tau // 2)
+        thinning = 1
 
     except emcee.autocorr.AutocorrError:
         tau_est = sampler.get_autocorr_time(quiet=True)
@@ -108,8 +109,9 @@ for chain_name, sampler in sampler_dict.items():
     # fig = corner.corner(flat_samples, labels=labels, truths=truths, quantiles=[0.16, 0.5, 0.84], show_titles=True,
     #                     title_fmt='.3f', smooth=1, plot_datapoints=False)
     fig = corner.corner(flat_samples, labels=labels, quantiles=[0.16, 0.5, 0.84], show_titles=True, title_fmt='.3f',
-                        smooth=1, plot_datapoints=False)
+                        plot_datapoints=False)
     fig.suptitle(chain_name)
+    plt.tight_layout()
 
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
                 f'Corner_plot_SDWFS_Background_{chain_name}.pdf')

@@ -16,8 +16,46 @@ import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from custom_math import trap_weight  # Custom trapezoidal integration
 from schwimmbad import MPIPool
+from scipy.interpolate import lagrange
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+
+# Set up the luminosity and density evolution using the fits from Assef+11 Table 2
+z_i = [0.25, 0.5, 1., 2., 4.]
+m_star_z_i = [-23.51, -24.64, -26.10, -27.08]
+phi_star_z_i = [-3.41, -3.73, -4.17, -4.65, -5.77]
+m_star = lagrange(z_i[1:], m_star_z_i)
+phi_star = lagrange(z_i, phi_star_z_i)
+
+
+def luminosity_function(abs_mag, redshift):
+    """
+    Assef+11 QLF using luminosity and density evolution.
+
+    Parameters
+    ----------
+    abs_mag : astropy table-like
+        Rest-frame J-band absolute magnitude.
+    redshift : astropy table-like
+        Cluster redshift
+
+    Returns
+    -------
+    Phi : ndarray
+        Luminosity density
+
+    """
+
+    # L/L_*(z) = 10**(0.4 * (M_*(z) - M))
+    L_L_star = 10**(0.4 * (m_star(redshift) - abs_mag))
+
+    # QLF slopes
+    alpha1 = -3.35  # alpha in Table 2
+    alpha2 = -0.37  # beta in Table 2
+
+    Phi = 0.4 * np.log(10) * L_L_star * phi_star(redshift) * (L_L_star**-alpha1 + L_L_star**-alpha2)**-1
+
+    return Phi
 
 
 def model_rate_opted(params, cluster_id, r_r500):
@@ -39,12 +77,16 @@ def model_rate_opted(params, cluster_id, r_r500):
     z = catalog_dict[cluster_id]['redshift']
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
+    j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
 
     # Convert our background surface density from angular units into units of r500^-2
     background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
+    # Luminosity function number
+    LF = cosmo.angular_diameter_distance(z)**2 * r500 * luminosity_function(j_band_abs_mag, z)
+
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
@@ -73,9 +115,6 @@ def lnlike(param):
 
         # Compute the completeness ratio for this cluster
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
-
-        # Compute the joint probability of AGN sample membership
-        # membership_degree = np.prod(agn_membership)
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr)

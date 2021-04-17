@@ -13,7 +13,7 @@ from collections import ChainMap
 from itertools import groupby, product, chain
 
 import numpy as np
-from astro_compendium.utils.k_correction import k_correction
+from astro_compendium.utils.k_correction import k_correction, k_corr_abs_mag
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
@@ -58,22 +58,17 @@ class SelectIRAGN:
     field_number_dist_file : str
         Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
         using the SDWFS field sample and the associated color bins.
-    sed : SourceSpectrum, optional
-        Spectral energy distribution template of the source object, used for K-correction.
-    output_filter : SpectralElement, optional
-        Bandpass through which the absolute magnitude should be measured, used for K-correction.
-    output_zero_pt : SourceSpectrum or Quantity or str, optional
-        Reference source or value defining the zero-point flux for the bandpass given by `output_filter`, used for
-        K-correction. If a `Quantity` is provided, the zero point value is assumed to be constant across the wavelengths
-        of `output_filter`. A `SourceSpectrum` may be manually provided. Additionally, the following strings are also
-        accepted: 'vega', 'ab', 'st' use the default Vega spectrum from `synphot`, the AB system with constant
-        profile of :math:`g_\\nu = 3631 Jy`, and the  ST system with constant profile of
-        :math:`g_\\lambda = 3.631e-9 erg s^-1 cm^-2 \\AA^-1` respectively.
+    sed : SourceSpectrum
+        Spectral energy distribution template of the source object, used for K-correction/absolute magnitude.
+    irac_filter : str
+        Filename of the IRAC filter being used for absolute magnitude calculations.
+    j_band_filter : str
+        Filename of the FLAMINGOS J-band filter being used for absolute magnitude calculations.
 
     """
 
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 field_number_dist_file, sed=None, output_filter=None, output_zero_pt=None):
+                 field_number_dist_file, sed, irac_filter, j_band_filter):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -95,8 +90,8 @@ class SelectIRAGN:
 
         # K-correction parameters
         self._sed = sed
-        self._output_filter = output_filter
-        self._output_zero_pt = output_zero_pt
+        self._irac_filter = irac_filter
+        self._j_band_filter = j_band_filter
 
         # Number count distribution from SDWFS used to remove Eddington bias
         self._field_number_dist = field_number_dist_file
@@ -442,8 +437,7 @@ class SelectIRAGN:
         """
 
         # Load in the IRAC 4.5 um filter as the observed filter
-        irac_45 = SpectralElement.from_file('Data/Data_Repository/filter_curves/Spitzer_IRAC/'
-                                            '080924ch2trans_full.txt',
+        irac_45 = SpectralElement.from_file('Data_Repository/filter_curves/Spitzer_IRAC/080924ch2trans_full.txt',
                                             wave_unit=u.um)
 
         # Store the official IRAC 4.5 um zero point flux for K-correction computations
@@ -466,6 +460,42 @@ class SelectIRAGN:
             # Store the cluster redshift and K-correction in cluster_info for later use
             cluster_info['redshift'] = cluster_z
             cluster_info['k-correction'] = k_corr
+
+    def j_band_abs_mag(self):
+        """
+        Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function. We will use the
+        observed apparent 3.6 um magnitude and assume a Polleta  QSO2 SED for all objects to K-correct to the absolute
+        FLAMINGOS J-band magnitude.
+
+        Returns
+        -------
+
+        """
+
+        # Load in the IRAC 3.6 um filter as the observed filter
+        irac_36 = SpectralElement.from_file(self._irac_filter, wave_unit=u.um)
+        flamingos_j = SpectralElement.from_file(self._j_band_filter, wave_unit=u.nm)
+
+        # We will use the official IRAC 3.6 um zero-point flux
+        irac_36_zp = 280.9 * u.Jy
+
+        for cluster_id, cluster_info in self._catalog_dictionary.items():
+            # Retrieve the cluster redshift from the SPT catalog
+            catalog_idx = cluster_info['SPT_cat_idx']
+            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
+
+            # Get the 3.6 um apparent magnitudes from the catalog
+            se_catalog = cluster_info['catalog']
+            irac_36_mag = se_catalog['I1_MAG_APER4']
+
+            # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
+            j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=cluster_z, f_lambda_sed=self._sed,
+                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=flamingos_j,
+                                       em_filter=irac_36, cosmo=self._cosmo)
+
+            # Store the J-band absolute magnitude in the catalog and update the data structure
+            se_catalog['J_ABS_MAG'] = j_abs_mag
+            cluster_info['catalog'] = se_catalog
 
     def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, absolute_mag,
                          ch1_ch2_color_cut,
@@ -776,7 +806,7 @@ class SelectIRAGN:
             se_catalog['COMPLETENESS_VALUE'] = completeness_values
             se_catalog['COMPLETENESS_CORRECTION'] = completeness_corrections
 
-            cluster_info.update({'catalog': se_catalog})
+            cluster_info['catalog'] = se_catalog
 
     def final_catalogs(self, filename=None, catalog_cols=None):
         """
@@ -863,6 +893,7 @@ class SelectIRAGN:
                               selection_band_faint_mag=selection_band_faint_mag, absolute_mag=absolute_mag,
                               ch1_ch2_color_cut=ch1_ch2_color)
         self.purify_selection(ch1_ch2_color_cut=ch1_ch2_color)
+        self.j_band_abs_mag()
         self.catalog_merge(catalog_cols=spt_colnames)
         self.object_separations()
         self.completeness_value()
