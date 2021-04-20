@@ -86,7 +86,7 @@ def model_rate_opted(params, cluster_id, r_r500):
     LF = cosmo.angular_diameter_distance(z)**2 * r500 * luminosity_function(j_band_abs_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF.value
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
@@ -197,6 +197,7 @@ parser.add_argument('--restart', help='Allows restarting the chain in place rath
                     action='store_true')
 parser.add_argument('--prior_scale_factor', help='Scale factor to the standard deviation of the background prior.',
                     default=1.0, type=float)
+parser.add_argument('--name', help='Chain name', type=str)
 args = parser.parse_args()
 
 # # Set parameter values
@@ -250,8 +251,8 @@ with MPIPool() as pool:
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_chains_Mock_fuzzy_selection.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'fuzzy_selection_mod_like_sum_term_only_new_bkg_prior')
+    chain_file = 'emcee_chains_SPTcl_fuzzy_selection.h5'
+    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}_LF')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
