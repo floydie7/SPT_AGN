@@ -58,14 +58,25 @@ def luminosity_function(abs_mag, redshift):
     return Phi
 
 
-def model_rate_opted(params, cluster_id, r_r500):
+def model_rate_opted(params, cluster_id, r_r500, j_mag):
     """
     Our generating model.
 
-    :param params: Tuple of (theta, eta, zeta, beta, background)
-    :param cluster_id: SPT ID of our cluster in the catalog dictionary
-    :param r_r500: A vector of radii of objects within the cluster normalized by the cluster's r500
-    :return model: A surface density profile of objects as a function of radius
+    Parameters
+    ----------
+    params : tuple
+        Tuple of (theta, eta, zeta, beta, rc, C)
+    cluster_id : str
+        SPT ID of our cluster in the catalog dictionary
+    r_r500 : array-like
+        A vector of radii of objects within the cluster normalized by the cluster's r500
+    j_mag : array-like
+        A vector of J-band absolute magnitudes to be used in the luminosity function
+
+    Returns
+    -------
+    model
+        A surface density profile of objects as a function of radius and luminosity.
     """
 
     # Unpack our parameters
@@ -77,13 +88,12 @@ def model_rate_opted(params, cluster_id, r_r500):
     z = catalog_dict[cluster_id]['redshift']
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
-    j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
 
     # Convert our background surface density from angular units into units of r500^-2
     background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Luminosity function number
-    LF = cosmo.angular_diameter_distance(z)**2 * r500 * luminosity_function(j_band_abs_mag, z)
+    LF = cosmo.angular_diameter_distance(z)**2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF.value
@@ -110,22 +120,31 @@ def lnlike(param):
         # Get the AGN sample degrees of membership
         agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
 
+        # Get the J-band absolute magnitudes
+        j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
+
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
+
+        # Get the luminosity mesh for integration
+        jall = catalog_dict[cluster_id]['jall']
+
+        # Create a meshgrid over the two 1D integration meshes
+        r_mesh, j_mesh = np.meshgrid(rall, jall)
 
         # Compute the completeness ratio for this cluster
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, radial_r500_maxr)
+        ni = model_rate_opted(param, cluster_id, radial_r500_maxr, j_band_abs_mag)
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
-        nall = model_rate_opted(param, cluster_id, rall)
+        n_mesh = model_rate_opted(param, cluster_id, r_mesh, j_mesh)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) \
-                         - completeness_ratio * trap_weight(nall * 2 * np.pi * rall, rall, weight=gpf_all)
+        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) - completeness_ratio \
+                         * np.trapz(trap_weight(n_mesh * 2 * np.pi * r_mesh, rall, weight=gpf_all, axis=0), jall, axis=0)
 
         lnlike_list.append(cluster_lnlike)
 
@@ -218,10 +237,10 @@ with open(preprocess_file, 'r') as f:
 for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['m500'] = cluster_info['m500'] * u.Msun
     catalog_dict[cluster_id]['r500'] = cluster_info['r500'] * u.Mpc
-    catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall']
-    catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
-    catalog_dict[cluster_id]['completeness_weight_maxr'] = cluster_info['completeness_weight_maxr']
-    catalog_dict[cluster_id]['agn_membership_maxr'] = cluster_info['agn_membership_maxr']
+    # catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall']
+    # catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
+    # catalog_dict[cluster_id]['completeness_weight_maxr'] = np.array(cluster_info['completeness_weight_maxr'])
+    # catalog_dict[cluster_id]['agn_membership_maxr'] = np.array(cluster_info['agn_membership_maxr'])
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.

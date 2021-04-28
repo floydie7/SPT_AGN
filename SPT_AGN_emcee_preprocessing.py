@@ -160,13 +160,16 @@ def generate_catalog_dict(cluster):
     agn_membership_maxr = cluster_agn_membership[cluster_radial_r500 <= rall[-1]]
     j_band_abs_mag_maxr = j_band_abs_mag[cluster_radial_r500 <= rall[-1]]
 
+    # Generate a luminosity integration mesh
+    jall = np.linspace(j_band_abs_mag_maxr.min(), j_band_abs_mag_maxr.max(), num=50)
+
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
     cluster_dict = {'redshift': cluster_z, 'm500': cluster_m500.value, 'r500': cluster_r500.value,
                     'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_r500_maxr': list(radial_r500_maxr),
                     'completeness_weight_maxr': list(completeness_weight_maxr),
                     'agn_membership_maxr': list(agn_membership_maxr),
-                    'j_abs_mag': list(j_band_abs_mag_maxr)}
+                    'j_abs_mag': list(j_band_abs_mag_maxr), 'jall': list(jall)}
 
     return cluster_id, cluster_dict
 
