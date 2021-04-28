@@ -25,7 +25,7 @@ z_i = [0.25, 0.5, 1., 2., 4.]
 m_star_z_i = [-23.51, -24.64, -26.10, -27.08]
 phi_star_z_i = [-3.41, -3.73, -4.17, -4.65, -5.77]
 m_star = lagrange(z_i[1:], m_star_z_i)
-phi_star = lagrange(z_i, phi_star_z_i)
+log_phi_star = lagrange(z_i, phi_star_z_i)
 
 
 def luminosity_function(abs_mag, redshift):
@@ -47,13 +47,16 @@ def luminosity_function(abs_mag, redshift):
     """
 
     # L/L_*(z) = 10**(0.4 * (M_*(z) - M))
-    L_L_star = 10**(0.4 * (m_star(redshift) - abs_mag))
+    L_L_star = 10 ** (0.4 * (m_star(redshift) - abs_mag))
+
+    # Phi*(z) = 10**(log(Phi*(z))
+    phi_star = 10 ** log_phi_star(redshift)
 
     # QLF slopes
     alpha1 = -3.35  # alpha in Table 2
     alpha2 = -0.37  # beta in Table 2
 
-    Phi = 0.4 * np.log(10) * L_L_star * phi_star(redshift) * (L_L_star**-alpha1 + L_L_star**-alpha2)**-1
+    Phi = 0.4 * np.log(10) * L_L_star * phi_star * (L_L_star ** -alpha1 + L_L_star ** -alpha2) ** -1
 
     return Phi
 
@@ -93,7 +96,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
     background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Luminosity function number
-    LF = cosmo.angular_diameter_distance(z)**2 * r500 * luminosity_function(j_mag, z)
+    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF.value
@@ -144,7 +147,8 @@ def lnlike(param):
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) - completeness_ratio \
-                         * np.trapz(trap_weight(n_mesh * 2 * np.pi * r_mesh, rall, weight=gpf_all, axis=0), jall, axis=0)
+                         * np.trapz(trap_weight(n_mesh * 2 * np.pi * r_mesh, rall, weight=gpf_all, axis=1),
+                                    jall, axis=0)
 
         lnlike_list.append(cluster_lnlike)
 
