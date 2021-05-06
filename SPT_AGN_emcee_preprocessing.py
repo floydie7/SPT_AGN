@@ -18,6 +18,8 @@ from astropy.table import Table
 from astropy.wcs import WCS
 from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
+from synphot import SourceSpectrum, SpectralElement, units
+from k_correction import k_corr_abs_mag
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
@@ -160,8 +162,26 @@ def generate_catalog_dict(cluster):
     agn_membership_maxr = cluster_agn_membership[cluster_radial_r500 <= rall[-1]]
     j_band_abs_mag_maxr = j_band_abs_mag[cluster_radial_r500 <= rall[-1]]
 
-    # Generate a luminosity integration mesh
-    jall = np.linspace(j_band_abs_mag_maxr.min(), j_band_abs_mag_maxr.max(), num=50)
+    # For the luminosity integration mesh we will compute the equivalent J-band absolute magnitude from the apparent
+    # 4.5 um magnitudes at the cluster redshift.
+    faint_end_45_apmag = 17.46  # Vega mag
+    bright_end_45_apmag = 10.45  # Vega mag
+    irac_45_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/Spitzer_IRAC'
+                                               f'/080924ch2trans_full.txt', wave_unit=u.um)
+    flamingos_j_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m'
+                                                   f'/FLAMINGOS/FLAMINGOS.BARR.J.MAN240.ColdWitness.txt',
+                                                   wave_unit=u.nm)
+    qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
+                                        wave_unit=u.Angstrom, flux_unit=units.FLAM)
+    faint_end_j_absmag = k_corr_abs_mag(faint_end_45_apmag, z=cluster_z, f_lambda_sed=qso2_sed,
+                                        zero_pt_obs_band=179.7 * u.Jy, zero_pt_em_band='vega',
+                                        obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
+    bright_end_j_absmag = k_corr_abs_mag(bright_end_45_apmag, z=cluster_z, f_lambda_sed=qso2_sed,
+                                         zero_pt_obs_band=179.7 * u.Jy, zero_pt_em_band='vega',
+                                         obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
+
+    # Generate a luminosity integration mesh defined by the J-band equivalents of the 4.5 um apparent magnitude limits
+    jall = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=200)
 
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
@@ -188,7 +208,7 @@ sptcl_catalog = Table.read(args.catalog)
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
-mask_dict = {cluster_id: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
+mask_dict = {cluster_id: fits.getdata(f'{hcc_prefix}{mask_file}', header=True) for cluster_id, mask_file
              in zip(sptcl_catalog_grp.groups.keys['SPT_ID'],
                     sptcl_catalog_grp['MASK_NAME'][sptcl_catalog_grp.groups.indices[:-1]])}
 

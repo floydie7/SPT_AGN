@@ -19,21 +19,22 @@ beta_true = 1.0
 rc_true = 0.1
 C_true = 0.371
 # truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
-# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
-labels = [r'$C$']
+# labels = [r'$C$']
 
 # Our file storing the full test suite
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Chains/emcee_chains_SDWFS_IRAGN.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Chains/emcee_chains_SDWFS_IRAGN.h5'
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/' \
 #            'emcee_chains_Mock_fuzzy_selection.h5'
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_fuzzy_selection.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_fuzzy_selection_snapshot2021-05-05T135416-0500.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-# chain_names = [chain_name for chain_name in chain_names if 'wider_eta' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if '_LF' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -51,25 +52,28 @@ for chain_name, sampler in sampler_dict.items():
     # Plot the chains
     fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
     for i in range(ndim):
-        # ax = axes[i]
-        ax = axes
+        ax = axes[i]
+        # ax = axes
         ax.plot(samples[:, :, i], color='k', alpha=0.3)
         # ax.axhline(truths[i], color='b')
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set(xlim=[0, len(samples)], ylabel=labels[i])
 
-    # axes[0].set(title=chain_name)
-    # axes[-1].set(xlabel='Steps')
-    axes.set(title=chain_name)
-    axes.set(xlabel='Steps')
+    axes[0].set(title=chain_name)
+    axes[-1].set(xlabel='Steps')
+    # axes.set(title=chain_name)
+    # axes.set(xlabel='Steps')
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
-                f'Param_chains_SDWFS_Background_{chain_name}.png', dpi=300)
+    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
+    #             f'Param_chains_SDWFS_Background_{chain_name}.png', dpi=300)
     # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
     #             f'Param_chains_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}'
     #             f'_{chain_name}.png', dpi=300)
     # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
     #             f'Param_chains_SPTcl_{chain_name}.png', dpi=300)
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
+                f'Param_chains_SPTcl_{chain_name}_snapshot2021-05-05T135416-0500.png', dpi=300)
+    plt.show()
 
     try:
         # Calculate the autocorrelation time
@@ -113,13 +117,14 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
-                f'Corner_plot_SDWFS_Background_{chain_name}.pdf')
+    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
+    #             f'Corner_plot_SDWFS_Background_{chain_name}.pdf')
     # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
     #             f'Corner_plot_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}'
     #             f'_{chain_name}.pdf')
     # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
     #             f'Corner_plot_SPTcl_{chain_name}.pdf')
+    plt.show()
 
     print(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
