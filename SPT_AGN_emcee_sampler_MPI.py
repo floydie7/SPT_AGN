@@ -236,15 +236,13 @@ preprocess_file = os.path.abspath('SPTcl_IRAGN_preprocessing.json')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
-# Go through the catalog dictionary and recasting the cluster's mass and r500 to quantities and recast the radial
-# position and completeness lists to arrays.
+# Go through the catalog dictionary and recasting the cluster's mass and r500 to quantities and recast all the list-type
+# data to numpy arrays
 for cluster_id, cluster_info in catalog_dict.items():
     catalog_dict[cluster_id]['m500'] = cluster_info['m500'] * u.Msun
     catalog_dict[cluster_id]['r500'] = cluster_info['r500'] * u.Mpc
-    # catalog_dict[cluster_id]['gpf_rall'] = cluster_info['gpf_rall']
-    # catalog_dict[cluster_id]['radial_r500_maxr'] = np.array(cluster_info['radial_r500_maxr'])
-    # catalog_dict[cluster_id]['completeness_weight_maxr'] = np.array(cluster_info['completeness_weight_maxr'])
-    # catalog_dict[cluster_id]['agn_membership_maxr'] = np.array(cluster_info['agn_membership_maxr'])
+    for data_name, data in filter(lambda x: isinstance(x[1], list), cluster_info.items()):
+        catalog_dict[cluster_id][data_name] = np.array(data)
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
