@@ -171,7 +171,7 @@ theta_true = 2.5
 eta_true = 1.2
 zeta_true = -1.0
 beta_true = 1.0  # Radial slope
-C_true = 0.371  # Background AGN surface density
+C_true = 0.376  # Background AGN surface density
 rc_true = 0.1  # Core radius (in r500)
 
 # Set the maximum radius we will generate objects to as a factor of r500
@@ -252,10 +252,10 @@ del SPT_data['orig_SPT_ID']
 r_dist_r500 = np.linspace(0, max_radius, num=200)
 
 # To provide data for the photometric and AGN sample membership we will need to read in the real data catalog.
-# To help provide abstraction from the data, we will only read in the two relevant columns and then randomize the order
-# of the rows.
-real_data = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_fuzzy.fits')
-real_data.keep_columns(['COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP'])
+# To help provide abstraction from the data, we will only read in the three relevant columns and then randomize the
+# order of the rows.
+real_data = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits')
+real_data.keep_columns(['COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG'])
 real_data = Table(object_rng.permutation(real_data), names=real_data.colnames)
 # </editor-fold>
 
@@ -443,6 +443,7 @@ for cluster in cluster_sample:
     data_idx = object_rng.integers(len(real_data), size=len(AGN_list))
     AGN_list['COMPLETENESS_CORRECTION'] = real_data['COMPLETENESS_CORRECTION'][data_idx]
     AGN_list['SELECTION_MEMBERSHIP'] = real_data['SELECTION_MEMBERSHIP'][data_idx]
+    AGN_list['J_ABS_MAG'] = real_data['J_ABS_MAG'][data_idx]
 
     # Perform a rejection sampling based on the completeness value for each object.
     alpha = object_rng.uniform(0, 1, size=len(AGN_list))
@@ -460,7 +461,7 @@ outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OF
                 'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'RADIAL_SEP_ARCMIN_OFFSET',
                 'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
                 'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
-                'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'Cluster_AGN']
+                'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
@@ -470,7 +471,7 @@ outAGN.write(
     f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/fuzzy_selection/'
     f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}'
     f'_C{C_true:.3f}_rc{rc_true:.3f}_maxr{max_radius:.2f}'
-    f'_clseed{cluster_seed}_objseed{object_seed}_fuzzy_selection.fits', overwrite=True)
+    f'_clseed{cluster_seed}_objseed{object_seed}_fuzzy_selection_J_abs_mag.fits', overwrite=True)
 
 print('Run time: {:.2f}s'.format(time() - catalog_start_time))
 print('Total run time: {:.2f}s'.format(time() - start_time))
