@@ -27,8 +27,7 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Chains/emcee_chains_SDWFS_IRAGN.h5'
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/' \
 #            'emcee_chains_Mock_fuzzy_selection.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_fuzzy_selection.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_fuzzy_selection_snapshot2021-05-05T135416-0500.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/emcee_chains_SPTcl_fuzzy_selection.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
@@ -69,11 +68,9 @@ for chain_name, sampler in sampler_dict.items():
     # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
     #             f'Param_chains_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}'
     #             f'_{chain_name}.png', dpi=300)
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
-    #             f'Param_chains_SPTcl_{chain_name}.png', dpi=300)
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
-                f'Param_chains_SPTcl_{chain_name}_snapshot2021-05-05T135416-0500.png', dpi=300)
-    plt.show()
+                f'Param_chains_SPTcl_{chain_name}.png', dpi=300)
+    # plt.show()
 
     try:
         # Calculate the autocorrelation time
@@ -122,9 +119,9 @@ for chain_name, sampler in sampler_dict.items():
     # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
     #             f'Corner_plot_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}'
     #             f'_{chain_name}.pdf')
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
-    #             f'Corner_plot_SPTcl_{chain_name}.pdf')
-    plt.show()
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/fuzzy_selection/'
+                f'Corner_plot_SPTcl_{chain_name}.pdf')
+    # plt.show()
 
     print(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
