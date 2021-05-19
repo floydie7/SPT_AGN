@@ -50,7 +50,7 @@ def luminosity_function(abs_mag, redshift):
     L_L_star = 10 ** (0.4 * (m_star(redshift) - abs_mag))
 
     # Phi*(z) = 10**(log(Phi*(z))
-    phi_star = 10 ** log_phi_star(redshift)
+    phi_star = 10 ** log_phi_star(redshift) * (cosmo.h / u.Mpc)**3
 
     # QLF slopes
     alpha1 = -3.35  # alpha in Table 2
