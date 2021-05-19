@@ -181,7 +181,7 @@ def generate_catalog_dict(cluster):
                                          obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
 
     # Generate a luminosity integration mesh defined by the J-band equivalents of the 4.5 um apparent magnitude limits
-    jall = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=2000)
+    jall = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=200)
 
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
