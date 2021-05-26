@@ -99,7 +99,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
     LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF.value
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
