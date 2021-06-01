@@ -100,9 +100,14 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
 
     # Our amplitude is determined from the cluster data
     a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
-
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+
+    if not (args.cluster_only or args.background_only):
+        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+    elif args.cluster_only:
+        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
+    elif args.background_only:
+        model = background
 
     return model.value
 
@@ -168,7 +173,7 @@ def lnprior(params):
     # h_rc = 0.25
     # h_rc_err = 0.1
     h_C = 0.376
-    h_C_err = 0.026 * args.prior_scale_factor  # Artificially scaling the background prior
+    h_C_err = 0.026
 
     # Define all priors
     if (0.0 <= theta <= np.inf and
@@ -218,18 +223,13 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
-parser.add_argument('--prior_scale_factor', help='Scale factor to the standard deviation of the background prior.',
-                    default=1.0, type=float)
-parser.add_argument('--name', help='Chain name', type=str)
+parser.add_argument('name', help='Chain name', type=str)
+parser_grp = parser.add_mutually_exclusive_group()
+parser_grp.add_argument('--cluster-only', action='store_true',
+                        help='Sample only on cluster objects.')
+parser_grp.add_argument('--background-only', action='store_true',
+                        help='Sample only on background objects.')
 args = parser.parse_args()
-
-# # Set parameter values
-# theta_true = id_params[0]  # Amplitude.
-# eta_true = id_params[1]  # Redshift slope
-# zeta_true = id_params[2]  # Mass slope
-# beta_true = 1.0  # Radial slope
-# rc_true = 0.1  # Core radius (in r500)
-# C_true = 0.371  # Background AGN surface density
 
 # Load in the prepossessing file
 preprocess_file = os.path.abspath('SPTcl_IRAGN_preprocessing.json')
@@ -246,7 +246,7 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 6  # Fixed background
+ndim = 6
 nwalkers = 36
 
 # Also, set the number of steps to run the sampler for.

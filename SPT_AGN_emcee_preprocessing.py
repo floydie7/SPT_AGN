@@ -196,6 +196,11 @@ def generate_catalog_dict(cluster):
 
 parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
 parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
+parser_grp = parser.add_mutually_exclusive_group()
+parser_grp.add_argument('--cluster-only', action='store_true',
+                        help='Generate a preprocessing file only on cluster objects.')
+parser_grp.add_argument('--background-only', action='store_true',
+                        help='Generate preprocessing file only on background objects.')
 args = parser.parse_args()
 
 hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -205,6 +210,20 @@ rescale_fact = 6  # Factor by which we will rescale the mask images to gain high
 
 # Read in the mock catalog
 sptcl_catalog = Table.read(args.catalog)
+
+# Separate the cluster and background objects
+cluster_only = sptcl_catalog[sptcl_catalog['Cluster_AGN'].astype(bool)]
+background_only = sptcl_catalog[~sptcl_catalog['Cluster_AGN'].astype(bool)]
+
+if not (args.cluster_only or args.background_only):
+    # Run on full catalog
+    sptcl_catalog = sptcl_catalog
+elif args.cluster_only:
+    # Run on only cluster objects
+    sptcl_catalog = cluster_only
+elif args.background_only:
+    # Run on only background objects
+    sptcl_catalog = background_only
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
