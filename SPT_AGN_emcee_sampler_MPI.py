@@ -83,9 +83,9 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
     """
 
     # Unpack our parameters
-    theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, rc, C = params
     # theta, eta, zeta, beta, rc = params
-    # C = 0.371  # Fixed background
+    C, = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -96,18 +96,18 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
     background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Luminosity function number
-    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
+    # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
+    # a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
 
-    if not (args.cluster_only or args.background_only):
-        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
-    elif args.cluster_only:
-        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
-    elif args.background_only:
-        model = background
+    # if not (args.cluster_only or args.background_only):
+    #     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+    # elif args.cluster_only:
+    #     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
+    # elif args.background_only:
+    model = background
 
     return model.value
 
@@ -138,7 +138,7 @@ def lnlike(param):
         jall = catalog_dict[cluster_id]['jall']
 
         # Create a meshgrid over the two 1D integration meshes
-        r_mesh, j_mesh = np.meshgrid(rall, jall)
+        # r_mesh, j_mesh = np.meshgrid(rall, jall)
 
         # Compute the completeness ratio for this cluster
         completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
@@ -148,12 +148,11 @@ def lnlike(param):
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
-        n_mesh = model_rate_opted(param, cluster_id, r_mesh, j_mesh)
+        n_mesh = model_rate_opted(param, cluster_id, rall, jall)
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) - completeness_ratio \
-                         * np.trapz(trap_weight(n_mesh * 2 * np.pi * r_mesh, rall, weight=gpf_all, axis=1),
-                                    jall, axis=0)
+                         * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all)
 
         lnlike_list.append(cluster_lnlike)
 
@@ -166,8 +165,9 @@ def lnlike(param):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params):
     # Extract our parameters
-    theta, eta, zeta, beta, rc, C = params
+    # theta, eta, zeta, beta, rc, C = params
     # theta, eta, zeta, beta, rc = params
+    C, = params
 
     # Set our hyperparameters
     # h_rc = 0.25
@@ -176,32 +176,32 @@ def lnprior(params):
     h_C_err = 0.026
 
     # Define all priors
-    if (0.0 <= theta <= np.inf and
-            -6. <= eta <= 6. and
-            -3. <= zeta <= 3. and
-            -3. <= beta <= 3. and
-            0.0 <= C < np.inf and
-            # np.isclose(C, h_C) and
-            0.05 <= rc <= 0.5):
-        theta_lnprior = 0.0
-        eta_lnprior = 0.0
-        beta_lnprior = 0.0
-        zeta_lnprior = 0.0
+    if (#0.0 <= theta <= np.inf and
+            # -6. <= eta <= 6. and
+            # -3. <= zeta <= 3. and
+            # -3. <= beta <= 3. and
+            # 0.05 <= rc <= 0.5 and
+            0.0 <= C < np.inf):
+        # theta_lnprior = 0.0
+        # eta_lnprior = 0.0
+        # beta_lnprior = 0.0
+        # zeta_lnprior = 0.0
         # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
-        rc_lnprior = 0.0
+        # rc_lnprior = 0.0
         C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
         # C_lnprior = 0.0
     else:
-        theta_lnprior = -np.inf
-        eta_lnprior = -np.inf
-        beta_lnprior = -np.inf
-        zeta_lnprior = -np.inf
-        rc_lnprior = -np.inf
+        # theta_lnprior = -np.inf
+        # eta_lnprior = -np.inf
+        # beta_lnprior = -np.inf
+        # zeta_lnprior = -np.inf
+        # rc_lnprior = -np.inf
         C_lnprior = -np.inf
 
     # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
     # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
+    total_lnprior = C_lnprior
 
     return total_lnprior
 
@@ -246,18 +246,20 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-ndim = 6
-nwalkers = 36
+# ndim = 6
+# nwalkers = 36
+ndim = 1
+nwalkers = 6
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
-                   np.random.uniform(-1., 6.),  # eta
-                   np.random.uniform(-3., 3.),  # zeta
-                   np.random.uniform(-3., 3.),  # beta
-                   np.random.normal(loc=0.1, scale=6e-3),  # rc
+pos0 = np.vstack([[#np.random.uniform(0., 12.),  # theta
+                   # np.random.uniform(-1., 6.),  # eta
+                   # np.random.uniform(-3., 3.),  # zeta
+                   # np.random.uniform(-3., 3.),  # beta
+                   # np.random.normal(loc=0.1, scale=6e-3),  # rc
                    np.random.normal(loc=0.371, scale=0.157)  # C
                    ]
                   for i in range(nwalkers)])
@@ -308,39 +310,39 @@ with MPIPool() as pool:
 
 print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
 
-# Get the chain from the sampler
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
-# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
-
-try:
-    # Calculate the autocorrelation time
-    tau_est = sampler.get_autocorr_time()
-
-    tau = np.mean(tau_est)
-
-    # Remove the burn-in. We'll use ~3x the autocorrelation time
-    burnin = int(3 * tau)
-
-    # We will also thin by roughly half our autocorrelation time
-    thinning = int(tau // 2)
-
-except emcee.autocorr.AutocorrError:
-    tau_est = sampler.get_autocorr_time(quiet=True)
-    tau = np.mean(tau_est)
-
-    burnin = int(sampler.iteration // 3)
-    thinning = 1
-
-flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
-
-for i in range(ndim):
-    mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-    q = np.diff(mcmc)
-    print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f}'
-          .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
-
-print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
-
-# Get estimate of autocorrelation time
-print('Autocorrelation time: {:.1f}'.format(tau))
+# # Get the chain from the sampler
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+# # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
+# # truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
+#
+# try:
+#     # Calculate the autocorrelation time
+#     tau_est = sampler.get_autocorr_time()
+#
+#     tau = np.mean(tau_est)
+#
+#     # Remove the burn-in. We'll use ~3x the autocorrelation time
+#     burnin = int(3 * tau)
+#
+#     # We will also thin by roughly half our autocorrelation time
+#     thinning = int(tau // 2)
+#
+# except emcee.autocorr.AutocorrError:
+#     tau_est = sampler.get_autocorr_time(quiet=True)
+#     tau = np.mean(tau_est)
+#
+#     burnin = int(sampler.iteration // 3)
+#     thinning = 1
+#
+# flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
+#
+# for i in range(ndim):
+#     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
+#     q = np.diff(mcmc)
+#     print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f}'
+#           .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
+#
+# print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
+#
+# # Get estimate of autocorrelation time
+# print('Autocorrelation time: {:.1f}'.format(tau))
