@@ -6,7 +6,6 @@ Using our Bayesian model, generates a mock catalog to use in testing the limitat
 """
 import glob
 import re
-from itertools import product
 from time import time
 
 import astropy.units as u
@@ -19,11 +18,9 @@ from astropy.table import Table, join, unique, vstack
 from astropy.wcs import WCS
 from scipy import stats
 from scipy.interpolate import lagrange
-from scipy.spatial.distance import cdist
-
-# Set our cosmology
 from synphot import SpectralElement, SourceSpectrum, units
 
+# Set our cosmology
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 # Generate a random seed
@@ -351,7 +348,7 @@ for cluster in cluster_sample:
     # Apply the rejection sampling on the photometric information for cluster objects as well
     cluster_agn_completeness = cluster_agn_completeness[prob_reject >= alpha]
     cluster_agn_selection_membership = cluster_agn_selection_membership[prob_reject >= alpha]
-    cluster_agn_j_abs_mag  = cluster_agn_j_abs_mag[prob_reject >= alpha]
+    cluster_agn_j_abs_mag = cluster_agn_j_abs_mag[prob_reject >= alpha]
 
     # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
     background_rate = C_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
@@ -389,7 +386,7 @@ for cluster in cluster_sample:
     AGN_list['RA'] = agn_coords_skycoord.ra
     AGN_list['DEC'] = agn_coords_skycoord.dec
 
-    # ----Miscentering----
+    # <editor-fold desc="Miscentering">
     # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
     cluster_pos_uncert = np.sqrt(SZ_theta_beam ** 2 + SZ_theta_core ** 2) / SZ_xi
     AGN_list['CENTER_POS_UNC_ARCMIN_1sigma'] = cluster_pos_uncert
@@ -418,6 +415,7 @@ for cluster in cluster_sample:
                                                        threequarters_offset_SZ_center[1], unit='deg')
     AGN_list['075_OFFSET_RA'] = threequarters_offset_SZ_center_skycoord.ra
     AGN_list['075_OFFSET_DEC'] = threequarters_offset_SZ_center_skycoord.dec
+    # </editor-fold>
 
     # Calculate the radii of the final AGN scaled by the cluster's r500 radius
     r_final_arcmin = SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
@@ -425,6 +423,7 @@ for cluster in cluster_sample:
     AGN_list['RADIAL_SEP_ARCMIN'] = r_final_arcmin
     AGN_list['RADIAL_SEP_R500'] = r_final_r500
 
+    # <editor-fold, desc="Miscentered radial distances">
     # Also calculate the radial distances based on the offset center.
     r_final_arcmin_offset = offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin)
     r_final_r500_offset = r_final_arcmin_offset * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
@@ -443,6 +442,7 @@ for cluster in cluster_sample:
         u.Mpc / u.arcmin) / r500_cl
     AGN_list['RADIAL_SEP_ARCMIN_075_OFFSET'] = r_final_arcmin_075_offset
     AGN_list['RADIAL_SEP_R500_075_OFFSET'] = r_final_r500_075_offset
+    # </editor-fold>
 
     # Select only objects within the max_radius
     AGN_list = AGN_list[AGN_list['RADIAL_SEP_R500'] <= max_radius]
@@ -464,10 +464,10 @@ for cluster in cluster_sample:
     AGN_list = AGN_list[np.where(mask_image[np.floor(AGN_list['y_pixel']).astype(int),
                                             np.floor(AGN_list['x_pixel']).astype(int)] == 1)]
 
-    # # Perform a rejection sampling based on the completeness value for each object.
-    # alpha = object_rng.uniform(0, 1, size=len(AGN_list))
-    # prob_reject = 1 / AGN_list['COMPLETENESS_CORRECTION']
-    # AGN_list = AGN_list[prob_reject >= alpha]
+    # Perform a rejection sampling based on the completeness value for each object.
+    alpha = object_rng.uniform(0, 1, size=len(AGN_list))
+    prob_reject = 1 / AGN_list['COMPLETENESS_CORRECTION']
+    AGN_list = AGN_list[prob_reject >= alpha]
 
     AGN_cats.append(AGN_list)
 
@@ -484,10 +484,10 @@ outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OF
 
 print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
       .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
-outAGN.write(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/fuzzy_selection/'
+outAGN.write(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}'
-             f'_clseed{cluster_seed}_objseed{object_seed}_fuzzy_selection_J_abs_mag.fits', overwrite=True)
+             f'_clseed{cluster_seed}_objseed{object_seed}_fuzzy_selection_J_abs_mag_compl_rej_samp.fits', overwrite=True)
 
 print('Run time: {:.2f}s'.format(time() - catalog_start_time))
 print('Total run time: {:.2f}s'.format(time() - start_time))
