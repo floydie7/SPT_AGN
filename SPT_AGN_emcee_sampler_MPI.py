@@ -50,7 +50,7 @@ def luminosity_function(abs_mag, redshift):
     L_L_star = 10 ** (0.4 * (m_star(redshift) - abs_mag))
 
     # Phi*(z) = 10**(log(Phi*(z))
-    phi_star = 10 ** log_phi_star(redshift) * (cosmo.h / u.Mpc)**3
+    phi_star = 10 ** log_phi_star(redshift) * (cosmo.h / u.Mpc) ** 3
 
     # QLF slopes
     alpha1 = -3.35  # alpha in Table 2
@@ -61,7 +61,7 @@ def luminosity_function(abs_mag, redshift):
     return Phi
 
 
-def model_rate_opted(params, cluster_id, r_r500, j_mag):
+def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     """
     Our generating model.
 
@@ -75,6 +75,8 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
         A vector of radii of objects within the cluster normalized by the cluster's r500
     j_mag : array-like
         A vector of J-band absolute magnitudes to be used in the luminosity function
+    integral : bool, optional
+        Flag indicating if the luminosity function factor of the model should be integrated. Defaults to `False`.
 
     Returns
     -------
@@ -83,9 +85,12 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
     """
 
     # Unpack our parameters
-    # theta, eta, zeta, beta, rc, C = params
-    # theta, eta, zeta, beta, rc = params
-    C, = params
+    if not (args.cluster_only or args.background_only):
+        theta, eta, zeta, beta, rc, C = params
+    elif args.cluster_only:
+        theta, eta, zeta, beta, rc = params
+    elif args.background_only:
+        C, = params
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -93,21 +98,26 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag):
     r500 = catalog_dict[cluster_id]['r500']
 
     # Convert our background surface density from angular units into units of r500^-2
-    background = C / u.arcmin ** 2 * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Luminosity function number
-    # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
+    if integral:
+        lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+    else:
+        lum_funct_value = luminosity_function(j_mag, z)
+
+    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
     # Our amplitude is determined from the cluster data
-    # a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
-    # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
-    # if not (args.cluster_only or args.background_only):
-    #     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
-    # elif args.cluster_only:
-    #     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
-    # elif args.background_only:
-    model = background
+    # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
+    if not (args.cluster_only or args.background_only):
+        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+    elif args.cluster_only:
+        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
+    elif args.background_only:
+        model = background
 
     return model.value
 
@@ -148,7 +158,7 @@ def lnlike(param):
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
-        n_mesh = model_rate_opted(param, cluster_id, rall, jall)
+        n_mesh = model_rate_opted(param, cluster_id, rall, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) - completeness_ratio \
@@ -164,44 +174,77 @@ def lnlike(param):
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params):
-    # Extract our parameters
-    # theta, eta, zeta, beta, rc, C = params
-    # theta, eta, zeta, beta, rc = params
-    C, = params
-
     # Set our hyperparameters
     # h_rc = 0.25
     # h_rc_err = 0.1
     h_C = 0.376
     h_C_err = 0.026
 
-    # Define all priors
-    if (#0.0 <= theta <= np.inf and
-            # -6. <= eta <= 6. and
-            # -3. <= zeta <= 3. and
-            # -3. <= beta <= 3. and
-            # 0.05 <= rc <= 0.5 and
-            0.0 <= C < np.inf):
-        # theta_lnprior = 0.0
-        # eta_lnprior = 0.0
-        # beta_lnprior = 0.0
-        # zeta_lnprior = 0.0
-        # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
-        # rc_lnprior = 0.0
-        C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
-        # C_lnprior = 0.0
-    else:
-        # theta_lnprior = -np.inf
-        # eta_lnprior = -np.inf
-        # beta_lnprior = -np.inf
-        # zeta_lnprior = -np.inf
-        # rc_lnprior = -np.inf
-        C_lnprior = -np.inf
+    # Extract our parameters
+    if not (args.cluster_only or args.background_only):
+        theta, eta, zeta, beta, rc, C = params
 
-    # Assuming all parameters are independent the joint log-prior is
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-    # total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
-    total_lnprior = C_lnprior
+        # Define all priors
+        if (0.0 <= theta <= np.inf and
+                -6. <= eta <= 6. and
+                -3. <= zeta <= 3. and
+                -3. <= beta <= 3. and
+                0.05 <= rc <= 0.5 and
+                0.0 <= C < np.inf):
+            theta_lnprior = 0.0
+            eta_lnprior = 0.0
+            beta_lnprior = 0.0
+            zeta_lnprior = 0.0
+            # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
+            rc_lnprior = 0.0
+            C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
+            # C_lnprior = 0.0
+        else:
+            theta_lnprior = -np.inf
+            eta_lnprior = -np.inf
+            beta_lnprior = -np.inf
+            zeta_lnprior = -np.inf
+            rc_lnprior = -np.inf
+            C_lnprior = -np.inf
+
+        # Assuming all parameters are independent the joint log-prior is
+        total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+    elif args.cluster_only:
+        theta, eta, zeta, beta, rc = params
+
+        # Define all priors
+        if (0.0 <= theta <= np.inf and
+                -6. <= eta <= 6. and
+                -3. <= zeta <= 3. and
+                -3. <= beta <= 3. and
+                0.05 <= rc <= 0.5):
+            theta_lnprior = 0.0
+            eta_lnprior = 0.0
+            beta_lnprior = 0.0
+            zeta_lnprior = 0.0
+            # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
+            rc_lnprior = 0.0
+        else:
+            theta_lnprior = -np.inf
+            eta_lnprior = -np.inf
+            beta_lnprior = -np.inf
+            zeta_lnprior = -np.inf
+            rc_lnprior = -np.inf
+
+        # Assuming all parameters are independent the joint log-prior is
+        total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
+    elif args.background_only:
+        C, = params
+
+        # Define all priors
+        if 0.0 <= C < np.inf:
+            C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
+            # C_lnprior = 0.0
+        else:
+            C_lnprior = -np.inf
+
+        # Assuming all parameters are independent the joint log-prior is
+        total_lnprior = C_lnprior
 
     return total_lnprior
 
@@ -246,23 +289,39 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-# ndim = 6
-# nwalkers = 36
-ndim = 1
-nwalkers = 6
+if not (args.cluster_only or args.background_only):
+    ndim = 6
+elif args.cluster_only:
+    ndim = 5
+elif args.background_only:
+    ndim = 1
+nwalkers = 6 * ndim
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-pos0 = np.vstack([[#np.random.uniform(0., 12.),  # theta
-                   # np.random.uniform(-1., 6.),  # eta
-                   # np.random.uniform(-3., 3.),  # zeta
-                   # np.random.uniform(-3., 3.),  # beta
-                   # np.random.normal(loc=0.1, scale=6e-3),  # rc
-                   np.random.normal(loc=0.371, scale=0.157)  # C
-                   ]
-                  for i in range(nwalkers)])
+if not (args.cluster_only or args.background_only):
+    pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
+                       np.random.uniform(-1., 6.),  # eta
+                       np.random.uniform(-3., 3.),  # zeta
+                       np.random.uniform(-3., 3.),  # beta
+                       np.random.normal(loc=0.1, scale=6e-3),  # rc
+                       np.random.normal(loc=0.371, scale=0.157)  # C
+                       ]
+                      for i in range(nwalkers)])
+elif args.cluster_only:
+    pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
+                       np.random.uniform(-1., 6.),  # eta
+                       np.random.uniform(-3., 3.),  # zeta
+                       np.random.uniform(-3., 3.),  # beta
+                       np.random.normal(loc=0.1, scale=6e-3)  # rc
+                       ]
+                      for i in range(nwalkers)])
+elif args.background_only:
+    pos0 = np.vstack([[np.random.normal(loc=0.371, scale=0.157)  # C
+                       ]
+                      for i in range(nwalkers)])
 
 # Set up the autocorrelation and convergence variables
 autocorr = np.empty(nsteps)
