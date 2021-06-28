@@ -157,8 +157,8 @@ n_cl = 249 + 57
 
 # Set parameter values
 
-theta_true = 1.04  # Amplitude
-eta_true = 1.2  # Redshift slope
+theta_true = 0.8  # Amplitude
+eta_true = 4.0  # Redshift slope
 zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
@@ -481,13 +481,28 @@ outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OF
                 'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
                 'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
                 'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
-
-print('\n------\nparameters: {param}\nTotal number of clusters: {cl} \t Total number of objects: {agn}'
-      .format(param=params_true + (C_true,), cl=len(outAGN.group_by('SPT_ID').groups.keys), agn=len(outAGN)))
 outAGN.write(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}'
              f'_clseed{cluster_seed}_objseed{object_seed}_fuzzy_selection_J_abs_mag_compl_rej_samp.fits', overwrite=True)
+
+# Print out statistics
+number_of_clusters = len(outAGN.group_by('SPT_ID').groups.keys)
+total_number = len(outAGN)
+total_number_comp_corrected = outAGN['COMPLETENESS_CORRECTION'].sum()
+total_number_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'] * outAGN['SELECTION_MEMBERSHIP'])
+number_per_cluster = total_number_corrected / number_of_clusters
+median_z = np.median(outAGN['REDSHIFT'])
+median_m = np.median(outAGN['M500'])
+print(f"""Mock Catalog
+Parameters:\t{params_true + (C_true,)}
+Number of clusters:\t{number_of_clusters}
+Objects Selected:\t{total_number}
+Objects selected (completeness corrected):\t{total_number_comp_corrected:.2f}
+Objects Selected (comp + membership corrected):\t{total_number_corrected:.2f}
+Objects per cluster (comp + mem corrected):\t{number_per_cluster:.2f}
+Median Redshift:\t{median_z:.2f}
+Median Mass:\t{median_m:.2e}""")
 
 print('Run time: {:.2f}s'.format(time() - catalog_start_time))
 print('Total run time: {:.2f}s'.format(time() - start_time))
