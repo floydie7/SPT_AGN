@@ -84,42 +84,64 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         A surface density profile of objects as a function of radius and luminosity.
     """
 
-    # Unpack our parameters
     if not (args.cluster_only or args.background_only):
+        # Unpack our parameters
         theta, eta, zeta, beta, rc, C = params
+
+        # Extract our data from the catalog dictionary
+        z = catalog_dict[cluster_id]['redshift']
+        m = catalog_dict[cluster_id]['m500']
+        r500 = catalog_dict[cluster_id]['r500']
+
+        # Luminosity function number
+        if integral:
+            lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+        else:
+            lum_funct_value = luminosity_function(j_mag, z)
+
+        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+
+        # Convert our background surface density from angular units into units of r500^-2
+        background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+
+        # Our amplitude is determined from the cluster data
+        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
+
+        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+
+        return model.value
     elif args.cluster_only:
+        # Unpack our parameters
         theta, eta, zeta, beta, rc = params
+
+        # Extract our data from the catalog dictionary
+        z = catalog_dict[cluster_id]['redshift']
+        m = catalog_dict[cluster_id]['m500']
+        r500 = catalog_dict[cluster_id]['r500']
+
+        # Luminosity function number
+        if integral:
+            lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+        else:
+            lum_funct_value = luminosity_function(j_mag, z)
+
+        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+
+        # Our amplitude is determined from the cluster data
+        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
+        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
+
+        return model.value
     elif args.background_only:
+        # Unpack our parameters
         C, = params
 
-    # Extract our data from the catalog dictionary
-    z = catalog_dict[cluster_id]['redshift']
-    m = catalog_dict[cluster_id]['m500']
-    r500 = catalog_dict[cluster_id]['r500']
+        # Convert our background surface density from angular units into units of r500^-2
+        background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
-    # Convert our background surface density from angular units into units of r500^-2
-    background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
-
-    # Luminosity function number
-    if integral:
-        lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
-    else:
-        lum_funct_value = luminosity_function(j_mag, z)
-
-    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
-
-    # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
-
-    # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
-    if not (args.cluster_only or args.background_only):
-        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
-    elif args.cluster_only:
-        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
-    elif args.background_only:
         model = background
 
-    return model.value
+        return model.value
 
 
 # Set our log-likelihood
@@ -209,6 +231,8 @@ def lnprior(params):
 
         # Assuming all parameters are independent the joint log-prior is
         total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
+
+        return total_lnprior
     elif args.cluster_only:
         theta, eta, zeta, beta, rc = params
 
@@ -233,6 +257,8 @@ def lnprior(params):
 
         # Assuming all parameters are independent the joint log-prior is
         total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
+
+        return total_lnprior
     elif args.background_only:
         C, = params
 
@@ -246,7 +272,7 @@ def lnprior(params):
         # Assuming all parameters are independent the joint log-prior is
         total_lnprior = C_lnprior
 
-    return total_lnprior
+        return total_lnprior
 
 
 # Define the log-posterior probability
