@@ -136,6 +136,11 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         # Unpack our parameters
         C, = params
 
+        # Extract our data from the catalog dictionary
+        z = catalog_dict[cluster_id]['redshift']
+        m = catalog_dict[cluster_id]['m500']
+        r500 = catalog_dict[cluster_id]['r500']
+
         # Convert our background surface density from angular units into units of r500^-2
         background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
