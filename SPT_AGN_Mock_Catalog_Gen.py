@@ -157,7 +157,7 @@ n_cl = 249 + 57
 
 # Set parameter values
 
-theta_true = 0.8  # Amplitude
+theta_true = 2.5  # Amplitude
 eta_true = 4.0  # Redshift slope
 zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
@@ -492,6 +492,10 @@ total_number = len(outAGN)
 total_number_comp_corrected = outAGN['COMPLETENESS_CORRECTION'].sum()
 total_number_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'] * outAGN['SELECTION_MEMBERSHIP'])
 number_per_cluster = total_number_corrected / number_of_clusters
+cluster_objs_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'][outAGN['Cluster_AGN'].astype(bool)]
+                                * outAGN['SELECTION_MEMBERSHIP'][outAGN['Cluster_AGN'].astype(bool)])
+background_objs_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'][~outAGN['Cluster_AGN'].astype(bool)]
+                                   * outAGN['SELECTION_MEMBERSHIP'][~outAGN['Cluster_AGN'].astype(bool)])
 median_z = np.median(outAGN['REDSHIFT'])
 median_m = np.median(outAGN['M500'])
 print(f"""Mock Catalog
@@ -501,6 +505,8 @@ Objects Selected:\t{total_number}
 Objects selected (completeness corrected):\t{total_number_comp_corrected:.2f}
 Objects Selected (comp + membership corrected):\t{total_number_corrected:.2f}
 Objects per cluster (comp + mem corrected):\t{number_per_cluster:.2f}
+Cluster Objects (corrected):\t{cluster_objs_corrected:.2f}
+Background Objects (corrected):\t{background_objs_corrected:.2f}
 Median Redshift:\t{median_z:.2f}
 Median Mass:\t{median_m:.2e}""")
 
