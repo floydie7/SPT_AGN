@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MaxNLocator
 
-theta_true = 0.8
+theta_true = 2.5
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
@@ -36,7 +36,7 @@ filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Fina
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'fixed_bkg' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 't2.5' in chain_name and 'cluster-only' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}

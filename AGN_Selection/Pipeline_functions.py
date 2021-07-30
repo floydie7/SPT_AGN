@@ -429,6 +429,7 @@ class SelectIRAGN:
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
             new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
+    # Todo Depreciated, remove pending review
     def cluster_k_correction(self):
         """
         This function computes a modified Hogg et al. (2002) definition of the K-correction. The observed filter and
