@@ -1,0 +1,184 @@
+2019-09-26 16:19:01,469 - node[4] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[19] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[21] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[9] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[2] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[24] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[23] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[11] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[12] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[3] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[8] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[22] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[0] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[14] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,470 - node[13] - INFO - Reading in source catalogs
+2019-09-26 16:19:01,469 - node[15] - INFO - Reading in source catalogs
+2019-09-26 16:20:44,026 - node[14] - INFO - Performing cluster search
+2019-09-26 16:21:26,416 - node[8] - INFO - Performing cluster search
+2019-09-26 16:21:26,497 - node[10] - INFO - Performing cluster search
+2019-09-26 16:21:26,715 - node[12] - INFO - Performing cluster search
+2019-09-26 16:21:26,787 - node[3] - INFO - Performing cluster search
+2019-09-26 16:21:26,805 - node[4] - INFO - Performing cluster search
+2019-09-26 16:21:26,832 - node[9] - INFO - Performing cluster search
+2019-09-26 16:21:26,852 - node[0] - INFO - Performing cluster search
+2019-09-26 16:21:26,906 - node[6] - INFO - Performing cluster search
+2019-09-26 16:21:26,956 - node[15] - INFO - Performing cluster search
+2019-09-26 16:21:26,967 - node[2] - INFO - Performing cluster search
+2019-09-26 16:21:27,141 - node[11] - INFO - Performing cluster search
+2019-09-26 16:21:27,176 - node[13] - INFO - Performing cluster search
+2019-09-26 16:21:27,277 - node[1] - INFO - Performing cluster search
+2019-09-26 16:21:27,599 - node[5] - INFO - Performing cluster search
+2019-09-26 16:21:28,187 - node[7] - INFO - Performing cluster search
+2019-09-26 16:22:42,762 - node[18] - INFO - Performing cluster search
+2019-09-26 16:22:42,819 - node[24] - INFO - Performing cluster search
+2019-09-26 16:22:42,946 - node[17] - INFO - Performing cluster search
+2019-09-26 16:22:42,966 - node[16] - INFO - Performing cluster search
+2019-09-26 16:22:42,973 - node[26] - INFO - Performing cluster search
+2019-09-26 16:22:42,974 - node[25] - INFO - Performing cluster search
+2019-09-26 16:22:43,020 - node[27] - INFO - Performing cluster search
+2019-09-26 16:22:43,053 - node[19] - INFO - Performing cluster search
+2019-09-26 16:22:43,074 - node[20] - INFO - Performing cluster search
+2019-09-26 16:22:43,095 - node[23] - INFO - Performing cluster search
+2019-09-26 16:22:43,129 - node[22] - INFO - Performing cluster search
+2019-09-26 16:22:43,136 - node[21] - INFO - Performing cluster search
+2019-09-26 16:30:39,072 - node[9] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:40,165 - node[15] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:40,225 - node[5] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:42,742 - node[14] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:45,094 - node[10] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:45,147 - node[3] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:45,789 - node[11] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:47,642 - node[0] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:47,648 - node[3] - DEBUG - Working on cluster: SPT-CLJ2355-6002
+2019-09-26 16:30:47,648 - node[5] - DEBUG - Working on cluster: SPT-CLJ2355-5514
+2019-09-26 16:30:47,648 - node[9] - DEBUG - Working on cluster: SPT-CLJ2354-5106
+2019-09-26 16:30:47,648 - node[10] - DEBUG - Working on cluster: SPT-CLJ2352-5251
+2019-09-26 16:30:47,648 - node[11] - DEBUG - Working on cluster: SPT-CLJ2351-5005
+2019-09-26 16:30:47,648 - node[15] - DEBUG - Working on cluster: SPT-CLJ2341-5640
+2019-09-26 16:30:47,648 - node[14] - DEBUG - Working on cluster: SPT-CLJ2343-5024
+2019-09-26 16:30:47,698 - node[15] - DEBUG - Cluster SPT-CLJ2341-5640 is located on SSDF tile SSDF2.6
+2019-09-26 16:30:47,699 - node[3] - DEBUG - Cluster SPT-CLJ2355-6002 is located on SSDF tile SSDF3.9
+2019-09-26 16:30:47,699 - node[11] - DEBUG - Cluster SPT-CLJ2351-5005 is located on SSDF tile SSDF4.0
+2019-09-26 16:30:47,699 - node[10] - DEBUG - Cluster SPT-CLJ2352-5251 is located on SSDF tile SSDF4.2
+2019-09-26 16:30:47,700 - node[5] - DEBUG - Cluster SPT-CLJ2355-5514 is located on SSDF tile SSDF4.5
+2019-09-26 16:30:47,701 - node[9] - DEBUG - Cluster SPT-CLJ2354-5106 is located on SSDF tile SSDF4.1
+2019-09-26 16:30:47,701 - node[14] - DEBUG - Cluster SPT-CLJ2343-5024 is located on SSDF tile SSDF3.0
+2019-09-26 16:30:48,117 - node[12] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:48,118 - node[12] - DEBUG - Working on cluster: SPT-CLJ2349-5113
+2019-09-26 16:30:48,168 - node[12] - DEBUG - Cluster SPT-CLJ2349-5113 is located on SSDF tile SSDF4.1
+2019-09-26 16:30:48,194 - node[7] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:48,195 - node[7] - DEBUG - Working on cluster: SPT-CLJ2355-5156
+2019-09-26 16:30:48,246 - node[7] - INFO - SPT-CLJ2355-5156 has objects on multiple SSDF tiles: ['SSDF4.1', 'SSDF4.2']. Switching to mosaics.
+2019-09-26 16:30:49,320 - node[2] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:49,321 - node[2] - DEBUG - Working on cluster: SPT-CLJ2357-5421
+2019-09-26 16:30:49,375 - node[2] - DEBUG - Cluster SPT-CLJ2357-5421 is located on SSDF tile SSDF4.4
+2019-09-26 16:30:49,500 - node[8] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:49,500 - node[8] - DEBUG - Working on cluster: SPT-CLJ2354-5632
+2019-09-26 16:30:49,551 - node[8] - DEBUG - Cluster SPT-CLJ2354-5632 is located on SSDF tile SSDF3.6
+2019-09-26 16:30:51,220 - node[6] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:51,221 - node[6] - DEBUG - Working on cluster: SPT-CLJ2355-5258
+2019-09-26 16:30:51,236 - node[1] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:51,237 - node[1] - DEBUG - Working on cluster: SPT-CLJ2359-5010
+2019-09-26 16:30:51,270 - node[6] - INFO - SPT-CLJ2355-5258 has objects on multiple SSDF tiles: ['SSDF4.2', 'SSDF4.3']. Switching to mosaics.
+2019-09-26 16:30:51,286 - node[1] - DEBUG - Cluster SPT-CLJ2359-5010 is located on SSDF tile SSDF4.0
+2019-09-26 16:30:53,943 - node[4] - INFO - Beginning table and image cutouts
+2019-09-26 16:30:53,944 - node[4] - DEBUG - Working on cluster: SPT-CLJ2355-5850
+2019-09-26 16:30:53,994 - node[4] - DEBUG - Cluster SPT-CLJ2355-5850 is located on SSDF tile SSDF3.8
+2019-09-26 16:30:54,517 - node[3] - DEBUG - Working on cluster: SPT-CLJ2325-5815
+2019-09-26 16:30:54,536 - node[3] - DEBUG - Cluster SPT-CLJ2325-5815 is located on SSDF tile SSDF1.8
+2019-09-26 16:30:54,743 - node[14] - DEBUG - Working on cluster: SPT-CLJ2325-5316
+2019-09-26 16:30:54,764 - node[14] - DEBUG - Cluster SPT-CLJ2325-5316 is located on SSDF tile SSDF2.3
+2019-09-26 16:30:54,922 - node[10] - DEBUG - Working on cluster: SPT-CLJ2325-5116
+2019-09-26 16:30:54,945 - node[10] - DEBUG - Cluster SPT-CLJ2325-5116 is located on SSDF tile SSDF2.1
+2019-09-26 16:30:55,207 - node[12] - DEBUG - Working on cluster: SPT-CLJ2323-5752
+2019-09-26 16:30:55,223 - node[12] - DEBUG - Cluster SPT-CLJ2323-5752 is located on SSDF tile SSDF1.7
+2019-09-26 16:30:55,251 - node[9] - DEBUG - Working on cluster: SPT-CLJ2320-5807
+2019-09-26 16:30:55,265 - node[11] - DEBUG - Working on cluster: SPT-CLJ2320-5233
+2019-09-26 16:30:55,267 - node[9] - DEBUG - Cluster SPT-CLJ2320-5807 is located on SSDF tile SSDF1.8
+2019-09-26 16:30:55,283 - node[11] - DEBUG - Cluster SPT-CLJ2320-5233 is located on SSDF tile SSDF1.2
+2019-09-26 16:30:56,188 - node[15] - DEBUG - Working on cluster: SPT-CLJ2319-5842
+2019-09-26 16:30:56,210 - node[15] - DEBUG - Cluster SPT-CLJ2319-5842 is located on SSDF tile SSDF1.8
+2019-09-26 16:30:56,308 - node[2] - DEBUG - Working on cluster: SPT-CLJ2318-5617
+2019-09-26 16:30:56,323 - node[2] - DEBUG - Cluster SPT-CLJ2318-5617 is located on SSDF tile SSDF1.6
+2019-09-26 16:30:56,413 - node[5] - DEBUG - Working on cluster: SPT-CLJ2318-5059
+2019-09-26 16:30:56,429 - node[5] - INFO - SPT-CLJ2318-5059 has objects on multiple SSDF tiles: ['SSDF1.0', 'SSDF1.1']. Switching to mosaics.
+2019-09-26 16:30:56,880 - node[8] - DEBUG - Working on cluster: SPT-CLJ2317-5852
+2019-09-26 16:30:56,896 - node[8] - DEBUG - Cluster SPT-CLJ2317-5852 is located on SSDF tile SSDF1.8
+2019-09-26 16:30:58,242 - node[1] - DEBUG - Working on cluster: SPT-CLJ2317-5357
+2019-09-26 16:30:58,256 - node[1] - INFO - SPT-CLJ2317-5357 has objects on multiple SSDF tiles: ['SSDF1.3', 'SSDF1.4']. Switching to mosaics.
+2019-09-26 16:31:00,634 - node[3] - DEBUG - Working on cluster: SPT-CLJ2317-5000
+2019-09-26 16:31:00,655 - node[3] - DEBUG - Cluster SPT-CLJ2317-5000 is located on SSDF tile SSDF1.0
+2019-09-26 16:31:01,050 - node[4] - DEBUG - Working on cluster: SPT-CLJ2316-5454
+2019-09-26 16:31:01,069 - node[4] - DEBUG - Cluster SPT-CLJ2316-5454 is located on SSDF tile SSDF1.4
+2019-09-26 16:31:01,573 - node[9] - DEBUG - Working on cluster: SPT-CLJ2316-5027
+2019-09-26 16:31:01,595 - node[9] - DEBUG - Cluster SPT-CLJ2316-5027 is located on SSDF tile SSDF1.0
+2019-09-26 16:31:01,778 - node[14] - DEBUG - Working on cluster: SPT-CLJ2314-5554
+2019-09-26 16:31:01,799 - node[14] - DEBUG - Cluster SPT-CLJ2314-5554 is located on SSDF tile SSDF1.5
+2019-09-26 16:31:01,911 - node[15] - DEBUG - Working on cluster: SPT-CLJ2312-5101
+2019-09-26 16:31:01,933 - node[15] - INFO - SPT-CLJ2312-5101 has objects on multiple SSDF tiles: ['SSDF0.0', 'SSDF1.0', 'SSDF1.1']. Switching to mosaics.
+2019-09-26 16:31:02,064 - node[10] - DEBUG - Working on cluster: SPT-CLJ2311-5522
+2019-09-26 16:31:02,087 - node[10] - INFO - SPT-CLJ2311-5522 has objects on multiple SSDF tiles: ['SSDF0.5', 'SSDF1.5']. Switching to mosaics.
+2019-09-26 16:31:02,196 - node[11] - DEBUG - Working on cluster: SPT-CLJ2310-5919
+2019-09-26 16:31:02,219 - node[11] - DEBUG - Cluster SPT-CLJ2310-5919 is located on SSDF tile SSDF0.9
+2019-09-26 16:31:02,671 - node[8] - DEBUG - Working on cluster: SPT-CLJ2309-5710
+2019-09-26 16:31:02,691 - node[8] - DEBUG - Cluster SPT-CLJ2309-5710 is located on SSDF tile SSDF0.7
+2019-09-26 16:31:02,771 - node[12] - DEBUG - Working on cluster: SPT-CLJ2307-5440
+2019-09-26 16:31:02,794 - node[12] - DEBUG - Cluster SPT-CLJ2307-5440 is located on SSDF tile SSDF0.4
+2019-09-26 16:31:04,201 - node[2] - DEBUG - Working on cluster: SPT-CLJ2305-5719
+2019-09-26 16:31:04,218 - node[2] - DEBUG - Cluster SPT-CLJ2305-5719 is located on SSDF tile SSDF0.7
+2019-09-26 16:31:05,687 - node[7] - DEBUG - Working on cluster: SPT-CLJ2304-5718
+2019-09-26 16:31:05,709 - node[7] - DEBUG - Cluster SPT-CLJ2304-5718 is located on SSDF tile SSDF0.7
+2019-09-26 16:31:07,054 - node[3] - DEBUG - Working on cluster: SPT-CLJ2304-5007
+2019-09-26 16:31:07,076 - node[3] - DEBUG - Cluster SPT-CLJ2304-5007 is located on SSDF tile SSDF0.0
+2019-09-26 16:31:07,904 - node[13] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:07,905 - node[13] - DEBUG - Working on cluster: SPT-CLJ2344-5655
+2019-09-26 16:31:07,956 - node[13] - INFO - SPT-CLJ2344-5655 has objects on multiple SSDF tiles: ['SSDF2.6', 'SSDF2.7']. Switching to mosaics.
+2019-09-26 16:31:07,996 - node[9] - DEBUG - Working on cluster: SPT-CLJ2303-5114
+2019-09-26 16:31:08,012 - node[9] - DEBUG - Cluster SPT-CLJ2303-5114 is located on SSDF tile SSDF0.1
+2019-09-26 16:31:08,042 - node[4] - DEBUG - Working on cluster: SPT-CLJ2301-5317
+2019-09-26 16:31:08,064 - node[4] - DEBUG - Cluster SPT-CLJ2301-5317 is located on SSDF tile SSDF0.3
+2019-09-26 16:31:08,438 - node[14] - DEBUG - Working on cluster: SPT-CLJ2300-5617
+2019-09-26 16:31:08,460 - node[14] - DEBUG - Cluster SPT-CLJ2300-5617 is located on SSDF tile SSDF0.6
+2019-09-26 16:31:09,115 - node[8] - DEBUG - Working on cluster: SPT-CLJ2259-5349
+2019-09-26 16:31:09,136 - node[8] - DEBUG - Cluster SPT-CLJ2259-5349 is located on SSDF tile SSDF0.3
+2019-09-26 16:31:09,166 - node[6] - DEBUG - Working on cluster: SPT-CLJ2259-5301
+2019-09-26 16:31:09,181 - node[6] - INFO - SPT-CLJ2259-5301 has objects on multiple SSDF tiles: ['SSDF0.2', 'SSDF0.3']. Switching to mosaics.
+2019-09-26 16:31:09,198 - node[11] - DEBUG - Working on cluster: SPT-CLJ0001-5614
+2019-09-26 16:31:09,218 - node[11] - DEBUG - Cluster SPT-CLJ0001-5614 is located on SSDF tile SSDF3.6
+2019-09-26 16:31:31,358 - node[17] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:31,363 - node[17] - DEBUG - Working on cluster: SPT-CLJ2339-5550
+2019-09-26 16:31:31,407 - node[17] - DEBUG - Cluster SPT-CLJ2339-5550 is located on SSDF tile SSDF3.5
+2019-09-26 16:31:32,232 - node[19] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:32,233 - node[19] - DEBUG - Working on cluster: SPT-CLJ2336-5252
+2019-09-26 16:31:32,276 - node[19] - INFO - SPT-CLJ2336-5252 has objects on multiple SSDF tiles: ['SSDF2.2', 'SSDF3.2']. Switching to mosaics.
+2019-09-26 16:31:33,923 - node[21] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:33,923 - node[21] - DEBUG - Working on cluster: SPT-CLJ2334-5938
+2019-09-26 16:31:33,972 - node[21] - DEBUG - Cluster SPT-CLJ2334-5938 is located on SSDF tile SSDF2.9
+2019-09-26 16:31:34,136 - node[18] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:34,137 - node[18] - DEBUG - Working on cluster: SPT-CLJ2336-5352
+2019-09-26 16:31:34,187 - node[18] - INFO - SPT-CLJ2336-5352 has objects on multiple SSDF tiles: ['SSDF2.3', 'SSDF3.3']. Switching to mosaics.
+2019-09-26 16:31:34,507 - node[23] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:34,508 - node[23] - DEBUG - Working on cluster: SPT-CLJ2332-5220
+2019-09-26 16:31:34,555 - node[23] - DEBUG - Cluster SPT-CLJ2332-5220 is located on SSDF tile SSDF2.2
+2019-09-26 16:31:35,709 - node[27] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:35,710 - node[27] - DEBUG - Working on cluster: SPT-CLJ2328-5533
+2019-09-26 16:31:35,753 - node[27] - DEBUG - Cluster SPT-CLJ2328-5533 is located on SSDF tile SSDF2.5
+2019-09-26 16:31:36,673 - node[26] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:36,674 - node[26] - DEBUG - Working on cluster: SPT-CLJ2328-5550
+2019-09-26 16:31:36,725 - node[26] - DEBUG - Cluster SPT-CLJ2328-5550 is located on SSDF tile SSDF2.5
+2019-09-26 16:31:39,145 - node[16] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:39,146 - node[16] - DEBUG - Working on cluster: SPT-CLJ2341-5138
+2019-09-26 16:31:39,195 - node[16] - DEBUG - Cluster SPT-CLJ2341-5138 is located on SSDF tile SSDF3.1
+2019-09-26 16:31:39,910 - node[24] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:39,911 - node[24] - DEBUG - Working on cluster: SPT-CLJ2331-5736
+2019-09-26 16:31:39,962 - node[24] - DEBUG - Cluster SPT-CLJ2331-5736 is located on SSDF tile SSDF2.7
+2019-09-26 16:31:41,004 - node[20] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:41,004 - node[20] - DEBUG - Working on cluster: SPT-CLJ2335-5434
+2019-09-26 16:31:41,061 - node[20] - INFO - SPT-CLJ2335-5434 has objects on multiple SSDF tiles: ['SSDF2.4', 'SSDF3.4']. Switching to mosaics.
+2019-09-26 16:31:44,320 - node[22] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:44,321 - node[22] - DEBUG - Working on cluster: SPT-CLJ2334-5308
+2019-09-26 16:31:44,377 - node[22] - DEBUG - Cluster SPT-CLJ2334-5308 is located on SSDF tile SSDF2.3
+2019-09-26 16:31:44,754 - node[25] - INFO - Beginning table and image cutouts
+2019-09-26 16:31:44,755 - node[25] - DEBUG - Working on cluster: SPT-CLJ2331-5052
+2019-09-26 16:31:44,807 - node[25] - DEBUG - Cluster SPT-CLJ2331-5052 is located on SSDF tile SSDF2.0

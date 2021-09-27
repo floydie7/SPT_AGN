@@ -1,0 +1,8 @@
+2019-09-10 16:35:56,340 - node[0]: __main__ - INFO - Removing mosaic tiles: ['SSDF4.1_4.2', 'SSDF4.2_4.3'] to avoid tile 4.2
+2019-09-10 16:35:56,341 - node[0]: __main__ - INFO - node[0] working on mosaic: I1_SSDF0.0_0.1_1.0_1.1_sci
+to avoid tile 4.2
+2019-09-10 13:52:56,125 - node[1]: __main__ - INFO - Removing mosaic tiles: ['SSDF4.2_4.3', 'SSDF4.1_4.2'] to avoid tile 4.2
+2019-09-10 13:52:56,126 - node[2]: __main__ - INFO - node[2] working on mosaic: I2_SSDF0.2_0.3_sci
+2019-09-10 13:52:56,126 - node[1]: __main__ - INFO - node[1] working on mosaic: I2_SSDF0.2_0.3_cov
+2019-09-10 13:52:56,143 - node[3]: __main__ - INFO - Removing mosaic tiles: ['SSDF4.1_4.2', 'SSDF4.2_4.3'] to avoid tile 4.2
+2019-09-10 13:52:56,144 - node[3]: __main__ - INFO - node[3] working on mosaic: I1_SSDF0.2_0.3_cov

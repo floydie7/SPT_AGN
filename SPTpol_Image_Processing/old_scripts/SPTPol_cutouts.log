@@ -1,0 +1,135 @@
+2019-08-23 13:32:30,614 - __main__ - INFO - Reading in source catalogs
+2019-08-23 13:35:37,038 - __main__ - INFO - Performing cluster search
+2019-08-23 13:56:28,125 - __main__ - INFO - Beginning table and image cutouts
+2019-08-23 13:57:02,771 - astropy - WARNING - UnitsWarning: 'Vega mag' did not parse as fits unit: At col 0, Unit 'Vega' not supported by the FITS standard. 
+2019-08-23 13:57:03,117 - astropy - WARNING - File may have been truncated: actual file length (13347520) is smaller than the expected size (185227200)
+2019-08-23 13:57:03,118 - __main__ - WARNING - Cluster SPT-CLJ0002-5214 is located on SSDF tile SSDF4.2 and raised an buffer is too small for requested array. Skipping
+2019-08-23 13:57:03,161 - __main__ - WARNING - SPT-CLJ2259-5301 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.2
+SSDF0.3
+2019-08-23 13:57:03,211 - __main__ - WARNING - SPT-CLJ2259-5349 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.3
+SSDF0.4
+2019-08-23 14:00:35,480 - __main__ - WARNING - SPT-CLJ2309-5710 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.6
+SSDF0.7
+2019-08-23 14:00:35,532 - __main__ - WARNING - SPT-CLJ2310-5239 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.2
+SSDF1.2
+2019-08-23 14:01:08,501 - __main__ - WARNING - SPT-CLJ2311-5522 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.5
+SSDF1.5
+2019-08-23 14:01:08,555 - __main__ - WARNING - SPT-CLJ2312-5101 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.0
+SSDF0.1
+SSDF1.0
+SSDF1.1
+2019-08-23 14:01:08,609 - __main__ - WARNING - SPT-CLJ2314-5554 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF0.6
+SSDF1.5
+SSDF1.6
+2019-08-23 14:01:42,400 - __main__ - WARNING - SPT-CLJ2316-5454 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.4
+SSDF1.5
+2019-08-23 14:02:14,085 - __main__ - WARNING - SPT-CLJ2317-5357 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.3
+SSDF1.4
+2019-08-23 14:02:14,135 - __main__ - WARNING - SPT-CLJ2317-5852 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.8
+SSDF1.9
+2019-08-23 14:02:14,185 - __main__ - WARNING - SPT-CLJ2318-5059 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.0
+SSDF1.1
+2019-08-23 14:03:48,248 - __main__ - WARNING - SPT-CLJ2320-5807 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.7
+SSDF1.8
+2019-08-23 14:03:57,074 - __main__ - WARNING - SPT-CLJ2323-5752 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.7
+SSDF1.8
+2019-08-23 14:06:08,475 - __main__ - WARNING - SPT-CLJ2328-5550 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.6
+SSDF2.5
+2019-08-23 14:06:08,528 - __main__ - WARNING - SPT-CLJ2330-5955 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF1.9
+SSDF2.9
+2019-08-23 14:06:08,580 - __main__ - WARNING - SPT-CLJ2331-5052 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.0
+SSDF2.1
+2019-08-23 14:07:16,995 - __main__ - WARNING - SPT-CLJ2334-5308 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.2
+SSDF2.3
+2019-08-23 14:07:47,040 - __main__ - WARNING - SPT-CLJ2335-5434 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.4
+SSDF3.4
+2019-08-23 14:07:47,089 - __main__ - WARNING - SPT-CLJ2336-5252 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.2
+SSDF2.3
+SSDF3.2
+SSDF3.3
+2019-08-23 14:07:47,142 - __main__ - WARNING - SPT-CLJ2336-5352 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.3
+SSDF2.4
+SSDF3.3
+SSDF3.4
+2019-08-23 14:08:20,066 - __main__ - WARNING - SPT-CLJ2339-5550 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.6
+SSDF3.5
+2019-08-23 14:10:30,645 - __main__ - WARNING - SPT-CLJ2344-5655 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF2.6
+SSDF2.7
+SSDF3.6
+SSDF3.7
+2019-08-23 14:11:37,291 - __main__ - WARNING - SPT-CLJ2349-5140 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF3.1
+SSDF4.1
+2019-08-23 14:11:37,342 - __main__ - WARNING - SPT-CLJ2350-5107 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF4.0
+SSDF4.1
+2019-08-23 14:12:10,638 - __main__ - WARNING - SPT-CLJ2352-5251 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF4.2
+SSDF4.3
+2019-08-23 14:12:10,688 - __main__ - WARNING - SPT-CLJ2354-5106 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF4.0
+SSDF4.1
+2019-08-23 14:12:43,676 - __main__ - WARNING - SPT-CLJ2355-5156 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF4.1
+SSDF4.2
+2019-08-23 14:12:43,727 - __main__ - WARNING - SPT-CLJ2355-5258 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF4.2
+SSDF4.3
+2019-08-23 14:13:19,245 - __main__ - WARNING - SPT-CLJ2355-5850 has objects on multiple SSDF tiles:   TILE 
+-------
+SSDF3.8
+SSDF3.9
+2019-08-23 14:13:19,533 - __main__ - WARNING - SPT-CLJ2355-6002 raised an Arrays overlap only partially. for image I1_cov
+2019-08-23 14:13:19,546 - __main__ - WARNING - SPT-CLJ2355-6002 raised an Arrays overlap only partially. for image I2_sci
+2019-08-23 14:13:19,558 - __main__ - WARNING - SPT-CLJ2355-6002 raised an Arrays overlap only partially. for image I2_cov
+2019-08-23 14:13:19,570 - __main__ - WARNING - SPT-CLJ2355-6002 raised an Arrays overlap only partially. for image I1_sci
