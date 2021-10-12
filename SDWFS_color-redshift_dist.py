@@ -5,9 +5,10 @@ Author: Benjamin Floyd
 Saves a database for the SDWFS color-redshift distribution. We also compute color-color error trends.
 """
 
+import pickle
 import numpy as np
 from astropy.table import Table, join
-import json
+from scipy.stats import gaussian_kde
 
 # Read in the SDWFS photometric catalog
 SDWFS_main = Table.read(
@@ -48,31 +49,28 @@ Stern_AGN = SDWFS_cat[(SDWFS_cat['CH3_APMAG4'] - SDWFS_cat['CH4_APMAG4'] > 0.6) 
 SDWFS_color = SDWFS_cat['CH1_APMAG4'] - SDWFS_cat['CH2_APMAG4']
 AGN_color = Stern_AGN['CH1_APMAG4'] - Stern_AGN['CH2_APMAG4']
 
-# Set the color and redshift bins
-color_bins = np.arange(0., 1.5, 0.05)
-redshift_bins = np.arange(0., 1.7, 0.05)
+# Create a Gaussian KDE of our color-redshift plane
+SDWFS_values = np.vstack([SDWFS_cat['PHOT_Z'], SDWFS_color])
+AGN_values = np.vstack([Stern_AGN['PHOT_Z'], AGN_color])
 
-# Create the histograms
-SDWFS_hist, _, _ = np.histogram2d(SDWFS_cat['PHOT_Z'], SDWFS_color, bins=[redshift_bins, color_bins], density=True)
-AGN_hist, _, _ = np.histogram2d(Stern_AGN['PHOT_Z'], AGN_color, bins=[redshift_bins, color_bins], density=True)
+SDWFS_kde = gaussian_kde(SDWFS_values)
+AGN_kde = gaussian_kde(AGN_values)
 
-color_redshift_dists = {'color_bins': list(color_bins), 'redshift_bins': list(redshift_bins),
-                        'SDWFS_hist': SDWFS_hist.tolist(), 'AGN_hist': AGN_hist.tolist()}
-
-color_redshift_filename = 'Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color_redshift_dist.json'
-with open(color_redshift_filename, 'w') as f:
-    json.dump(color_redshift_dists, f, ensure_ascii=False, indent=4)
+# Store the KDE objects in a pickle file
+kde_dict = {'SDWFS_kde': SDWFS_kde, 'AGN_kde': AGN_kde}
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color_redshift_kde.pkl', 'wb') as f:
+    pickle.dump(kde_dict, f, pickle.HIGHEST_PROTOCOL)
 
 # Compute the color errors for the two samples
-SDWFS_color_err = np.sqrt((2.5 * SDWFS_cat['CH1_APFLUXERR4'] / (SDWFS_cat['CH1_APFLUX4'] * np.log(10)))**2 +
-                          (2.5 * SDWFS_cat['CH2_APFLUXERR4'] / (SDWFS_cat['CH2_APFLUX4'] * np.log(10)))**2)
-AGN_color_err = np.sqrt((2.5 * Stern_AGN['CH1_APFLUXERR4'] / (Stern_AGN['CH1_APFLUX4'] * np.log(10)))**2 +
-                          (2.5 * Stern_AGN['CH2_APFLUXERR4'] / (Stern_AGN['CH2_APFLUX4'] * np.log(10)))**2)
+SDWFS_color_err = np.sqrt((2.5 * SDWFS_cat['CH1_APFLUXERR4'] / (SDWFS_cat['CH1_APFLUX4'] * np.log(10))) ** 2 +
+                          (2.5 * SDWFS_cat['CH2_APFLUXERR4'] / (SDWFS_cat['CH2_APFLUX4'] * np.log(10))) ** 2)
+AGN_color_err = np.sqrt((2.5 * Stern_AGN['CH1_APFLUXERR4'] / (Stern_AGN['CH1_APFLUX4'] * np.log(10))) ** 2 +
+                        (2.5 * Stern_AGN['CH2_APFLUXERR4'] / (Stern_AGN['CH2_APFLUX4'] * np.log(10))) ** 2)
 
 # Store the color and color errors
 SDWFS_color_table = Table([SDWFS_color, SDWFS_color_err], names=['COLOR', 'COLOR_ERR'])
 AGN_color_table = Table([AGN_color, AGN_color_err], names=['COLOR', 'COLOR_ERR'])
 
 # Write the tables
-SDWFS_color_table.write('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color-color_err.fits')
-AGN_color_table.write('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_AGN_color-color_err.fits')
+SDWFS_color_table.write('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color-color_err.fits', overwrite=True)
+AGN_color_table.write('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_AGN_color-color_err.fits', overwrite=True)
