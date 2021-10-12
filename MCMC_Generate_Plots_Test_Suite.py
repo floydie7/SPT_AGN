@@ -18,11 +18,11 @@ zeta_true = -1.0
 beta_true = 1.0
 rc_true = 0.1
 C_true = 0.376
-# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
-truths = [theta_true, eta_true, zeta_true, beta_true, rc_true]
+truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
+# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true]
 # truths = [C_true]
-# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
 # labels = [r'$C$']
 
 # Our file storing the full test suite
@@ -36,7 +36,7 @@ filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Fina
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 't2.5' in chain_name and 'cluster-only' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'no_LF' in chain_name and 'cluster+background' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
