@@ -5,19 +5,22 @@ Author: Benjamin Floyd
 Using our Bayesian model, generates a mock catalog to use in testing the limitations of the model.
 """
 import glob
+import json
+import pickle
 import re
 from time import time
 
 import astropy.units as u
 import numpy as np
-from astro_compendium.utils.k_correction import k_corr_abs_mag
+from astro_compendium.utils.k_correction import k_corr_abs_mag, k_corr_ap_mag
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, join, unique, vstack
 from astropy.wcs import WCS
 from scipy import stats
-from scipy.interpolate import lagrange
+from scipy.integrate import quad, quad_vec
+from scipy.interpolate import lagrange, interp1d
 from synphot import SpectralElement, SourceSpectrum, units
 
 # Set our cosmology
@@ -32,6 +35,21 @@ print(f'Cluster Seed: {cluster_seed}\t Object Seed: {object_seed}')
 # Set our random number generators
 cluster_rng = np.random.default_rng(cluster_seed)  # Previously 123
 object_rng = np.random.default_rng(object_seed)
+
+
+# Provide a random variable for the luminosity function
+class LFpdf(stats.rv_continuous):
+    def __init__(self, z, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._z = z
+        self._normalization = self._norm(self._z)
+
+    def _norm(self, z):
+        _a, _b = self._get_support()
+        return quad(lambda x: luminosity_function(x, z).value, a=_a, b=_b)[0]
+
+    def _pdf(self, abs_mag, *args):
+        return luminosity_function(abs_mag, self._z).value / self._normalization
 
 
 def poisson_point_process(model, dx, dy=None, lower_dx=0, lower_dy=0):
@@ -82,7 +100,7 @@ def luminosity_function(abs_mag, redshift):
 
     Returns
     -------
-    Phi : ndarray
+    Phi : astropy.units.Quantity
         Luminosity density
 
     """
@@ -138,15 +156,52 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
     theta, eta, zeta, beta, rc = params
 
     # Luminosity function number
-    # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
+    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
 
     return model.value
+
+
+def membership_degree(ch1_ch2_color, ch1_ch2_color_err, ch1_ch2_color_cut, color_number_dist, color_bin_extrema):
+    """
+    Computes the degree of membership.
+
+    Parameters
+    ----------
+    ch1_ch2_color : array-like, Table
+        Array of [3.6] - [4.5] colors for each object.
+    ch1_ch2_color_err : array-like, Table
+        Array of [3.6] - [4.5] color errors for each object.
+    ch1_ch2_color_cut : float
+        [3.6] - [4.5] color cut above which objects will be selected as AGN.
+    color_number_dist : interp1d
+        A callable interpolation function of the color number distribution from a reference field sample.
+    color_bin_extrema : array-like
+        A list or tuple of the minimum and maximum of the color bins.
+
+    Returns
+    -------
+    membership : array-like
+        An array of degrees of membership for each object.
+    """
+
+    # Unpack the extrema
+    color_min, color_max = color_bin_extrema
+
+    # Convolve the error distribution for each object with the overall number count distribution
+    def object_integrand(x):
+        return stats.norm(loc=ch1_ch2_color, scale=ch1_ch2_color_err).pdf(x) * color_number_dist(x)
+
+    membership_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_max)[0]
+    membership_denom = quad_vec(object_integrand, a=color_min, b=color_max)[0]
+    membership = membership_numer / membership_denom
+
+    return membership
 
 
 start_time = time()
@@ -156,7 +211,6 @@ start_time = time()
 n_cl = 249 + 57
 
 # Set parameter values
-
 theta_true = 2.5  # Amplitude
 eta_true = 4.0  # Redshift slope
 zeta_true = -1.0  # Mass slope
@@ -172,6 +226,17 @@ median_cluster_pos_uncert = 0.214 * u.arcmin
 
 # SPT's 150 GHz beam size
 SZ_theta_beam = 1.2 * u.arcmin
+
+# Set 4.5 um magnitude bounds to define luminosity range
+faint_end_45_apmag = 17.46  # Vega mag
+bright_end_45_apmag = 10.45  # Vega mag
+
+# Set cluster redshift error for color--redshift selection
+delta_z = 0.05
+
+# Set min and max values for SPT-SZ and SPTpol 100d IRAC color errors
+sptsz_min_color_err, sptsz_max_color_err = 0.002, 0.16
+sptpol_min_color_err, sptpol_max_color_err = 0.05, 0.22
 # </editor-fold>
 
 # <editor-fold desc="Data Generation">
@@ -214,7 +279,7 @@ masks_bank = sorted([masks_files[i] for i in cluster_rng.choice(n_cl, size=n_cl)
 # Find the corresponding cluster IDs in the SPT catalog that match the masks we chose
 spt_catalog_ids = [re.search(r'SPT-CLJ\d+-\d+', mask_name).group(0) for mask_name in masks_bank]
 spt_catalog_mask = [np.where(SPTcl['SPT_ID'] == spt_id)[0][0] for spt_id in spt_catalog_ids]
-selected_clusters = SPTcl['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT', 'THETA_CORE', 'XI'][spt_catalog_mask]
+selected_clusters = SPTcl['SPT_ID', 'RA', 'DEC', 'M500', 'REDSHIFT', 'THETA_CORE', 'XI', 'field'][spt_catalog_mask]
 
 # We'll need the r500 radius for each cluster too.
 selected_clusters['R500'] = (3 * selected_clusters['M500'] * u.Msun /
@@ -225,25 +290,65 @@ selected_clusters['R500'] = (3 * selected_clusters['M500'] * u.Msun /
 name_bank = ['SPT_Mock_{:03d}'.format(i) for i in range(n_cl)]
 
 # Combine our data into a catalog
-SPT_data = Table([name_bank, selected_clusters['RA'], selected_clusters['DEC'], selected_clusters['M500'],
-                  selected_clusters['R500'], selected_clusters['REDSHIFT'], selected_clusters['THETA_CORE'],
-                  selected_clusters['XI'], masks_bank, selected_clusters['SPT_ID']],
-                 names=['SPT_ID', 'SZ_RA', 'SZ_DEC', 'M500', 'R500', 'REDSHIFT', 'THETA_CORE', 'XI', 'MASK_NAME',
-                        'orig_SPT_ID'])
+SPT_data = selected_clusters.copy()
+SPT_data.rename_columns(['SPT_ID', 'RA', 'DEC'], ['orig_SPT_ID', 'SZ_RA', 'SZ_DEC'])
+SPT_data['SPT_ID'] = name_bank
+SPT_data['MASK_NAME'] = masks_bank
 
-# Check that we have the correct mask and cluster data matched up. If so, we can drop the original SPT_ID column
+# Check that we have the correct mask and cluster data matched up.
 assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_SPT_ID'], SPT_data['MASK_NAME'])])
-del SPT_data['orig_SPT_ID']
 
 # Set up grid of radial positions to place AGN on (normalized by r500)
 r_dist_r500 = np.linspace(0, max_radius, num=200)
 
-# To provide data for the photometric and AGN sample membership we will need to read in the real data catalog.
-# To help provide abstraction from the data, we will only read in the three relevant columns and then randomize the
-# order of the rows.
-real_data = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits')
-real_data.keep_columns(['COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG'])
-real_data = Table(object_rng.permutation(real_data), names=real_data.colnames)
+# For the luminosities read in the filters and SED from which we will perform k-corrections on
+irac_45_filter = SpectralElement.from_file('Data_Repository/filter_curves/Spitzer_IRAC/080924ch2trans_full.txt',
+                                           wave_unit=u.um)
+flamingos_j_filter = SpectralElement.from_file('Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+                                               'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt', wave_unit=u.nm)
+qso2_sed = SourceSpectrum.from_file('Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
+                                    wave_unit=u.Angstrom, flux_unit=units.FLAM)
+
+# To provide the IRAC colors (and object redshifts) for the objects we will need to create a realization of the SDWFS
+# color--redshift plane from which we can later resample to assign values to the objects.
+# Load in the SDWFS color-redshift distributions
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color_redshift_kde.pkl', 'rb') as f:
+    kde_dict = pickle.load(f)
+SDWFS_kde = kde_dict['SDWFS_kde']
+AGN_kde = kde_dict['AGN_kde']
+
+# Generate realizations
+SDWFS_color_z = SDWFS_kde.resample(size=2000)
+AGN_color_z = AGN_kde.resample(size=2000)
+
+# Read in the completeness dictionaries
+comp_sim_dir = 'Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim'
+with open(f'{comp_sim_dir}/SPT-SZ_2500d/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as f, \
+     open(f'{comp_sim_dir}/SPTpol_100d/Results/SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as g:
+    sptsz_comp_sim = json.load(f)
+    sptpol_comp_sim = json.load(g)
+
+# Because the SPT-SZ database still uses the original observed SPT IDs we need to update them to the official IDs
+with open('Data_Repository/Project_Data/SPT-IRAGN/Misc/SPT-SZ_observed_to_official_ids.json', 'r') as f:
+    obs_to_off_id = json.load(f)
+for obs_id, off_id in obs_to_off_id.items():
+    sptsz_comp_sim[off_id] = sptsz_comp_sim.pop(obs_id)
+
+# Merge the dictionaries together replacing SPTpol/SSDF curves with SPT-SZ/targeted curves if available
+sptcl_comp_sim = {**sptpol_comp_sim, **sptsz_comp_sim}
+
+# For the membership degree calculuation we need to read in the SDWFS color distribution
+# Read in the number count distribution file
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+          'SDWFS_number_count_distribution_normed.json', 'r') as f:
+    field_number_distribution = json.load(f)
+field_number_counts = field_number_distribution['normalized_number_counts']
+color_bins = field_number_distribution['color_bins']
+color_bin_min, color_bin_max = np.min(color_bins), np.max(color_bins)
+
+# Create an interpolation of our number count distribution, this will get passed to the membership degree function
+color_probability_distribution = interp1d(color_bins, field_number_counts)
+
 # </editor-fold>
 
 catalog_start_time = time()
@@ -253,6 +358,7 @@ cluster_sample = SPT_data.copy()
 
 AGN_cats = []
 for cluster in cluster_sample:
+    original_spt_id = cluster['orig_SPT_ID']
     spt_id = cluster['SPT_ID']
     mask_name = cluster['MASK_NAME']
     z_cl = cluster['REDSHIFT']
@@ -261,6 +367,7 @@ for cluster in cluster_sample:
     SZ_center = cluster['SZ_RA', 'SZ_DEC']
     SZ_theta_core = cluster['THETA_CORE'] * u.arcmin
     SZ_xi = cluster['XI']
+    spt_field = cluster['field']
 
     # Read in the mask's WCS for the pixel scale and making SkyCoords
     w = WCS(mask_name)
@@ -291,14 +398,6 @@ for cluster in cluster_sample:
 
     # Generate a grid of J-band absolute magnitudes on which we will compute model rates to determine the maximum rate
     # They will be derived from the empirical 4.5 um magnitude limits k-corrected into J-band absolute magnitudes
-    faint_end_45_apmag = 17.46  # Vega mag
-    bright_end_45_apmag = 10.45  # Vega mag
-    irac_45_filter = SpectralElement.from_file('Data_Repository/filter_curves/Spitzer_IRAC/080924ch2trans_full.txt',
-                                               wave_unit=u.um)
-    flamingos_j_filter = SpectralElement.from_file('Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
-                                                   'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt', wave_unit=u.nm)
-    qso2_sed = SourceSpectrum.from_file('Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
-                                        wave_unit=u.Angstrom, flux_unit=units.FLAM)
     faint_end_j_absmag = k_corr_abs_mag(faint_end_45_apmag, z=z_cl, f_lambda_sed=qso2_sed,
                                         zero_pt_obs_band=179.7 * u.Jy, zero_pt_em_band='vega',
                                         obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
@@ -320,11 +419,9 @@ for cluster in cluster_sample:
     cluster_agn_coords_pix = poisson_point_process(max_rate_inv_pix2, dx=upper_x, dy=upper_y,
                                                    lower_dx=lower_x, lower_dy=lower_y)
 
-    # Now we will assign each cluster object a random completeness value, degree of membership, and J-band abs. mag.
-    data_idx = object_rng.integers(len(real_data), size=cluster_agn_coords_pix.shape[1])
-    cluster_agn_completeness = real_data['COMPLETENESS_CORRECTION'][data_idx]
-    cluster_agn_selection_membership = real_data['SELECTION_MEMBERSHIP'][data_idx]
-    cluster_agn_j_abs_mag = real_data['J_ABS_MAG'][data_idx]
+    # Draw J-band luminosities for each object from the luminosity function at the cluster redshift
+    lf_cl_rv = LFpdf(z=z_cl, a=bright_end_j_absmag, b=faint_end_j_absmag)
+    cluster_agn_j_abs_mag = lf_cl_rv.rvs(size=cluster_agn_coords_pix.shape[1])
 
     # Find the radius of each point placed scaled by the cluster's r500 radius
     cluster_agn_skycoord = SkyCoord.from_pixel(cluster_agn_coords_pix[0], cluster_agn_coords_pix[1],
@@ -341,45 +438,82 @@ for cluster in cluster_sample:
     # Draw a random number for each candidate
     alpha = object_rng.uniform(0, 1, len(rate_at_rad))
 
-    # Perform the rejection sampling
+    # Perform the rejection sampling for both the object coordinates and associated luminosities
     cluster_agn_final = cluster_agn_skycoord[prob_reject >= alpha]
     cluster_agn_final_pix = np.array(cluster_agn_final.to_pixel(w, origin=0, mode='wcs'))
+    cluster_agn_j_abs_mag_final = cluster_agn_j_abs_mag[prob_reject >= alpha]
 
-    # Apply the rejection sampling on the photometric information for cluster objects as well
-    cluster_agn_completeness = cluster_agn_completeness[prob_reject >= alpha]
-    cluster_agn_selection_membership = cluster_agn_selection_membership[prob_reject >= alpha]
-    cluster_agn_j_abs_mag = cluster_agn_j_abs_mag[prob_reject >= alpha]
+    # To get the cluster AGN we must first filter for objects near the cluster redshift
+    cluster_color_z = AGN_color_z.T[np.abs(AGN_color_z[0] - z_cl) < delta_z]
+
+    # Draw colors and object redshifts from Stern Wedge subsample of the SDWFS the color--redshift plane
+    cluster_obj_z, cluster_obj_colors = cluster_rng.choice(cluster_color_z, size=len(cluster_agn_final), replace=True).T
+
+    # Draw color errors from the range of color errors in the survey. NB this may change in the future
+    min_color_err = sptpol_min_color_err if spt_field == 'SPTPOL_100d' else sptsz_min_color_err
+    max_color_err = sptpol_max_color_err if spt_field == 'SPTPOL_100d' else sptsz_max_color_err
+    cluster_obj_color_errors = object_rng.uniform(min_color_err, max_color_err, size=len(cluster_agn_final))
 
     # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
     background_rate = C_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
     background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
                                                lower_dx=lower_x, lower_dy=lower_y)
 
-    # For each background AGN we will also need a random completeness value, degree of membership, and J-band abs. mag.
-    data_idx = object_rng.integers(len(real_data), size=background_agn_pix.shape[1])
-    background_agn_completeness = real_data['COMPLETENESS_CORRECTION'][data_idx]
-    background_agn_selection_membership = real_data['SELECTION_MEMBERSHIP'][data_idx]
-    background_agn_j_abs_mag = real_data['J_ABS_MAG'][data_idx]
+    # Draw luminosities for all the background objects. As the real data does not know the true redshifts of the objects
+    # it assumes all objects are at the cluster's redshift. We will mimic this here by using the LF at `z_cl`.
+    background_agn_j_abs_mag = lf_cl_rv.rvs(size=background_agn_pix.shape[1])
+
+    # Draw colors and object redshifts from the full SDWFS color--redshift plane
+    background_obj_z, background_obj_colors = cluster_rng.choice(SDWFS_color_z.T, size=background_agn_pix.shape[1],
+                                                                 replace=True).T
+
+    # Draw color errors from the range of color errors in the survey as before.
+    background_obj_color_errors = object_rng.uniform(min_color_err, max_color_err, size=background_agn_pix.shape[1])
 
     # Concatenate the cluster sources with the background sources
     line_of_sight_agn_pix = np.hstack((cluster_agn_final_pix, background_agn_pix))
+    line_of_sight_agn_j_abs_mag = np.hstack((cluster_agn_j_abs_mag_final, background_agn_j_abs_mag))
+    line_of_sight_agn_colors = np.hstack((cluster_obj_colors, background_obj_colors))
+    line_of_sight_agn_color_errors = np.hstack((cluster_obj_color_errors, background_obj_color_errors))
+    line_of_sight_agn_obj_z = np.hstack((cluster_obj_z, background_obj_z))
+
+    # Create a flag indicating if the object is a cluster member
+    line_of_sight_agn_cluster_mem = np.hstack((np.full_like(cluster_agn_final_pix[0], True),
+                                               np.full_like(background_agn_pix[0], False)))
 
     # Set up the table of objects
-    AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1]], names=['x_pixel', 'y_pixel'])
+    AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1],
+                      line_of_sight_agn_j_abs_mag,
+                      line_of_sight_agn_colors, line_of_sight_agn_color_errors,
+                      line_of_sight_agn_obj_z,
+                      line_of_sight_agn_cluster_mem],
+                     names=['x_pixel', 'y_pixel', 'J_ABS_MAG', 'I1_I2', 'I1_I2_ERR', 'OBJ_REDSHIFT', 'CLUSTER_AGN'])
     AGN_list['SPT_ID'] = spt_id
     AGN_list['SZ_RA'] = SZ_center['SZ_RA']
     AGN_list['SZ_DEC'] = SZ_center['SZ_DEC']
     AGN_list['M500'] = m500_cl
     AGN_list['REDSHIFT'] = z_cl
     AGN_list['R500'] = r500_cl
-    AGN_list['COMPLETENESS_CORRECTION'] = np.hstack((cluster_agn_completeness, background_agn_completeness))
-    AGN_list['SELECTION_MEMBERSHIP'] = np.hstack((cluster_agn_selection_membership,
-                                                  background_agn_selection_membership))
-    AGN_list['J_ABS_MAG'] = np.hstack((cluster_agn_j_abs_mag, background_agn_j_abs_mag))
 
-    # Create a flag indicating if the object is a cluster member
-    AGN_list['Cluster_AGN'] = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
-                                              np.full_like(background_agn_pix[0], False)))
+    # Compute 4.5 um apparent magnitudes from the J-band absolute magnitudes
+    AGN_list['I2_APMAG'] = k_corr_ap_mag(AGN_list['J_ABS_MAG'], z=z_cl, f_lambda_sed=qso2_sed,
+                                         zero_pt_obs_band=179.7 * u.Jy, zero_pt_em_band='vega',
+                                         obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
+
+    # Pull up the cluster's completeness curve and build interpolator
+    completeness_data = sptcl_comp_sim[original_spt_id]
+    comp_sim_mag_bins = sptcl_comp_sim['magnitude_bins'][:-1]
+    completeness_funct = interp1d(comp_sim_mag_bins, completeness_data, kind='linear')
+
+    # Measure completeness values and corrections for all objects
+    AGN_list['COMPLETENESS_VALUE'] = completeness_funct(AGN_list['I2_APMAG'])
+    AGN_list['COMPLETENESS_CORRECTION'] = 1 / AGN_list['COMPLETENESS_VALUE']
+
+    # Compute the degrees of membership for each object
+    AGN_list['SELECTION_MEMBERSHIP'] = membership_degree(AGN_list['I1_I2'], AGN_list['I1_I2_ERR'],
+                                                         ch1_ch2_color_cut=0.7,
+                                                         color_number_dist=color_probability_distribution,
+                                                         color_bin_extrema=(color_bin_min, color_bin_max))
 
     # Convert the pixel coordinates to RA/Dec coordinates
     agn_coords_skycoord = SkyCoord.from_pixel(AGN_list['x_pixel'], AGN_list['y_pixel'], wcs=w, origin=0, mode='wcs')
@@ -474,17 +608,17 @@ for cluster in cluster_sample:
 # Stack the individual cluster catalogs into a single master catalog
 outAGN = vstack(AGN_cats)
 
-# Reorder the columns in the cluster for ascetic reasons.
-outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OFFSET_RA', 'HALF_OFFSET_DEC',
-                '075_OFFSET_RA', '075_OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
-                'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'RADIAL_SEP_ARCMIN_OFFSET',
-                'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
-                'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
-                'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
+# # Reorder the columns in the cluster for ascetic reasons.
+# outAGN = outAGN['SPT_ID', 'SZ_RA', 'SZ_DEC', 'OFFSET_RA', 'OFFSET_DEC', 'HALF_OFFSET_RA', 'HALF_OFFSET_DEC',
+#                 '075_OFFSET_RA', '075_OFFSET_DEC', 'x_pixel', 'y_pixel', 'RA', 'DEC',
+#                 'REDSHIFT', 'M500', 'R500', 'RADIAL_SEP_ARCMIN', 'RADIAL_SEP_R500', 'RADIAL_SEP_ARCMIN_OFFSET',
+#                 'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
+#                 'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
+#                 'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
 outAGN.write(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}'
-             f'_clseed{cluster_seed}_objseed{object_seed}_fuzzy_selection_no_LF.fits', overwrite=True)
+             f'_clseed{cluster_seed}_objseed{object_seed}_photometry.fits', overwrite=True)
 
 # Print out statistics
 number_of_clusters = len(outAGN.group_by('SPT_ID').groups.keys)
