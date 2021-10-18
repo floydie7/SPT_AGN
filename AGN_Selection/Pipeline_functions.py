@@ -491,16 +491,14 @@ class SelectIRAGN:
 
             # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
             j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=cluster_z, f_lambda_sed=self._sed,
-                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=flamingos_j,
-                                       em_filter=irac_36, cosmo=self._cosmo)
+                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=irac_36,
+                                       em_filter=flamingos_j, cosmo=self._cosmo)
 
             # Store the J-band absolute magnitude in the catalog and update the data structure
             se_catalog['J_ABS_MAG'] = j_abs_mag
             cluster_info['catalog'] = se_catalog
 
-    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, absolute_mag,
-                         ch1_ch2_color_cut,
-                         selection_band='I2_MAG_APER4'):
+    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, selection_band='I2_MAG_APER4'):
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
@@ -523,10 +521,6 @@ class SelectIRAGN:
             Bright-end magnitude threshold for 4.5 um band.
         selection_band_faint_mag : float
             Faint-end magnitude threshold for the specified selection band.
-        absolute_mag : float
-            Absolute magnitude threshold for rest-frame band as used in :method:`cluster_k_correction`.
-        ch1_ch2_color_cut : float
-            [3.6] - [4.5] color cut above which objects will be selected as AGN.
         selection_band : str, optional
             Column name in SExtractor catalog specifying the selection band to use. Defaults to the 4.5 um, 4" aperture
             magnitude photometry.
@@ -551,21 +545,6 @@ class SelectIRAGN:
             # Limits from Eisenhardt+04 for ch1 = 10.0 and ch2 = 9.8
             se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] > ch1_bright_mag]  # [3.6] saturation limit
             se_catalog = se_catalog[se_catalog['I2_MAG_APER4'] > ch2_bright_mag]  # [4.5] saturation limit
-
-            # Calculate the IRAC Ch1 - Ch2 color (4" apertures) and preform the color cut
-            se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] - se_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
-
-            # Using the K-corrections computed earlier and the distance modulus, compute the absolute magnitude of
-            # our AGN
-            if 'k-correction' in cluster_info:
-                dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
-                se_catalog['AGN_ABSOLUTE_MAG'] = se_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info[
-                    'k-correction']
-
-                # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
-                # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
-                # redshift range.
-                se_catalog = se_catalog[se_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
@@ -845,7 +824,7 @@ class SelectIRAGN:
 
     def run_selection(self, included_clusters, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov,
                       ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color, spt_colnames,
-                      output_name, output_colnames, absolute_mag=None):
+                      output_name, output_colnames):
         """
         Executes full selection pipeline using default values.
 
@@ -875,8 +854,6 @@ class SelectIRAGN:
             File name of output catalog for :method:`final_catalogs`
         output_colnames : list_like
             Column names to be kept in output catalog for :method:`final_catalogs`
-        absolute_mag : float, optional
-            Absolute magnitude threshold for :method:`object_selection`
 
         Returns
         -------
@@ -891,8 +868,7 @@ class SelectIRAGN:
         self.object_mask()
         # self.cluster_k_correction()
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
-                              selection_band_faint_mag=selection_band_faint_mag, absolute_mag=absolute_mag,
-                              ch1_ch2_color_cut=ch1_ch2_color)
+                              selection_band_faint_mag=selection_band_faint_mag)
         self.purify_selection(ch1_ch2_color_cut=ch1_ch2_color)
         self.j_band_abs_mag()
         self.catalog_merge(catalog_cols=spt_colnames)
@@ -910,14 +886,17 @@ class SelectIRAGN:
 
 class SelectSDWFS(SelectIRAGN):
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, sdwfs_master_catalog,
-                 completeness_file, field_number_dist_file):
+                 completeness_file, field_number_dist_file, sed, irac_filter, j_band_filter):
         super().__init__(sextractor_cat_dir=sextractor_cat_dir,
                          irac_image_dir=irac_image_dir,
                          region_file_dir=region_file_dir,
                          mask_dir=mask_dir,
                          spt_catalog=sdwfs_master_catalog,
                          completeness_file=completeness_file,
-                         field_number_dist_file=field_number_dist_file)
+                         field_number_dist_file=field_number_dist_file,
+                         sed=sed,
+                         irac_filter=irac_filter,
+                         j_band_filter=j_band_filter)
 
     def object_separations(self):
         """Calculates the angular separations of each object relative to the image center."""
@@ -937,6 +916,39 @@ class SelectSDWFS(SelectIRAGN):
 
             # Update the catalog in the data structure
             cutout_info['catalog'] = catalog
+
+    def j_band_abs_mag(self):
+        """
+        Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function. We will use the
+        observed apparent 3.6 um magnitude and assume a Polleta  QSO2 SED for all objects to K-correct to the absolute
+        FLAMINGOS J-band magnitude.
+
+        Returns
+        -------
+
+        """
+
+        # Load in the IRAC 3.6 um filter as the observed filter
+        irac_36 = SpectralElement.from_file(self._irac_filter, wave_unit=u.um)
+        flamingos_j = SpectralElement.from_file(self._j_band_filter, wave_unit=u.nm)
+
+        # We will use the official IRAC 3.6 um zero-point flux
+        irac_36_zp = 280.9 * u.Jy
+
+        for cluster_id, cluster_info in self._catalog_dictionary.items():
+            # Get the 3.6 um apparent magnitudes and photometric redshifts from the catalog
+            se_catalog = cluster_info['catalog']
+            irac_36_mag = se_catalog['I1_MAG_APER4']
+            galaxy_z = se_catalog['REDSHIFT']
+
+            # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
+            j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=galaxy_z, f_lambda_sed=self._sed,
+                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=irac_36,
+                                       em_filter=flamingos_j, cosmo=self._cosmo)
+
+            # Store the J-band absolute magnitude in the catalog and update the data structure
+            se_catalog['J_ABS_MAG'] = j_abs_mag
+            cluster_info['catalog'] = se_catalog
 
     @classmethod
     def _keyfunct(cls, f):
