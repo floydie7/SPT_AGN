@@ -160,7 +160,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_SDWFS_IRAGN.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name='SDWFS_background_uniform_prior')
+    backend = emcee.backends.HDFBackend(chain_file, name='SDWFS_background_uniform_prior_fixed_selection')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
