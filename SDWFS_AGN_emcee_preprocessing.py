@@ -169,7 +169,7 @@ sdwfs_catalog = Table.read(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/
 # Read in the mask files for each cluster
 sdwfs_catalog_grp = sdwfs_catalog.group_by('CUTOUT_ID')
 mask_dict = {cluster_id: fits.getdata(hcc_prefix + mask_file, header=True) for cluster_id, mask_file
-             in zip(sdwfs_catalog_grp.groups.keys['Cutout_ID'],
+             in zip(sdwfs_catalog_grp.groups.keys['CUTOUT_ID'],
                     sdwfs_catalog_grp['MASK_NAME'][sdwfs_catalog_grp.groups.indices[:-1]])}
 
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
