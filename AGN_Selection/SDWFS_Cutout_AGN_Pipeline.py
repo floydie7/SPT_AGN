@@ -11,6 +11,7 @@ import astropy.units as u
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
+from synphot import SourceSpectrum, units
 
 from AGN_Selection.Pipeline_functions import SelectSDWFS
 
@@ -35,6 +36,10 @@ sdfws_master_cutout_catalog = Table.read(f'{prefix}Data_Repository/Catalogs/Boot
 # SDWFS number count distribution file (for purification)
 sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
                           f'SDWFS_number_count_distribution_normed.json'
+
+# Polletta QSO2 SED used for computing the J-band absolute magnitudes
+polletta_qso2 = SourceSpectrum.from_file(f'{prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
+                                         wave_unit=u.Angstrom, flux_unit=units.FLAM)
 
 # Clusters to manually exclude
 sdwfs_cutouts_to_exclude = {'SDWFS_cutout_026', 'SDWFS_cutout_028', 'SDWFS_cutout_046', 'SDWFS_cutout_049',
@@ -63,6 +68,7 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'SDWFS_ID', 'ALPHA_J2000', '
                        'I1_FLUXERR_APER4', 'I2_FLUXERR_APER4', 'I3_FLUXERR_APER4', 'I4_FLUXERR_APER4',
                        'I1_MAG_APER4', 'I2_MAG_APER4', 'I3_MAG_APER4', 'I4_MAG_APER4',
                        'I1_MAGERR_APER4', 'I2_MAGERR_APER4', 'I3_MAGERR_APER4', 'I4_MAGERR_APER4',
+                       'REDSHIFT', 'J_ABS_MAG',
                        'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'MASK_NAME']
 
 # Run the pipeline.
@@ -74,7 +80,11 @@ sdwfs_selector = SelectSDWFS(sextractor_cat_dir=sdwfs_catalog_directory, irac_im
                              region_file_dir=sdwfs_regions_directory, mask_dir=sdwfs_masks_directory,
                              sdwfs_master_catalog=sdfws_master_cutout_catalog,
                              completeness_file=sdwfs_completeness_sim_results,
-                             field_number_dist_file=sdwfs_number_count_dist)
+                             field_number_dist_file=sdwfs_number_count_dist,
+                             sed=polletta_qso2,
+                             irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
+                             j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+                                           f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
 
 # Run the SDWFS pipeline and return the catalog
 sdwfs_agn_catalog = sdwfs_selector.run_selection(included_clusters=None,
