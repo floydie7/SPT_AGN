@@ -485,7 +485,7 @@ bright_end_45_apmag = 10.45  # Vega mag
 delta_z = 0.05
 
 # Set min and max values for SPT-SZ and SPTpol 100d IRAC color errors
-sptsz_min_color_err, sptsz_max_color_err = 0.002, 0.16
+sptsz_min_color_err, sptsz_max_color_err = 0.02, 0.16
 sptpol_min_color_err, sptpol_max_color_err = 0.05, 0.22
 # </editor-fold>
 
@@ -562,7 +562,8 @@ qso2_sed = SourceSpectrum.from_file('Data_Repository/SEDs/Polletta-SWIRE/QSO2_te
 # To provide the IRAC colors (and object redshifts) for the objects we will need to create a realization of the SDWFS
 # color--redshift plane from which we can later resample to assign values to the objects.
 # Load in the SDWFS color-redshift distributions
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color_redshift_kde.pkl', 'rb') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+          'SDWFS_color_redshift_kde_agn_weighted.pkl', 'rb') as f:
     kde_dict = pickle.load(f)
 SDWFS_kde = kde_dict['SDWFS_kde']
 AGN_kde = kde_dict['AGN_kde']
@@ -587,7 +588,7 @@ for obs_id, off_id in obs_to_off_id.items():
 # Merge the dictionaries together replacing SPTpol/SSDF curves with SPT-SZ/targeted curves if available
 sptcl_comp_sim = {**sptpol_comp_sim, **sptsz_comp_sim}
 
-# For the membership degree calculuation we need to read in the SDWFS color distribution
+# For the membership degree calculation we need to read in the SDWFS color distribution
 # Read in the number count distribution file
 with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
           'SDWFS_number_count_distribution_normed.json', 'r') as f:
@@ -623,7 +624,7 @@ outAGN = vstack(AGN_cats)
 outAGN.write(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}'
-             f'_clseed{cluster_seed}_objseed{object_seed}_photometry.fits', overwrite=True)
+             f'_clseed{cluster_seed}_objseed{object_seed}_photometry_weighted_kde.fits', overwrite=True)
 
 # Print out statistics
 number_of_clusters = len(outAGN.group_by('SPT_ID').groups.keys)
