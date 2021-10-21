@@ -94,18 +94,18 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         r500 = catalog_dict[cluster_id]['r500']
 
         # Luminosity function number
-        # if integral:
-        #     lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
-        # else:
-        #     lum_funct_value = luminosity_function(j_mag, z)
-        #
-        # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+        if integral:
+            lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+        else:
+            lum_funct_value = luminosity_function(j_mag, z)
+
+        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
         # Convert our background surface density from angular units into units of r500^-2
         background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
         # Our amplitude is determined from the cluster data
-        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
+        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
         model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
 
@@ -120,15 +120,15 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         r500 = catalog_dict[cluster_id]['r500']
 
         # Luminosity function number
-        # if integral:
-        #     lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
-        # else:
-        #     lum_funct_value = luminosity_function(j_mag, z)
-        #
-        # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+        if integral:
+            lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+        else:
+            lum_funct_value = luminosity_function(j_mag, z)
+
+        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
         # Our amplitude is determined from the cluster data
-        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
+        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
         model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
 
         return model.value
@@ -173,7 +173,7 @@ def lnlike(param):
 
         # Get the luminosity mesh for integration
         jall = catalog_dict[cluster_id]['jall']
-        jall = None
+        # jall = None
 
         # Create a meshgrid over the two 1D integration meshes
         # r_mesh, j_mesh = np.meshgrid(rall, jall)

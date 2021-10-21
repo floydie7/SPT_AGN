@@ -212,8 +212,8 @@ rescale_fact = 6  # Factor by which we will rescale the mask images to gain high
 sptcl_catalog = Table.read(args.catalog)
 
 # Separate the cluster and background objects
-cluster_only = sptcl_catalog[sptcl_catalog['Cluster_AGN'].astype(bool)]
-background_only = sptcl_catalog[~sptcl_catalog['Cluster_AGN'].astype(bool)]
+cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
+background_only = sptcl_catalog[~sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 
 if not (args.cluster_only or args.background_only):
     # Run on full catalog
