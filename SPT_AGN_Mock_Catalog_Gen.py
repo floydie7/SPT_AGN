@@ -393,7 +393,7 @@ def generate_mock_cluster(cluster):
     cluster_pos_uncert_075 = cluster_pos_uncert * 0.75
     threequarters_offset_SZ_center = cluster_rng.multivariate_normal(
         (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-        np.eye(2) * cluster_pos_uncert_half.to_value(u.deg) ** 2)
+        np.eye(2) * cluster_pos_uncert_075.to_value(u.deg) ** 2)
     threequarters_offset_SZ_center_skycoord = SkyCoord(threequarters_offset_SZ_center[0],
                                                        threequarters_offset_SZ_center[1], unit='deg')
     AGN_list['075_OFFSET_RA'] = threequarters_offset_SZ_center_skycoord.ra
@@ -454,19 +454,20 @@ def generate_mock_cluster(cluster):
 
     return AGN_list
 
+
 start_time = time()
 # <editor-fold desc="Parameter Set up">
 
 # Number of clusters to generate
-n_cl = 249 + 57
+n_cl = 308
 
 # Set parameter values
-theta_true = 2.5  # Amplitude
+theta_true = 3.0  # Amplitude
 eta_true = 4.0  # Redshift slope
 zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
-C_true = 0.376  # Background AGN surface density (in arcmin^-2)
+C_true = 0.333  # Background AGN surface density (in arcmin^-2)
 
 # Set the maximum radius we will generate objects to as a factor of r500
 max_radius = 5.0
@@ -575,7 +576,7 @@ AGN_color_z = AGN_kde.resample(size=2000)
 # Read in the completeness dictionaries
 comp_sim_dir = 'Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim'
 with open(f'{comp_sim_dir}/SPT-SZ_2500d/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as f, \
-     open(f'{comp_sim_dir}/SPTpol_100d/Results/SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as g:
+        open(f'{comp_sim_dir}/SPTpol_100d/Results/SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as g:
     sptsz_comp_sim = json.load(f)
     sptpol_comp_sim = json.load(g)
 
