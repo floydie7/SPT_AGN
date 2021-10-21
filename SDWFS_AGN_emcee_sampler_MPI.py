@@ -77,8 +77,8 @@ def lnlike(param):
         nall = model_rate_opted(param)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_arcmin_maxr * agn_membership)) - completeness_ratio * trap_weight(
-            nall * 2 * np.pi * rall, rall, weight=gpf_all)
+        cluster_lnlike = (np.sum(np.log(ni * radial_arcmin_maxr) * agn_membership)
+                          - completeness_ratio * trap_weight(nall * 2 * np.pi * rall, rall, weight=gpf_all))
         lnlike_list.append(cluster_lnlike)
 
     total_lnlike = np.sum(lnlike_list)
@@ -128,13 +128,10 @@ preprocess_file = os.path.abspath('SDWFS_IRAGN_preprocessing.json')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
-# Go through the catalog dictionary and recasting the cluster's mass and r500 to quantities and recast the radial
-# position and completeness lists to arrays.
+# Go through the catalog dictionary and recast all lists to arrays.
 for cutout_id, cluster_info in catalog_dict.items():
-    catalog_dict[cutout_id]['gpf_rall'] = np.array(cluster_info['gpf_rall'])
-    catalog_dict[cutout_id]['rall'] = np.array(cluster_info['rall'])
-    catalog_dict[cutout_id]['radial_arcmin_maxr'] = np.array(cluster_info['radial_arcmin_maxr'])
-    catalog_dict[cutout_id]['agn_membership_maxr'] = cluster_info['agn_membership_maxr']
+    for data_name, data in filter(lambda x: isinstance(x[1], list), cluster_info.items()):
+        catalog_dict[cutout_id][data_name] = np.array(data)
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -160,7 +157,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_SDWFS_IRAGN.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name='SDWFS_background_uniform_prior_fixed_selection')
+    backend = emcee.backends.HDFBackend(chain_file, name='SDWFS_background_uniform_prior_fixed_selection_fixed_lnlike')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 

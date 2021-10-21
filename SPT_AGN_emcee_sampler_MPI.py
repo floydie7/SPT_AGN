@@ -105,7 +105,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
         # Our amplitude is determined from the cluster data
-        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
+        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
 
         model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
 
@@ -128,7 +128,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
         # Our amplitude is determined from the cluster data
-        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
+        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
         model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
 
         return model.value
@@ -189,8 +189,8 @@ def lnlike(param):
         n_mesh = model_rate_opted(param, cluster_id, rall, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) - completeness_ratio \
-                         * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all)
+        cluster_lnlike = (np.sum(np.log(ni * radial_r500_maxr) * agn_membership)
+                          - completeness_ratio * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
 
         lnlike_list.append(cluster_lnlike)
 
