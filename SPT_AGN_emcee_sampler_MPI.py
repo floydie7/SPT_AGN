@@ -205,8 +205,8 @@ def lnprior(params):
     # Set our hyperparameters
     # h_rc = 0.25
     # h_rc_err = 0.1
-    h_C = 0.376
-    h_C_err = 0.026
+    h_C = 0.333
+    h_C_err = 0.024
 
     # Extract our parameters
     if not (args.cluster_only or args.background_only):
