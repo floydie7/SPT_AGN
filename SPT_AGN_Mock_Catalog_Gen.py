@@ -13,7 +13,7 @@ from time import time
 
 import astropy.units as u
 import numpy as np
-from astro_compendium.utils.k_correction import k_corr_abs_mag, k_corr_ap_mag
+from k_correction import k_corr_abs_mag, k_corr_ap_mag
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
@@ -451,9 +451,10 @@ def generate_mock_cluster(cluster):
                                             np.floor(AGN_list['x_pixel']).astype(int)] == 1)]
 
     # Perform a rejection sampling based on the completeness value for each object.
-    alpha = object_rng.uniform(0, 1, size=len(AGN_list))
-    prob_reject = 1 / AGN_list['COMPLETENESS_CORRECTION']
-    AGN_list = AGN_list[prob_reject >= alpha]
+    if not args.no_rejection:
+        alpha = object_rng.uniform(0, 1, size=len(AGN_list))
+        prob_reject = 1 / AGN_list['COMPLETENESS_CORRECTION']
+        AGN_list = AGN_list[prob_reject >= alpha]
 
     return AGN_list
 
@@ -462,6 +463,8 @@ start_time = time()
 # <editor-fold desc="Parameter Set up">
 parser = ArgumentParser(description='Creates mock catalogs with input parameter set')
 parser.add_argument('theta', help='Amplitude of cluster term', type=float)
+parser.add_argument('--no-rejection', help='Turns off the secondary rejection sampling in the generation',
+                    action='store_true')
 args = parser.parse_args()
 
 # Number of clusters to generate
