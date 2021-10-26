@@ -8,6 +8,7 @@ import glob
 import json
 import pickle
 import re
+from argparse import ArgumentParser
 from time import time
 
 import astropy.units as u
@@ -22,7 +23,9 @@ from scipy import stats
 from scipy.integrate import quad, quad_vec
 from scipy.interpolate import lagrange, interp1d
 from synphot import SpectralElement, SourceSpectrum, units
-from schwimmbad import MultiPool
+from schwimmbad import MPIPool
+
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 
 # Set our cosmology
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
@@ -435,7 +438,7 @@ def generate_mock_cluster(cluster):
 
     # Select the image to mask the data on
     mask_image = full_mask_image
-    AGN_list['MASK_NAME'] = mask_name
+    AGN_list['MASK_NAME'] = mask_name.replace(hcc_prefix, '')
 
     # Remove all objects that are outside of the image bounds
     AGN_list = AGN_list[np.all([0 <= AGN_list['x_pixel'],
@@ -457,12 +460,15 @@ def generate_mock_cluster(cluster):
 
 start_time = time()
 # <editor-fold desc="Parameter Set up">
+parser = ArgumentParser(description='Creates mock catalogs with input parameter set')
+parser.add_argument('theta', help='Amplitude of cluster term', type=float)
+args = parser.parse_args()
 
 # Number of clusters to generate
 n_cl = 308
 
 # Set parameter values
-theta_true = 3.0  # Amplitude
+theta_true = args.theta  # Amplitude
 eta_true = 4.0  # Redshift slope
 zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
@@ -492,11 +498,11 @@ sptpol_min_color_err, sptpol_max_color_err = 0.05, 0.22
 
 # <editor-fold desc="Data Generation">
 # Read in the SPT cluster catalog. We will use real data to source our mock cluster properties.
-Bocquet = Table.read('Data_Repository/Catalogs/SPT/SPT_catalogs/2500d_cluster_sample_Bocquet18.fits')
+Bocquet = Table.read(f'{hcc_prefix}Data_Repository/Catalogs/SPT/SPT_catalogs/2500d_cluster_sample_Bocquet18.fits')
 
 # For the 20 common clusters between SPT-SZ 2500d and SPTpol 100d surveys we want to update the cluster information from
 # the more recent survey. Thus, we will merge the SPT-SZ and SPTpol catalogs together.
-Huang = Table.read('Data_Repository/Catalogs/SPT/SPT_catalogs/sptpol100d_catalog_huang19.fits')
+Huang = Table.read(f'{hcc_prefix}Data_Repository/Catalogs/SPT/SPT_catalogs/sptpol100d_catalog_huang19.fits')
 
 # First we need to rename several columns in the SPTpol 100d catalog to match the format of the SPT-SZ catalog
 Huang.rename_columns(['Dec', 'xi', 'theta_core', 'redshift', 'redshift_unc'],
@@ -517,8 +523,8 @@ SPTcl['M500_lerr'] *= 1e14
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
 # For our masks, we will co-op the masks for the real clusters.
-masks_files = [*glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPT-SZ_2500d/*.fits'),
-               *glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d/*.fits')]
+masks_files = [*glob.glob(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SPT-SZ_2500d/*.fits'),
+               *glob.glob(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d/*.fits')]
 
 # Make sure all the masks have matches in the catalog
 masks_files = [f for f in masks_files if re.search(r'SPT-CLJ\d+-\d+', f).group(0) in SPTcl['SPT_ID']]
@@ -553,17 +559,18 @@ assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_S
 r_dist_r500 = np.linspace(0, max_radius, num=200)
 
 # For the luminosities read in the filters and SED from which we will perform k-corrections on
-irac_45_filter = SpectralElement.from_file('Data_Repository/filter_curves/Spitzer_IRAC/080924ch2trans_full.txt',
+irac_45_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/Spitzer_IRAC/'
+                                           f'080924ch2trans_full.txt',
                                            wave_unit=u.um)
-flamingos_j_filter = SpectralElement.from_file('Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+flamingos_j_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
                                                'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt', wave_unit=u.nm)
-qso2_sed = SourceSpectrum.from_file('Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
+qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
                                     wave_unit=u.Angstrom, flux_unit=units.FLAM)
 
 # To provide the IRAC colors (and object redshifts) for the objects we will need to create a realization of the SDWFS
 # color--redshift plane from which we can later resample to assign values to the objects.
 # Load in the SDWFS color-redshift distributions
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+with open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
           'SDWFS_color_redshift_kde_agn_weighted.pkl', 'rb') as f:
     kde_dict = pickle.load(f)
 SDWFS_kde = kde_dict['SDWFS_kde']
@@ -574,14 +581,14 @@ SDWFS_color_z = SDWFS_kde.resample(size=2000)
 AGN_color_z = AGN_kde.resample(size=2000)
 
 # Read in the completeness dictionaries
-comp_sim_dir = 'Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim'
+comp_sim_dir = f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim'
 with open(f'{comp_sim_dir}/SPT-SZ_2500d/Results/SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as f, \
         open(f'{comp_sim_dir}/SPTpol_100d/Results/SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json', 'r') as g:
     sptsz_comp_sim = json.load(f)
     sptpol_comp_sim = json.load(g)
 
 # Because the SPT-SZ database still uses the original observed SPT IDs we need to update them to the official IDs
-with open('Data_Repository/Project_Data/SPT-IRAGN/Misc/SPT-SZ_observed_to_official_ids.json', 'r') as f:
+with open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Misc/SPT-SZ_observed_to_official_ids.json', 'r') as f:
     obs_to_off_id = json.load(f)
 for obs_id, off_id in obs_to_off_id.items():
     sptsz_comp_sim[off_id] = sptsz_comp_sim.pop(obs_id)
@@ -591,7 +598,7 @@ sptcl_comp_sim = {**sptpol_comp_sim, **sptsz_comp_sim}
 
 # For the membership degree calculation we need to read in the SDWFS color distribution
 # Read in the number count distribution file
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+with open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
           'SDWFS_number_count_distribution_normed.json', 'r') as f:
     field_number_distribution = json.load(f)
 field_number_counts = field_number_distribution['normalized_number_counts']
@@ -609,7 +616,7 @@ params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
 cluster_sample = SPT_data.copy()
 
 # Run the catalog generation in parallel
-with MultiPool() as pool:
+with MPIPool() as pool:
     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
 
 # Stack the individual cluster catalogs into a single master catalog
@@ -622,7 +629,8 @@ outAGN = vstack(AGN_cats)
 #                 'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
 #                 'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
 #                 'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
-outAGN.write(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
+outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
+             f'variable_theta/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}'
              f'_clseed{cluster_seed}_objseed{object_seed}_photometry_weighted_kde.fits', overwrite=True)
