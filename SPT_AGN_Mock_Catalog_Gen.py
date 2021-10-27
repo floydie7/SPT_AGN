@@ -34,7 +34,6 @@ cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 # cluster_seed, object_seed = np.random.default_rng().integers(1024, size=2)
 cluster_seed = 890
 object_seed = 930
-print(f'Cluster Seed: {cluster_seed}\t Object Seed: {object_seed}')
 
 # Set our random number generators
 cluster_rng = np.random.default_rng(cluster_seed)  # Previously 123
@@ -650,7 +649,9 @@ background_objs_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'][~outAGN['CL
                                    * outAGN['SELECTION_MEMBERSHIP'][~outAGN['CLUSTER_AGN'].astype(bool)])
 median_z = np.median(outAGN['REDSHIFT'])
 median_m = np.median(outAGN['M500'])
-print(f"""Mock Catalog
+
+print(f"""Mock Catalog ({"no rejection sampling" if args.no_rejection else "rejection sampling"})
+Cluster Seed: {cluster_seed}\tObject Seed: {object_seed}
 Parameters:\t{params_true + (C_true,)}
 Number of clusters:\t{number_of_clusters}
 Objects Selected:\t{total_number}
