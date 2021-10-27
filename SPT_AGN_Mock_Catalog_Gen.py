@@ -635,8 +635,8 @@ outAGN = vstack(AGN_cats)
 outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
              f'variable_theta/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-             f'_C{C_true:.3f}_maxr{max_radius:.2f}'
-             f'_clseed{cluster_seed}_objseed{object_seed}_photometry_weighted_kde.fits', overwrite=True)
+             f'_C{C_true:.3f}_maxr{max_radius:.2f}_clseed{cluster_seed}_objseed{object_seed}'
+             f'_photometry_weighted_kde{"no_rejection" if args.no_rejection else "rejection"}.fits', overwrite=True)
 
 # Print out statistics
 number_of_clusters = len(outAGN.group_by('SPT_ID').groups.keys)
