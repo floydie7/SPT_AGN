@@ -450,20 +450,42 @@ def generate_mock_cluster(cluster):
                                             np.floor(AGN_list['x_pixel']).astype(int)] == 1)]
 
     # Perform a rejection sampling based on the completeness value for each object.
-    if not args.no_rejection:
-        alpha = object_rng.uniform(0, 1, size=len(AGN_list))
-        prob_reject = 1 / AGN_list['COMPLETENESS_CORRECTION']
-        AGN_list = AGN_list[prob_reject >= alpha]
+    alpha = object_rng.uniform(0, 1, size=len(AGN_list))
+    prob_reject = 1 / AGN_list['COMPLETENESS_CORRECTION']
+    AGN_list['COMPLETENESS_REJECT'] = prob_reject >= alpha
 
     return AGN_list
+
+
+def print_catalog_stats(catalog):
+    number_of_clusters = len(catalog.group_by('SPT_ID').groups.keys)
+    total_number = len(catalog)
+    total_number_comp_corrected = catalog['COMPLETENESS_CORRECTION'].sum()
+    total_number_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'] * catalog['SELECTION_MEMBERSHIP'])
+    number_per_cluster = total_number_corrected / number_of_clusters
+    cluster_objs_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'][catalog['CLUSTER_AGN'].astype(bool)]
+                                    * catalog['SELECTION_MEMBERSHIP'][catalog['CLUSTER_AGN'].astype(bool)])
+    background_objs_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'][~catalog['CLUSTER_AGN'].astype(bool)]
+                                       * catalog['SELECTION_MEMBERSHIP'][~catalog['CLUSTER_AGN'].astype(bool)])
+    median_z = np.median(catalog['REDSHIFT'])
+    median_m = np.median(catalog['M500'])
+
+    print(f"""Parameters:\t{params_true + (C_true,)}
+    Number of clusters:\t{number_of_clusters}
+    Objects Selected:\t{total_number}
+    Objects selected (completeness corrected):\t{total_number_comp_corrected:.2f}
+    Objects Selected (comp + membership corrected):\t{total_number_corrected:.2f}
+    Objects per cluster (comp + mem corrected):\t{number_per_cluster:.2f}
+    Cluster Objects (corrected):\t{cluster_objs_corrected:.2f}
+    Background Objects (corrected):\t{background_objs_corrected:.2f}
+    Median Redshift:\t{median_z:.2f}
+    Median Mass:\t{median_m:.2e}""")
 
 
 start_time = time()
 # <editor-fold desc="Parameter Set up">
 parser = ArgumentParser(description='Creates mock catalogs with input parameter set')
 parser.add_argument('theta', help='Amplitude of cluster term', type=float)
-parser.add_argument('--no-rejection', help='Turns off the secondary rejection sampling in the generation',
-                    action='store_true')
 args = parser.parse_args()
 
 # Number of clusters to generate
@@ -632,36 +654,20 @@ outAGN = vstack(AGN_cats)
 #                 'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
 #                 'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
 outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
-             f'variable_theta/'
+             f'variable_theta/flagged_versions/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}_clseed{cluster_seed}_objseed{object_seed}'
-             f'_photometry_weighted_kde{"no_rejection" if args.no_rejection else "rejection"}.fits', overwrite=True)
+             f'_photometry_weighted_kde_rejection_flag.fits', overwrite=True)
 
 # Print out statistics
-number_of_clusters = len(outAGN.group_by('SPT_ID').groups.keys)
-total_number = len(outAGN)
-total_number_comp_corrected = outAGN['COMPLETENESS_CORRECTION'].sum()
-total_number_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'] * outAGN['SELECTION_MEMBERSHIP'])
-number_per_cluster = total_number_corrected / number_of_clusters
-cluster_objs_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'][outAGN['CLUSTER_AGN'].astype(bool)]
-                                * outAGN['SELECTION_MEMBERSHIP'][outAGN['CLUSTER_AGN'].astype(bool)])
-background_objs_corrected = np.sum(outAGN['COMPLETENESS_CORRECTION'][~outAGN['CLUSTER_AGN'].astype(bool)]
-                                   * outAGN['SELECTION_MEMBERSHIP'][~outAGN['CLUSTER_AGN'].astype(bool)])
-median_z = np.median(outAGN['REDSHIFT'])
-median_m = np.median(outAGN['M500'])
+print(f'Cluster Seed: {cluster_seed}\tObject Seed: {object_seed}')
+print('Mock Catalog (no rejection sampling)')
+print_catalog_stats(outAGN)
 
-print(f"""Mock Catalog ({"no rejection sampling" if args.no_rejection else "rejection sampling"})
-Cluster Seed: {cluster_seed}\tObject Seed: {object_seed}
-Parameters:\t{params_true + (C_true,)}
-Number of clusters:\t{number_of_clusters}
-Objects Selected:\t{total_number}
-Objects selected (completeness corrected):\t{total_number_comp_corrected:.2f}
-Objects Selected (comp + membership corrected):\t{total_number_corrected:.2f}
-Objects per cluster (comp + mem corrected):\t{number_per_cluster:.2f}
-Cluster Objects (corrected):\t{cluster_objs_corrected:.2f}
-Background Objects (corrected):\t{background_objs_corrected:.2f}
-Median Redshift:\t{median_z:.2f}
-Median Mass:\t{median_m:.2e}""")
+print('-----\n')
+outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECTION'].astype(bool)]
+print('Mock Catalog (with rejection sampling)')
+print_catalog_stats(outAGN_rejection)
 
-print('Run time: {:.2f}s'.format(time() - catalog_start_time))
+# print('Run time: {:.2f}s'.format(time() - catalog_start_time))
 print('Total run time: {:.2f}s'.format(time() - start_time))
