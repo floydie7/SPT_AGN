@@ -1,5 +1,5 @@
 """
-theta_trend.py
+SNR_mock_theta_trend.py
 Author: Benjamin Floyd
 
 For the signal-to-noise testing, find the trend of theta vs number of objects in the various catalogs then find the
