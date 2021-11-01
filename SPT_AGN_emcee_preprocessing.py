@@ -196,6 +196,7 @@ def generate_catalog_dict(cluster):
 
 parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
 parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
+parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
 parser_grp = parser.add_mutually_exclusive_group()
 parser_grp.add_argument('--cluster-only', action='store_true',
                         help='Generate a preprocessing file only on cluster objects.')
@@ -210,6 +211,10 @@ rescale_fact = 6  # Factor by which we will rescale the mask images to gain high
 
 # Read in the mock catalog
 sptcl_catalog = Table.read(args.catalog)
+
+# Filter the catalog using the rejection flag
+if args.rejection:
+    sptcl_catalog = sptcl_catalog[sptcl_catalog['COMPLETENESS_REJECT'].astype(bool)]
 
 # Separate the cluster and background objects
 cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
