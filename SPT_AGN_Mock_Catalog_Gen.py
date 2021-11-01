@@ -665,7 +665,7 @@ print('Mock Catalog (no rejection sampling)')
 print_catalog_stats(outAGN)
 
 print('-----\n')
-outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECTION'].astype(bool)]
+outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECT'].astype(bool)]
 print('Mock Catalog (with rejection sampling)')
 print_catalog_stats(outAGN_rejection)
 
