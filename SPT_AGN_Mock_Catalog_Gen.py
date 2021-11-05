@@ -295,7 +295,7 @@ def generate_mock_cluster(cluster):
     cluster_agn_j_abs_mag_final = cluster_agn_j_abs_mag[prob_reject >= alpha]
 
     # To get the cluster AGN we must first filter for objects near the cluster redshift
-    cluster_color_z = AGN_color_z.T[np.abs(AGN_color_z[0] - z_cl) < delta_z]
+    cluster_color_z = AGN_color_z[np.abs(AGN_color_z[0] - z_cl) < delta_z]
 
     # Draw colors and object redshifts from Stern Wedge subsample of the SDWFS the color--redshift plane
     cluster_obj_z, cluster_obj_colors = cluster_rng.choice(cluster_color_z, size=len(cluster_agn_final), replace=True).T
@@ -315,7 +315,7 @@ def generate_mock_cluster(cluster):
     background_agn_j_abs_mag = lf_cl_rv.rvs(size=background_agn_pix.shape[1])
 
     # Draw colors and object redshifts from the full SDWFS color--redshift plane
-    background_obj_z, background_obj_colors = cluster_rng.choice(SDWFS_color_z.T, size=background_agn_pix.shape[1],
+    background_obj_z, background_obj_colors = cluster_rng.choice(SDWFS_color_z, size=background_agn_pix.shape[1],
                                                                  replace=True).T
 
     # Draw color errors from the range of color errors in the survey as before.
@@ -601,8 +601,12 @@ SDWFS_kde = kde_dict['SDWFS_kde']
 AGN_kde = kde_dict['AGN_kde']
 
 # Generate realizations
-SDWFS_color_z = SDWFS_kde.resample(size=2000)
-AGN_color_z = AGN_kde.resample(size=2000)
+SDWFS_color_z = SDWFS_kde.resample(size=2000, seed=object_rng).T
+AGN_color_z = AGN_kde.resample(size=2000, seed=object_rng).T
+
+# Make sure all points in the realizations are valid (The resampling can create negative redshift points)
+SDWFS_color_z = SDWFS_color_z[SDWFS_color_z[0] >= 0.]
+AGN_color_z = AGN_color_z[AGN_color_z[0] >= 0.]
 
 # Read in the completeness dictionaries
 comp_sim_dir = f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim'
