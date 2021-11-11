@@ -174,8 +174,8 @@ ax.hist([mock_25_bkg['I1_I2']], bins=color_bins,
 ax.legend()
 ax.set(title=r'Mock Catalog $\theta=2.5$ (Rejection Sampled)', xlabel='[3.6] - [4.5] (Vega)',
        ylabel='Corrected Number per Cutout')
-# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/'
-#             'LF_variable_flagged_mock_t2.5_color_hist_per_img_compare.pdf')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/'
+            'LF_variable_flagged_mock_t2.5_color_hist_per_img_compare.pdf')
 plt.show()
 
 #%% Explore the trends between the color (or color-error) and the selection membership
@@ -203,4 +203,60 @@ ax.legend()
 ax.set(title=r'Mock Catalog $\theta=2.5$', xlabel='[3.6] - [4.5]', ylabel=r'$\mu_\mathrm{AGN}$', xlim=[0.4, 1.6])
 fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
             'LF_variable_flagged_mock_t2.5_mu_agn_color_mock-only.pdf')
+plt.show()
+
+#%% Explore the 1D distributions on the selection membership and completeness correction
+mu_bins = np.arange(0., 1.0, 0.035)
+comp_corr_bins = np.arange(1.0, 1.5, 0.035)
+mu_comp_bins = np.arange(0., 1.5, 0.035)
+
+fig, ax = plt.subplots()
+ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'], bins=mu_bins, label='Mock (BKG)', color='tab:purple', alpha=0.4)
+ax.hist(mock_25_cl['SELECTION_MEMBERSHIP'], bins=mu_bins, label='Mock (CL)', color='tab:red', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN}$')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_hist_mock-only.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.hist(mock_25_bkg['COMPLETENESS_CORRECTION'], bins=comp_corr_bins, label='Mock (BKG)', color='tab:purple', alpha=0.4)
+ax.hist(mock_25_cl['COMPLETENESS_CORRECTION'], bins=comp_corr_bins, label='Mock (CL)', color='tab:red', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$c$')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_comp_corr_hist_mock-only.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'] * mock_25_bkg['COMPLETENESS_CORRECTION'], bins=mu_comp_bins,
+        label='Mock (BKG)', color='tab:purple', alpha=0.4)
+ax.hist(mock_25_cl['SELECTION_MEMBERSHIP'] * mock_25_cl['COMPLETENESS_CORRECTION'], bins=mu_comp_bins,
+        label='Mock (CL)', color='tab:red', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN} \cdot c$')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_comp_corr_hist_mock-only.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.hist(mock_25['SELECTION_MEMBERSHIP'] * mock_25['COMPLETENESS_CORRECTION'], bins=mu_comp_bins, label='Mock (CL + BKG)',
+        color='tab:green', alpha=0.4)
+ax.hist(spt_iragn['SELECTION_MEMBERSHIP'] * spt_iragn['COMPLETENESS_CORRECTION'], bins=mu_comp_bins, label='SPTcl',
+        color='tab:blue', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN} \cdot c$', ylim=[0, 200])
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_comp_corr_hist_mock_SPTcl.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'] * mock_25_bkg['COMPLETENESS_CORRECTION'], bins=mu_comp_bins,
+        label='Mock (BKG)', color='tab:green', alpha=0.4)
+ax.hist(sdwfs_agn['SELECTION_MEMBERSHIP'] * sdwfs_agn['COMPLETENESS_CORRECTION'], bins=mu_comp_bins, label='SDWFS',
+        color='tab:orange', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN} \cdot c$', ylim=[0, 200])
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_comp_corr_hist_mock_bkg_SDWFS.pdf')
 plt.show()
