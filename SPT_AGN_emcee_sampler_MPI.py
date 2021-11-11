@@ -99,7 +99,10 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         else:
             lum_funct_value = luminosity_function(j_mag, z)
 
-        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+        if args.no_luminosity or args.poisson_only:
+            LF = 1
+        else:
+            LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
         # Convert our background surface density from angular units into units of r500^-2
         background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
@@ -125,7 +128,10 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         else:
             lum_funct_value = luminosity_function(j_mag, z)
 
-        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+        if args.no_luminosity or args.poisson_only:
+            LF = 1
+        else:
+            LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
         # Our amplitude is determined from the cluster data
         a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
@@ -163,7 +169,10 @@ def lnlike(param):
         completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
 
         # Get the AGN sample degrees of membership
-        agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
+        if args.no_selection_membership or args.poisson_only:
+            agn_membership = 1
+        else:
+            agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
 
         # Get the J-band absolute magnitudes
         j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
@@ -179,7 +188,10 @@ def lnlike(param):
         # r_mesh, j_mesh = np.meshgrid(rall, jall)
 
         # Compute the completeness ratio for this cluster
-        completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
+        if args.no_completeness or args.poisson_only:
+            completeness_ratio = 1
+        else:
+            completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr, j_band_abs_mag)
@@ -299,6 +311,13 @@ parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
 parser.add_argument('name', help='Chain name', type=str)
+parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
+parser.add_argument('--no-selection-membership', action='store_true',
+                    help='Deactivate fuzzy degree of membership for AGN selection in likelihood function.')
+parser.add_argument('--no-completeness', action='store_true',
+                    help='Deactivate photometric completeness correction in likelihood function.')
+parser.add_argument('--poisson-only', action='store_true',
+                    help='Use a pure Poisson likelihood function with a model that has no luminosity dependence.')
 parser_grp = parser.add_mutually_exclusive_group()
 parser_grp.add_argument('--cluster-only', action='store_true',
                         help='Sample only on cluster objects.')
