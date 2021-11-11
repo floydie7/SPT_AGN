@@ -384,8 +384,12 @@ with MPIPool() as pool:
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_chains_SPTcl_fuzzy_selection.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}_LF')
+    chain_file = 'emcee_chains_mock_phot_features.h5'
+    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'                                                         
+                                                         f'{"_no-LF" if args.no_luminosity else ""}'
+                                                         f'{"_no-mu" if args.no_selection_membership else ""}'
+                                                         f'{"_no-comp_corr" if args.no_completeness else ""}'
+                                                         f'{"_poisson-only" if args.poisson_only else ""}')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
