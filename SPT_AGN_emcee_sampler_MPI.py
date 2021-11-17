@@ -385,7 +385,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     chain_file = 'emcee_chains_mock_phot_features.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'                                                         
+    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
                                                          f'{"_no-mu" if args.no_selection_membership else ""}'
                                                          f'{"_no-comp_corr" if args.no_completeness else ""}'
