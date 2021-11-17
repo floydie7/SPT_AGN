@@ -6,12 +6,16 @@ Examines the trend of object number counts in mock catalogs with different value
 """
 
 import glob
+import pickle
 import re
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+from matplotlib import gridspec
 from astropy.table import Table
 from matplotlib.lines import Line2D
 from scipy.optimize import curve_fit
+from scipy.stats import gaussian_kde
 
 theta_pattern = re.compile(r'_t(\d+.\d+)_')
 
@@ -20,6 +24,12 @@ spt_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAG
 
 # Read in the SDWFS catalog for comparison
 sdwfs_agn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
+
+# Read in the older mock catalog that used the unweighted SDWFS color--redshift KDE
+unweighted_mock_catalog = Table.read(
+    'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
+    'mock_AGN_catalog_t2.500_e4.00_z-1.00_b1.00_rc0.100_C0.376_maxr5.00_clseed890_objseed930_photometry.fits')
+unweighted_mock_catalog_bkg = unweighted_mock_catalog[~unweighted_mock_catalog['CLUSTER_AGN'].astype(bool)]
 
 # Read in the mock catalogs
 mock_catalogs = {float(theta_pattern.search(f).group(1)): Table.read(f)
@@ -138,12 +148,19 @@ plt.show()
 color_bins = np.arange(0.4, 1.7, 0.1)
 fig, ax = plt.subplots()
 ax.hist(sdwfs_agn['I1_MAG_APER4'] - sdwfs_agn['I2_MAG_APER4'], bins=color_bins,
-        weights=((sdwfs_agn['COMPLETENESS_CORRECTION'] * sdwfs_agn['SELECTION_MEMBERSHIP'])
-                 / len(sdwfs_agn.group_by('CUTOUT_ID').groups.keys)), label='SDWFS Objects')
+        # weights=((sdwfs_agn['COMPLETENESS_CORRECTION'] * sdwfs_agn['SELECTION_MEMBERSHIP'])
+        #          / len(sdwfs_agn.group_by('CUTOUT_ID').groups.keys)),
+        weights=np.full_like(sdwfs_agn['I1_MAG_APER4'] - sdwfs_agn['I2_MAG_APER4'],
+                             1 / len(sdwfs_agn.group_by('CUTOUT_ID').groups.keys)),
+        label='SDWFS Objects')
 ax.hist(mock_25_bkg['I1_I2'], bins=color_bins, alpha=0.5,
-        weights=((mock_25_bkg['COMPLETENESS_CORRECTION'] * mock_25_bkg['SELECTION_MEMBERSHIP'])
-                 / len(mock_25.group_by('SPT_ID').groups.keys)),
+        # weights=((mock_25_bkg['COMPLETENESS_CORRECTION'] * mock_25_bkg['SELECTION_MEMBERSHIP'])
+        #          / len(mock_25.group_by('SPT_ID').groups.keys)),
+        weights=np.full_like(mock_25_bkg['I1_I2'], 1 / len(mock_25.group_by('SPT_ID').groups.keys)),
         label='Mock Background Objects')
+ax.hist(unweighted_mock_catalog_bkg['I1_I2'], bins=color_bins, alpha=0.5, label='Unweighted',
+        weights=np.full_like(unweighted_mock_catalog_bkg['I1_I2'],
+                             1 / len(unweighted_mock_catalog.group_by('SPT_ID').groups.keys)))
 ax.legend()
 ax.set(title=r'Mock Catalog $\theta=2.5$ (Rejection Sampled)', xlabel='[3.6] - [4.5] (Vega)',
        ylabel='Corrected Number per Cutout')
@@ -178,7 +195,7 @@ fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Fina
             'LF_variable_flagged_mock_t2.5_color_hist_per_img_compare.pdf')
 plt.show()
 
-#%% Explore the trends between the color (or color-error) and the selection membership
+# %% Explore the trends between the color (or color-error) and the selection membership
 fig, ax = plt.subplots()
 ax.scatter(spt_iragn['I1_MAG_APER4'] - spt_iragn['I2_MAG_APER4'], spt_iragn['SELECTION_MEMBERSHIP'],
            marker='.', label='SPTcl', alpha=0.2, color='tab:blue')
@@ -205,7 +222,7 @@ fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Fina
             'LF_variable_flagged_mock_t2.5_mu_agn_color_mock-only.pdf')
 plt.show()
 
-#%% Explore the 1D distributions on the selection membership and completeness correction
+# %% Explore the 1D distributions on the selection membership and completeness correction
 mu_bins = np.arange(0., 1.0, 0.035)
 comp_corr_bins = np.arange(1.0, 1.5, 0.035)
 mu_comp_bins = np.arange(0., 1.5, 0.035)
@@ -240,7 +257,8 @@ fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Fina
 plt.show()
 
 fig, ax = plt.subplots()
-ax.hist(mock_25['SELECTION_MEMBERSHIP'] * mock_25['COMPLETENESS_CORRECTION'], bins=mu_comp_bins, label='Mock (CL + BKG)',
+ax.hist(mock_25['SELECTION_MEMBERSHIP'] * mock_25['COMPLETENESS_CORRECTION'], bins=mu_comp_bins,
+        label='Mock (CL + BKG)',
         color='tab:green', alpha=0.4)
 ax.hist(spt_iragn['SELECTION_MEMBERSHIP'] * spt_iragn['COMPLETENESS_CORRECTION'], bins=mu_comp_bins, label='SPTcl',
         color='tab:blue', alpha=0.4)
@@ -252,11 +270,89 @@ plt.show()
 
 fig, ax = plt.subplots()
 ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'] * mock_25_bkg['COMPLETENESS_CORRECTION'], bins=mu_comp_bins,
-        label='Mock (BKG)', color='tab:green', alpha=0.4)
+        label='Mock (BKG)', color='tab:purple', alpha=0.4)
 ax.hist(sdwfs_agn['SELECTION_MEMBERSHIP'] * sdwfs_agn['COMPLETENESS_CORRECTION'], bins=mu_comp_bins, label='SDWFS',
         color='tab:orange', alpha=0.4)
 ax.legend()
 ax.set(xlabel=r'$\mu_\mathrm{AGN} \cdot c$', ylim=[0, 200])
 fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
             'LF_variable_flagged_mock_t2.5_mu_agn_comp_corr_hist_mock_bkg_SDWFS.pdf')
+plt.show()
+
+# %% Compare KDE choices on the selection membership
+fig, ax = plt.subplots()
+ax.hist(sdwfs_agn['SELECTION_MEMBERSHIP'], bins=mu_bins, label='SDWFS', alpha=0.4, color='tab:orange')
+ax.hist(unweighted_mock_catalog_bkg['SELECTION_MEMBERSHIP'], bins=mu_bins, label='Mock (BKG, Unweighted)', alpha=0.4,
+        color='tab:pink')
+ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'], bins=mu_bins, label='Mock (BKG, Weighted)', alpha=0.4, color='tab:purple',
+        histtype='step', lw=2)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN}$', ylim=[0, 200])
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'selection_membership_color-z_kde_comparisons.pdf')
+plt.show()
+
+# %% plot the KDEs
+# Load in the kde objects
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color_redshift_kde.pkl', 'rb') as f, \
+        open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_color_redshift_kde_agn_weighted.pkl',
+             'rb') as g:
+    unweighted_kdes = pickle.load(f)
+    weighted_kdes = pickle.load(g)
+sdwfs_unweighted_kde = unweighted_kdes['SDWFS_kde']
+sdwfs_weighted_kde = weighted_kdes['SDWFS_kde']
+
+# Also read in the full SDWFS catalog and create a KDE on the full color--redshift plane (without selecting
+
+#%% Generate the grid for evaluation
+z_min, z_max = sdwfs_agn['REDSHIFT'].min(), sdwfs_agn['REDSHIFT'].max()
+color_min = np.min(sdwfs_agn['I1_MAG_APER4'] - sdwfs_agn['I2_MAG_APER4'])
+color_max = np.max(sdwfs_agn['I1_MAG_APER4'] - sdwfs_agn['I2_MAG_APER4'])
+z_grid, color_grid = np.mgrid[z_min:z_max:100j, color_min:color_max:100j]
+pos = np.vstack([z_grid.ravel(), color_grid.ravel()])
+
+#%% Evaluate the KDEs
+sdwfs_unweighted = sdwfs_unweighted_kde(pos).T.reshape(z_grid.shape)
+sdwfs_weighted = sdwfs_weighted_kde(pos).T.reshape(z_grid.shape)
+
+#%% plot
+fig, ax = plt.subplots()
+ax.imshow(np.rot90(sdwfs_unweighted), cmap='Blues', extent=[z_min, z_max, color_min, color_max])
+ax.imshow(np.rot90(sdwfs_weighted), cmap='Reds', extent=[z_min, z_max, color_min, color_max])
+ax.axhline(0.7, color='k', ls='--', alpha=0.2)
+ax.set(title='SDWFS KDEs', xlabel='Redshift', ylabel='[3.6] - [4.5]')
+ax.legend(handles=[Patch(color='lightblue', label='Unweighted'), Patch(color='lightcoral', label='Weighted')],
+          frameon=False)
+plt.tight_layout()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'SDWFS_color-z_KDE_comparisons.pdf')
+plt.show()
+
+#%% Plot all four options for weighting KDEs
+sdwfs_data = np.vstack([sdwfs_agn['REDSHIFT'], sdwfs_agn['I1_MAG_APER4'] - sdwfs_agn['I2_MAG_APER4']])
+sdwfs_kde_no_weight = gaussian_kde(sdwfs_data)
+sdwfs_kde_mu_weight = gaussian_kde(sdwfs_data, weights=sdwfs_agn['SELECTION_MEMBERSHIP'])
+sdwfs_kde_comp_weight = gaussian_kde(sdwfs_data, weights=sdwfs_agn['COMPLETENESS_CORRECTION'])
+sdwfs_kde_both_weight = gaussian_kde(sdwfs_data, weights=sdwfs_agn['SELECTION_MEMBERSHIP'] * sdwfs_agn['COMPLETENESS_CORRECTION'])
+
+# Evaluate all KDEs
+sdwfs_no_weight = np.rot90(sdwfs_kde_no_weight(pos).T.reshape(z_grid.shape))
+sdwfs_mu_weight = np.rot90(sdwfs_kde_mu_weight(pos).T.reshape(z_grid.shape))
+sdwfs_comp_weight = np.rot90(sdwfs_kde_comp_weight(pos).T.reshape(z_grid.shape))
+sdwfs_both_weight = np.rot90(sdwfs_kde_both_weight(pos).T.reshape(z_grid.shape))
+
+#%% Plot
+fig, axes = plt.subplots(nrows=2, ncols=2, sharex='col', sharey='row')
+for ax, dat, title, in zip(axes.flatten(), [sdwfs_no_weight, sdwfs_mu_weight, sdwfs_comp_weight, sdwfs_both_weight],
+                           ['No Weighting', 'Selection Membership Only', 'Completeness Correction Only', 'Both']):
+    ax.imshow(dat, cmap='Blues', extent=[z_min, z_max, color_min, color_max])
+    ax.set(title=title)
+for ax in axes[:, 0]:
+    ax.set(ylabel='[3.6] - [4.5]')
+for ax in axes[1, :]:
+    ax.set(xlabel='Redshift')
+fig.suptitle('SDWFS KDE Weightings')
+plt.tight_layout(w_pad=0.25, h_pad=0)
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'SDWFS_KDE_weight_options.pdf')
 plt.show()
