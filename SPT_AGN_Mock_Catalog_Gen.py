@@ -601,8 +601,8 @@ SDWFS_kde = kde_dict['SDWFS_kde']
 AGN_kde = kde_dict['AGN_kde']
 
 # Generate realizations
-SDWFS_color_z = SDWFS_kde.resample(size=2000, seed=object_rng).T
-AGN_color_z = AGN_kde.resample(size=2000, seed=object_rng).T
+SDWFS_color_z = SDWFS_kde.resample(size=2000, seed=cluster_rng).T
+AGN_color_z = AGN_kde.resample(size=2000, seed=cluster_rng).T
 
 # Make sure all points in the realizations are valid (The resampling can create negative redshift points)
 SDWFS_color_z = SDWFS_color_z[SDWFS_color_z[0] >= 0.]
