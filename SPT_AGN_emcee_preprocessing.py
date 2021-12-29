@@ -128,9 +128,16 @@ def generate_catalog_dict(cluster):
     cluster_r500 = cluster['R500'][0] * u.Mpc
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     cluster_completeness = cluster['COMPLETENESS_CORRECTION']
-    cluster_radial_r500 = cluster['RADIAL_SEP_R500']
+    # cluster_radial_r500 = cluster['RADIAL_SEP_R500']
     cluster_agn_membership = cluster['SELECTION_MEMBERSHIP']
     j_band_abs_mag = cluster['J_ABS_MAG']
+
+    # Set up a switch to handle the options for the radial separation
+    radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
+                     0.5: cluster['RADIAL_SEP_R500_HALF_OFFSET'],
+                     0.75: cluster['RADIAL_SEP_R500_075_OFFSET'],
+                     1.0: cluster['RADIAL_SEP_R500_OFFSET']}
+    cluster_radial_r500 = radial_switch[args.miscentering]
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -197,6 +204,8 @@ def generate_catalog_dict(cluster):
 parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
 parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
 parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
+parser.add_argument('--miscentering', help='Factor of miscentering to be used.', choices=[0.5, 0.75, 1.0], default=0.0,
+                    type=float)
 parser_grp = parser.add_mutually_exclusive_group()
 parser_grp.add_argument('--cluster-only', action='store_true',
                         help='Generate a preprocessing file only on cluster objects.')
