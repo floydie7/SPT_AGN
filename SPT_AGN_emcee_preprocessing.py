@@ -95,7 +95,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
              (int(round(np.max(r_pix) - center_pix[0])),
               int(round(np.max(r_pix) - (image.shape[1] - center_pix[0])))))
 
-    # Insure that we are adding a non-negative padding width.
+    # Ensure that we are adding a non-negative padding width.
     width = tuple(tuple([i if i >= 0 else 0 for i in axis]) for axis in width)
 
     large_image = np.pad(image, pad_width=width, mode='constant', constant_values=0)
@@ -229,15 +229,15 @@ if args.rejection:
 cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 background_only = sptcl_catalog[~sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 
-if not (args.cluster_only or args.background_only):
-    # Run on full catalog
-    sptcl_catalog = sptcl_catalog
-elif args.cluster_only:
+if args.cluster_only:
     # Run on only cluster objects
     sptcl_catalog = cluster_only
 elif args.background_only:
     # Run on only background objects
     sptcl_catalog = background_only
+else:
+    # Run on full catalog
+    sptcl_catalog = sptcl_catalog
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
