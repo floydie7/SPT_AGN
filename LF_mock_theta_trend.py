@@ -279,6 +279,43 @@ fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Fina
             'LF_variable_flagged_mock_t2.5_mu_agn_comp_corr_hist_mock_bkg_SDWFS.pdf')
 plt.show()
 
+#%% Compare the mock catalog to the real data but only for selection membership
+mu_bins = np.arange(0., 1.0, 0.035)
+
+fig, ax = plt.subplots()
+ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'], bins=mu_bins,
+        label='Mock (BKG)', color='tab:purple', alpha=0.4)
+ax.hist(mock_25_cl['SELECTION_MEMBERSHIP'], bins=mu_bins,
+        label='Mock (CL)', color='tab:red', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN}$')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_hist_mock-only.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.hist(mock_25['SELECTION_MEMBERSHIP'], bins=mu_bins,
+        label='Mock (CL + BKG)',
+        color='tab:green', alpha=0.4)
+ax.hist(spt_iragn['SELECTION_MEMBERSHIP'], bins=mu_bins, label='SPTcl',
+        color='tab:blue', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN}$', ylim=[0, 200])
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_hist_mock_SPTcl.pdf')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.hist(mock_25_bkg['SELECTION_MEMBERSHIP'], bins=mu_bins,
+        label='Mock (BKG)', color='tab:purple', alpha=0.4)
+ax.hist(sdwfs_agn['SELECTION_MEMBERSHIP'], bins=mu_bins, label='SDWFS',
+        color='tab:orange', alpha=0.4)
+ax.legend()
+ax.set(xlabel=r'$\mu_\mathrm{AGN}$', ylim=[0, 200])
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/LF_tests/Catalog_comparisons/'
+            'LF_variable_flagged_mock_t2.5_mu_agn_hist_mock_bkg_SDWFS.pdf')
+plt.show()
+
 # %% Compare KDE choices on the selection membership
 fig, ax = plt.subplots()
 ax.hist(sdwfs_agn['SELECTION_MEMBERSHIP'], bins=mu_bins, label='SDWFS', alpha=0.4, color='tab:orange')

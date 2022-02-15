@@ -27,14 +27,16 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 #            'emcee_chains_Mock_fuzzy_selection.h5'
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
 #            'emcee_chains_mock_phot_features.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
+#            'emcee_chains_mock_miscentering.h5'
 filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
-           'emcee_chains_mock_miscentering.h5'
+           'emcee_chains_mock_miscentering_0-sigma_only.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'fixed_C' in chain_name]
+# chain_names = [chain_name for chain_name in chain_names if 'fixed_C' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
