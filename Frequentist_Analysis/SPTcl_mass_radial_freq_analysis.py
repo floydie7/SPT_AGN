@@ -6,17 +6,15 @@ Recreates the old frequentist analysis using the updated dataset SPTcl (SPT-SZ +
 radial trends binned by redshift.
 """
 
-import glob
-import re
-
+import astropy.units as u
+import matplotlib.pyplot as plt
 import numpy as np
+from astro_compendium.utils.small_poisson import small_poisson
+from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, vstack
 from astropy.wcs import WCS
-import astropy.units as u
 from scipy import stats
-from astro_compendium.utils.small_poisson import small_poisson
-from astropy.cosmology import FlatLambdaCDM
 
 SDWFS_SURF_DEN = 0.333 / u.arcmin ** 2
 SDWFS_SURF_DEN_ERR = 0.024 / u.arcmin ** 2
@@ -58,7 +56,7 @@ sptcl['logM500'] = np.log10(sptcl['M500'])
 cluster_log_mass = np.array([cluster['logM500'][0] for cluster in sptcl.group_by('SPT_ID').groups])
 
 # Set the three binnings
-z_bin_edges = np.array([np.median(sptcl['REDSHIFT']), 1.4, sptcl['REDSHIFT'].max()])
+z_bin_edges = np.array([np.median(sptcl['REDSHIFT']), 1.4])
 logM_bin_edges = stats.mstats.mquantiles(cluster_log_mass, [0., 0.25, 0.5, 0.75, 1.])
 radial_bin_edges = stats.mstats.mquantiles(sptcl['RADIAL_SEP_R500'], [0., 0.25, 0.5, 0.75, 1.])
 
@@ -96,7 +94,7 @@ def surface_density():
         .to(u.Mpc / u.arcmin) ** 2
     # Accumulate the surface densities and errors (lower, upper)
     surf_den.append(cluster_surf_den_mpc2)
-    surf_den_err.append((cluster_surf_den_lerr_mpc2.value, cluster_surf_den_uerr_mpc2.value))
+    surf_den_err.append((cluster_surf_den_uerr_mpc2.value, cluster_surf_den_lerr_mpc2.value))
 
 
 for i, cluster_z_grp in enumerate(z_binned_clusters.groups):
@@ -115,23 +113,24 @@ for i, cluster_z_grp in enumerate(z_binned_clusters.groups):
         surf_den, surf_den_err = [], []
         if len(cluster_z_m_grp) == 0:
             m_bin_surf_den.append(np.nan)
-            m_bin_surf_den_err.append(np.nan)
+            m_bin_surf_den_err.append((np.nan, np.nan))
         else:
             for cluster in cluster_z_m_grp.group_by('SPT_ID').groups:
                 surface_density()
 
             # Compute the mean surface density for the mass bin
-            bin_mean_surf_den = np.nanmean(u.Quantity(surf_den))
+            bin_mean_surf_den = np.nanmean(u.Quantity(surf_den).value)
 
             # Combine the surface density errors in quadrature divided by the number of clusters contributing to the bin
             bin_surf_den_err = np.sqrt(np.nansum(np.power(surf_den_err, 2), axis=0)) / len(surf_den_err) / u.Mpc ** 2
 
             # Accumulate the bin surface density and errors
             m_bin_surf_den.append(bin_mean_surf_den)
-            m_bin_surf_den_err.append(bin_surf_den_err)
+            m_bin_surf_den_err.append(bin_surf_den_err.value)
 
     # Stow the results for plotting later
-    z_binned_results[i] = {'mass_bin_surf_den': m_bin_surf_den, 'mass_bin_surf_den_err': m_bin_surf_den_err}
+    z_binned_results[i] = {'mass_bin_surf_den': m_bin_surf_den,
+                           'mass_bin_surf_den_err': np.array(m_bin_surf_den_err).T}
 
     # Iterate over the radial bins
     r_bin_surf_den, r_bin_surf_den_err = [], []
@@ -139,13 +138,13 @@ for i, cluster_z_grp in enumerate(z_binned_clusters.groups):
         surf_den, surf_den_err = [], []
         if len(cluster_z_r_grp) == 0:
             r_bin_surf_den.append(np.nan)
-            r_bin_surf_den_err.append(np.nan)
+            r_bin_surf_den_err.append((np.nan, np.nan))
         else:
             for cluster in cluster_z_r_grp.group_by('SPT_ID').groups:
                 surface_density()
 
             # Compute the mean surface density for the mass bin
-            bin_mean_surf_den = np.nanmean(u.Quantity(surf_den))
+            bin_mean_surf_den = np.nanmean(u.Quantity(surf_den).value)
 
             # Combine the surface density errors in quadrature divided by the number of clusters contributing to the bin
             bin_surf_den_err = np.sqrt(np.nansum(np.power(surf_den_err, 2), axis=0)) / len(
@@ -153,7 +152,41 @@ for i, cluster_z_grp in enumerate(z_binned_clusters.groups):
 
             # Accumulate the bin surface density and errors
             r_bin_surf_den.append(bin_mean_surf_den)
-            r_bin_surf_den_err.append(bin_surf_den_err)
+            r_bin_surf_den_err.append(bin_surf_den_err.value)
 
-    z_binned_results[i].update({'radial_bin_surf_den': r_bin_surf_den, 'radial_bin_surf_den_err': r_bin_surf_den_err})
+    z_binned_results[i].update({'radial_bin_surf_den': r_bin_surf_den,
+                                'radial_bin_surf_den_err': np.array(r_bin_surf_den_err).T})
 
+# Get bin centers
+logM_bin_centers = logM_bin_edges[:-1] + np.diff(logM_bin_edges) / 2
+radial_bin_centers = radial_bin_edges[:-1] + np.diff(radial_bin_edges) / 2
+
+# Plot the figures
+fig, (m_ax, r_ax) = plt.subplots(ncols=2, sharey='row', figsize=(8.5, 4.8))
+# for idx, z_bin in z_binned_results.items():
+#     m_ax.errorbar(logM_bin_centers, z_bin['mass_bin_surf_den'], yerr=z_bin['mass_bin_surf_den_err'], fmt='.',
+#                   label=rf'{z_bin_edges[idx]:.2f} $\leq z \leq$ {z_bin_edges[idx + 1]:.2f}' if idx < len(z_bin_edges)-1
+#                   else rf'$z \geq$ {z_bin_edges[-1]:.2f}')
+#     r_ax.errorbar(radial_bin_centers, z_bin['radial_bin_surf_den'], yerr=z_bin['radial_bin_surf_den_err'], fmt='.',
+#                   label=rf'{z_bin_edges[idx]:.2f} $\leq z \leq$ {z_bin_edges[idx + 1]:.2f}' if idx < len(z_bin_edges)-1
+#                   else rf'$z \geq$ {z_bin_edges[-1]:.2f}')
+m_ax.errorbar(logM_bin_centers - 0.015, z_binned_results[0]['mass_bin_surf_den'], yerr=z_binned_results[0]['mass_bin_surf_den_err'], fmt='.',
+                  label=r'$0 \leq z \leq 0.67$')
+m_ax.errorbar(logM_bin_centers, z_binned_results[1]['mass_bin_surf_den'], yerr=z_binned_results[1]['mass_bin_surf_den_err'], fmt='.',
+                  label=r'$0.67 \leq z \leq 1.40$')
+m_ax.errorbar(logM_bin_centers + 0.015, z_binned_results[2]['mass_bin_surf_den'], yerr=z_binned_results[2]['mass_bin_surf_den_err'], fmt='.',
+                  label=r'$z \geq 1.40$')
+
+r_ax.errorbar(radial_bin_centers - 0.03, z_binned_results[0]['radial_bin_surf_den'], yerr=z_binned_results[0]['radial_bin_surf_den_err'], fmt='.',
+                  label=r'$0 \leq z \leq 0.67$')
+r_ax.errorbar(radial_bin_centers, z_binned_results[1]['radial_bin_surf_den'], yerr=z_binned_results[1]['radial_bin_surf_den_err'], fmt='.',
+                  label=r'$0.67 \leq z \leq 1.40$')
+r_ax.errorbar(radial_bin_centers + 0.03, z_binned_results[2]['radial_bin_surf_den'], yerr=z_binned_results[2]['radial_bin_surf_den_err'], fmt='.',
+                  label=r'$z \geq 1.40$')
+
+m_ax.set(xlabel=r'$\log M_{500} [M_\odot]$', ylabel=r'$\Sigma_\mathrm{AGN}$ per cluster [Mpc$^{-2}$] (Field Corrected)',
+         ylim=[-3, 3])
+r_ax.set(xlabel=r'$r_{500}$')
+r_ax.legend()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Binned_Analysis/Plots/SPTcl_combined_freq_plot.pdf')
+plt.show()
