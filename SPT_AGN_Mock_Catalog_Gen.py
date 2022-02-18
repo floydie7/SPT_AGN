@@ -294,11 +294,11 @@ def generate_mock_cluster(cluster):
     cluster_agn_final_pix = np.array(cluster_agn_final.to_pixel(w, origin=0, mode='wcs'))
     cluster_agn_j_abs_mag_final = cluster_agn_j_abs_mag[prob_reject >= alpha]
 
-    # To get the cluster AGN we must first filter for objects near the cluster redshift
-    cluster_color_z = AGN_color_z[np.abs(AGN_color_z[0] - z_cl) < delta_z]
-
-    # Draw colors and object redshifts from Stern Wedge subsample of the SDWFS the color--redshift plane
-    cluster_obj_z, cluster_obj_colors = cluster_rng.choice(cluster_color_z, size=len(cluster_agn_final), replace=True).T
+    # # To get the cluster AGN we must first filter for objects near the cluster redshift
+    # cluster_color_z = AGN_color_z[np.abs(AGN_color_z[0] - z_cl) < delta_z]
+    #
+    # # Draw colors and object redshifts from Stern Wedge subsample of the SDWFS the color--redshift plane
+    # cluster_obj_z, cluster_obj_colors = cluster_rng.choice(cluster_color_z, size=len(cluster_agn_final), replace=True).T
 
     # Draw color errors from the range of color errors in the survey. NB this may change in the future
     min_color_err = sptpol_min_color_err if spt_field == 'SPTPOL_100d' else sptsz_min_color_err
@@ -314,9 +314,9 @@ def generate_mock_cluster(cluster):
     # it assumes all objects are at the cluster's redshift. We will mimic this here by using the LF at `z_cl`.
     background_agn_j_abs_mag = lf_cl_rv.rvs(size=background_agn_pix.shape[1])
 
-    # Draw colors and object redshifts from the full SDWFS color--redshift plane
-    background_obj_z, background_obj_colors = cluster_rng.choice(SDWFS_color_z, size=background_agn_pix.shape[1],
-                                                                 replace=True).T
+    # # Draw colors and object redshifts from the full SDWFS color--redshift plane
+    # background_obj_z, background_obj_colors = cluster_rng.choice(SDWFS_color_z, size=background_agn_pix.shape[1],
+    #                                                              replace=True).T
 
     # Draw color errors from the range of color errors in the survey as before.
     background_obj_color_errors = object_rng.uniform(min_color_err, max_color_err, size=background_agn_pix.shape[1])
@@ -324,9 +324,9 @@ def generate_mock_cluster(cluster):
     # Concatenate the cluster sources with the background sources
     line_of_sight_agn_pix = np.hstack((cluster_agn_final_pix, background_agn_pix))
     line_of_sight_agn_j_abs_mag = np.hstack((cluster_agn_j_abs_mag_final, background_agn_j_abs_mag))
-    line_of_sight_agn_colors = np.hstack((cluster_obj_colors, background_obj_colors))
+    # line_of_sight_agn_colors = np.hstack((cluster_obj_colors, background_obj_colors))
     line_of_sight_agn_color_errors = np.hstack((cluster_obj_color_errors, background_obj_color_errors))
-    line_of_sight_agn_obj_z = np.hstack((cluster_obj_z, background_obj_z))
+    # line_of_sight_agn_obj_z = np.hstack((cluster_obj_z, background_obj_z))
 
     # Create a flag indicating if the object is a cluster member
     line_of_sight_agn_cluster_mem = np.hstack((np.full_like(cluster_agn_final_pix[0], True),
@@ -335,10 +335,11 @@ def generate_mock_cluster(cluster):
     # Set up the table of objects
     AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1],
                       line_of_sight_agn_j_abs_mag,
-                      line_of_sight_agn_colors, line_of_sight_agn_color_errors,
-                      line_of_sight_agn_obj_z,
+                      # line_of_sight_agn_colors,
+                      line_of_sight_agn_color_errors,
+                      # line_of_sight_agn_obj_z,
                       line_of_sight_agn_cluster_mem],
-                     names=['x_pixel', 'y_pixel', 'J_ABS_MAG', 'I1_I2', 'I1_I2_ERR', 'OBJ_REDSHIFT', 'CLUSTER_AGN'])
+                     names=['x_pixel', 'y_pixel', 'J_ABS_MAG', 'I1_I2_ERR', 'CLUSTER_AGN'])
     AGN_list['SPT_ID'] = spt_id
     AGN_list['SZ_RA'] = SZ_center['SZ_RA']
     AGN_list['SZ_DEC'] = SZ_center['SZ_DEC']
@@ -346,10 +347,18 @@ def generate_mock_cluster(cluster):
     AGN_list['REDSHIFT'] = z_cl
     AGN_list['R500'] = r500_cl
 
+    # Compute 3.6 um apparent magnitudes from the J-band absolute magnitudes
+    AGN_list['I1_APMAG'] = k_corr_ap_mag(AGN_list['J_ABS_MAG'], z=z_cl, f_lambda_sed=qso2_sed,
+                                         zero_pt_obs_band=280.9 * u.Jy, zero_pt_em_band='vega',
+                                         obs_filter=irac_36_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
+
     # Compute 4.5 um apparent magnitudes from the J-band absolute magnitudes
     AGN_list['I2_APMAG'] = k_corr_ap_mag(AGN_list['J_ABS_MAG'], z=z_cl, f_lambda_sed=qso2_sed,
                                          zero_pt_obs_band=179.7 * u.Jy, zero_pt_em_band='vega',
                                          obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
+
+    # Using the sampled magnitudes, calculate the colors
+    AGN_list['I1_I2'] = AGN_list['I1_APMAG'] - AGN_list['I2_APMAG']
 
     # Pull up the cluster's completeness curve and build interpolator
     completeness_data = sptcl_comp_sim[original_spt_id]
@@ -583,9 +592,10 @@ assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_S
 r_dist_r500 = np.linspace(0, max_radius, num=200)
 
 # For the luminosities read in the filters and SED from which we will perform k-corrections on
+irac_36_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/Spitzer_IRAC/'
+                                           f'080924ch2trans_full.txt', wave_unit=u.um)
 irac_45_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/Spitzer_IRAC/'
-                                           f'080924ch2trans_full.txt',
-                                           wave_unit=u.um)
+                                           f'080924ch2trans_full.txt', wave_unit=u.um)
 flamingos_j_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
                                                'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt', wave_unit=u.nm)
 qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
