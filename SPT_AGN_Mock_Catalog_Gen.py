@@ -25,7 +25,8 @@ from scipy.interpolate import lagrange, interp1d
 from synphot import SpectralElement, SourceSpectrum, units
 from schwimmbad import MPIPool
 
-hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+hcc_prefix = ''
 
 # Set our cosmology
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
@@ -601,22 +602,22 @@ flamingos_j_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/fil
 qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
                                     wave_unit=u.Angstrom, flux_unit=units.FLAM)
 
-# To provide the IRAC colors (and object redshifts) for the objects we will need to create a realization of the SDWFS
-# color--redshift plane from which we can later resample to assign values to the objects.
-# Load in the SDWFS color-redshift distributions
-with open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
-          'SDWFS_color_redshift_kde_agn_weighted.pkl', 'rb') as f:
-    kde_dict = pickle.load(f)
-SDWFS_kde = kde_dict['SDWFS_kde']
-AGN_kde = kde_dict['AGN_kde']
+# # To provide the IRAC colors (and object redshifts) for the objects we will need to create a realization of the SDWFS
+# # color--redshift plane from which we can later resample to assign values to the objects.
+# # Load in the SDWFS color-redshift distributions
+# with open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+#           'SDWFS_color_redshift_kde_agn_weighted.pkl', 'rb') as f:
+#     kde_dict = pickle.load(f)
+# SDWFS_kde = kde_dict['SDWFS_kde']
+# AGN_kde = kde_dict['AGN_kde']
 
-# Generate realizations
-SDWFS_color_z = SDWFS_kde.resample(size=2000, seed=cluster_rng).T
-AGN_color_z = AGN_kde.resample(size=2000, seed=cluster_rng).T
-
-# Make sure all points in the realizations are valid (The resampling can create negative redshift points)
-SDWFS_color_z = SDWFS_color_z[SDWFS_color_z[0] >= 0.]
-AGN_color_z = AGN_color_z[AGN_color_z[0] >= 0.]
+# # Generate realizations
+# SDWFS_color_z = SDWFS_kde.resample(size=2000, seed=cluster_rng).T
+# AGN_color_z = AGN_kde.resample(size=2000, seed=cluster_rng).T
+#
+# # Make sure all points in the realizations are valid (The resampling can create negative redshift points)
+# SDWFS_color_z = SDWFS_color_z[SDWFS_color_z[0] >= 0.]
+# AGN_color_z = AGN_color_z[AGN_color_z[0] >= 0.]
 
 # Read in the completeness dictionaries
 comp_sim_dir = f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim'
