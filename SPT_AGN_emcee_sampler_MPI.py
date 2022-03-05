@@ -84,69 +84,45 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         A surface density profile of objects as a function of radius and luminosity.
     """
 
-    if not (args.cluster_only or args.background_only):
-        # Unpack our parameters
-        theta, eta, zeta, beta, rc, C = params
-
-        # Extract our data from the catalog dictionary
-        z = catalog_dict[cluster_id]['redshift']
-        m = catalog_dict[cluster_id]['m500']
-        r500 = catalog_dict[cluster_id]['r500']
-
-        # Luminosity function number
-        # if integral:
-        #     lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
-        # else:
-        #     lum_funct_value = luminosity_function(j_mag, z)
-        #
-        # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
-
-        # Convert our background surface density from angular units into units of r500^-2
-        background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
-
-        # Our amplitude is determined from the cluster data
-        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
-
-        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
-
-        return model.value
-    elif args.cluster_only:
+    if args.cluster_only:
         # Unpack our parameters
         theta, eta, zeta, beta, rc = params
-
-        # Extract our data from the catalog dictionary
-        z = catalog_dict[cluster_id]['redshift']
-        m = catalog_dict[cluster_id]['m500']
-        r500 = catalog_dict[cluster_id]['r500']
-
-        # Luminosity function number
-        # if integral:
-        #     lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
-        # else:
-        #     lum_funct_value = luminosity_function(j_mag, z)
-        #
-        # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
-
-        # Our amplitude is determined from the cluster data
-        a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
-        model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
-
-        return model.value
+        # Set background parameter to 0
+        C = 0
     elif args.background_only:
         # Unpack our parameters
         C, = params
+        # Set all other parameters to 0
+        theta, eta, zeta, beta, rc = [0.]*5
+    else:
+        # Unpack our parameters
+        theta, eta, zeta, beta, rc, C = params
 
-        # Extract our data from the catalog dictionary
-        z = catalog_dict[cluster_id]['redshift']
-        m = catalog_dict[cluster_id]['m500']
-        r500 = catalog_dict[cluster_id]['r500']
+    # Extract our data from the catalog dictionary
+    z = catalog_dict[cluster_id]['redshift']
+    m = catalog_dict[cluster_id]['m500']
+    r500 = catalog_dict[cluster_id]['r500']
 
-        # Convert our background surface density from angular units into units of r500^-2
-        background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+    # Luminosity function number
+    if integral:
+        lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+    else:
+        lum_funct_value = luminosity_function(j_mag, z)
 
-        model = background
+    if args.no_luminosity or args.poisson_only:
+        LF = 1
+    else:
+        LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
-        return model.value
+    # Convert our background surface density from angular units into units of r500^-2
+    background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
+
+    # Our amplitude is determined from the cluster data
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
+
+    model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
+
+    return model.value
 
 
 # Set our log-likelihood
@@ -163,7 +139,10 @@ def lnlike(param):
         completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
 
         # Get the AGN sample degrees of membership
-        agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
+        if args.no_selection_membership or args.poisson_only:
+            agn_membership = 1
+        else:
+            agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
 
         # Get the J-band absolute magnitudes
         j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
@@ -175,11 +154,11 @@ def lnlike(param):
         jall = catalog_dict[cluster_id]['jall']
         jall = None
 
-        # Create a meshgrid over the two 1D integration meshes
-        # r_mesh, j_mesh = np.meshgrid(rall, jall)
-
         # Compute the completeness ratio for this cluster
-        completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
+        if args.no_completeness or args.poisson_only:
+            completeness_ratio = 1.
+        else:
+            completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, radial_r500_maxr, j_band_abs_mag)
@@ -189,8 +168,8 @@ def lnlike(param):
         n_mesh = model_rate_opted(param, cluster_id, rall, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = np.sum(np.log(ni * radial_r500_maxr * agn_membership)) - completeness_ratio \
-                         * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all)
+        cluster_lnlike = (np.sum(np.log(ni * radial_r500_maxr) * agn_membership)
+                          - completeness_ratio * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
 
         lnlike_list.append(cluster_lnlike)
 
@@ -205,80 +184,49 @@ def lnprior(params):
     # Set our hyperparameters
     # h_rc = 0.25
     # h_rc_err = 0.1
-    h_C = 0.376
-    h_C_err = 0.026
+    h_C = 0.333
+    h_C_err = 0.024
 
     # Extract our parameters
-    if not (args.cluster_only or args.background_only):
-        theta, eta, zeta, beta, rc, C = params
-
-        # Define all priors
-        if (0.0 <= theta <= np.inf and
-                -6. <= eta <= 6. and
-                -3. <= zeta <= 3. and
-                -3. <= beta <= 3. and
-                0.05 <= rc <= 0.5 and
-                0.0 <= C < np.inf):
-            theta_lnprior = 0.0
-            eta_lnprior = 0.0
-            beta_lnprior = 0.0
-            zeta_lnprior = 0.0
-            # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
-            rc_lnprior = 0.0
-            C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
-            # C_lnprior = 0.0
-        else:
-            theta_lnprior = -np.inf
-            eta_lnprior = -np.inf
-            beta_lnprior = -np.inf
-            zeta_lnprior = -np.inf
-            rc_lnprior = -np.inf
-            C_lnprior = -np.inf
-
-        # Assuming all parameters are independent the joint log-prior is
-        total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
-
-        return total_lnprior
-    elif args.cluster_only:
+    if args.cluster_only:
         theta, eta, zeta, beta, rc = params
-
-        # Define all priors
-        if (0.0 <= theta <= np.inf and
-                -6. <= eta <= 6. and
-                -3. <= zeta <= 3. and
-                -3. <= beta <= 3. and
-                0.05 <= rc <= 0.5):
-            theta_lnprior = 0.0
-            eta_lnprior = 0.0
-            beta_lnprior = 0.0
-            zeta_lnprior = 0.0
-            # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
-            rc_lnprior = 0.0
-        else:
-            theta_lnprior = -np.inf
-            eta_lnprior = -np.inf
-            beta_lnprior = -np.inf
-            zeta_lnprior = -np.inf
-            rc_lnprior = -np.inf
-
-        # Assuming all parameters are independent the joint log-prior is
-        total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior
-
-        return total_lnprior
+        C = 0.
     elif args.background_only:
         C, = params
+        theta, eta, zeta, beta, rc = [0.]*5
+    else:
+        theta, eta, zeta, beta, rc, C = params
 
-        # Define all priors
-        if 0.0 <= C < np.inf:
-            C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
-            # C_lnprior = 0.0
+    # Define all priors
+    if (0.0 <= theta <= np.inf and
+            -6. <= eta <= 6. and
+            -3. <= zeta <= 3. and
+            -3. <= beta <= 3. and
+            0.05 <= rc <= 0.5 and
+            0.0 <= C < np.inf):
+        theta_lnprior = 0.0
+        eta_lnprior = 0.0
+        beta_lnprior = 0.0
+        zeta_lnprior = 0.0
+        # rc_lnprior = -0.5 * np.sum((rc - h_rc) ** 2 / h_rc_err ** 2)
+        rc_lnprior = 0.0
+        if args.cluster_only:
+            C_lnprior = 0.
         else:
-            C_lnprior = -np.inf
+            C_lnprior = -0.5 * np.sum((C - h_C) ** 2 / h_C_err ** 2)
+        # C_lnprior = 0.0
+    else:
+        theta_lnprior = -np.inf
+        eta_lnprior = -np.inf
+        beta_lnprior = -np.inf
+        zeta_lnprior = -np.inf
+        rc_lnprior = -np.inf
+        C_lnprior = -np.inf
 
-        # Assuming all parameters are independent the joint log-prior is
-        total_lnprior = C_lnprior
+    # Assuming all parameters are independent the joint log-prior is
+    total_lnprior = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + C_lnprior
 
-        return total_lnprior
+    return total_lnprior
 
 
 # Define the log-posterior probability
@@ -299,6 +247,13 @@ parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
 parser.add_argument('name', help='Chain name', type=str)
+parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
+parser.add_argument('--no-selection-membership', action='store_true',
+                    help='Deactivate fuzzy degree of membership for AGN selection in likelihood function.')
+parser.add_argument('--no-completeness', action='store_true',
+                    help='Deactivate photometric completeness correction in likelihood function.')
+parser.add_argument('--poisson-only', action='store_true',
+                    help='Use a pure Poisson likelihood function with a model that has no luminosity dependence.')
 parser_grp = parser.add_mutually_exclusive_group()
 parser_grp.add_argument('--cluster-only', action='store_true',
                         help='Sample only on cluster objects.')
@@ -321,28 +276,14 @@ for cluster_id, cluster_info in catalog_dict.items():
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-if not (args.cluster_only or args.background_only):
-    ndim = 6
-elif args.cluster_only:
-    ndim = 5
-elif args.background_only:
-    ndim = 1
+ndim = 5 if args.cluster_only else (1 if args.background_only else 6)
 nwalkers = 6 * ndim
 
 # Also, set the number of steps to run the sampler for.
 nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-if not (args.cluster_only or args.background_only):
-    pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
-                       np.random.uniform(-1., 6.),  # eta
-                       np.random.uniform(-3., 3.),  # zeta
-                       np.random.uniform(-3., 3.),  # beta
-                       np.random.normal(loc=0.1, scale=6e-3),  # rc
-                       np.random.normal(loc=0.371, scale=0.157)  # C
-                       ]
-                      for i in range(nwalkers)])
-elif args.cluster_only:
+if args.cluster_only:
     pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
                        np.random.uniform(-1., 6.),  # eta
                        np.random.uniform(-3., 3.),  # zeta
@@ -352,6 +293,15 @@ elif args.cluster_only:
                       for i in range(nwalkers)])
 elif args.background_only:
     pos0 = np.vstack([[np.random.normal(loc=0.371, scale=0.157)  # C
+                       ]
+                      for i in range(nwalkers)])
+else:
+    pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
+                       np.random.uniform(-1., 6.),  # eta
+                       np.random.uniform(-3., 3.),  # zeta
+                       np.random.uniform(-3., 3.),  # beta
+                       np.random.normal(loc=0.1, scale=6e-3),  # rc
+                       np.random.normal(loc=0.371, scale=0.157)  # C
                        ]
                       for i in range(nwalkers)])
 
@@ -365,8 +315,12 @@ with MPIPool() as pool:
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = 'emcee_chains_SPTcl_fuzzy_selection.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}_LF')
+    chain_file = 'emcee_chains_mock_phot_features.h5'
+    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
+                                                         f'{"_no-LF" if args.no_luminosity else ""}'
+                                                         f'{"_no-mu" if args.no_selection_membership else ""}'
+                                                         f'{"_no-comp_corr" if args.no_completeness else ""}'
+                                                         f'{"_poisson-only" if args.poisson_only else ""}')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
@@ -395,45 +349,8 @@ with MPIPool() as pool:
         converged = np.all(tau * 100 < sampler.iteration)
         converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
         if converged:
-            print('Chains have converged. Ending sampler early.\nIteration stopped at: {}'.format(sampler.iteration))
+            print(f'Chains have converged. Ending sampler early.\nIteration stopped at: {sampler.iteration}')
             break
         old_tau = tau
 
-print('Sampler runtime: {:.2f} s'.format(time() - start_sampler_time))
-
-# # Get the chain from the sampler
-# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-# # labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
-# # truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
-#
-# try:
-#     # Calculate the autocorrelation time
-#     tau_est = sampler.get_autocorr_time()
-#
-#     tau = np.mean(tau_est)
-#
-#     # Remove the burn-in. We'll use ~3x the autocorrelation time
-#     burnin = int(3 * tau)
-#
-#     # We will also thin by roughly half our autocorrelation time
-#     thinning = int(tau // 2)
-#
-# except emcee.autocorr.AutocorrError:
-#     tau_est = sampler.get_autocorr_time(quiet=True)
-#     tau = np.mean(tau_est)
-#
-#     burnin = int(sampler.iteration // 3)
-#     thinning = 1
-#
-# flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
-#
-# for i in range(ndim):
-#     mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-#     q = np.diff(mcmc)
-#     print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f}'
-#           .format(labels=labels[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
-#
-# print('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.acceptance_fraction)))
-#
-# # Get estimate of autocorrelation time
-# print('Autocorrelation time: {:.1f}'.format(tau))
+print(f'Sampler runtime: {time() - start_sampler_time:.2f} s')
