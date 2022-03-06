@@ -152,7 +152,6 @@ def lnlike(param):
 
         # Get the luminosity mesh for integration
         jall = catalog_dict[cluster_id]['jall']
-        jall = None
 
         # Compute the completeness ratio for this cluster
         if args.no_completeness or args.poisson_only:

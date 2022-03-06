@@ -13,7 +13,7 @@ from time import time
 
 import astropy.units as u
 import numpy as np
-from astro_compendium.utils.k_correction import k_corr_abs_mag
+from k_correction import k_corr_abs_mag
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
@@ -427,12 +427,12 @@ SZ_theta_beam = 1.2 * u.arcmin
 faint_end_45_apmag = 17.46  # Vega mag
 bright_end_45_apmag = 10.45  # Vega mag
 
-# Set cluster redshift error for color--redshift selection
-delta_z = 0.05
-
-# Set min and max values for SPT-SZ and SPTpol 100d IRAC color errors
-sptsz_min_color_err, sptsz_max_color_err = 0.02, 0.16
-sptpol_min_color_err, sptpol_max_color_err = 0.05, 0.22
+# # Set cluster redshift error for color--redshift selection
+# delta_z = 0.05
+#
+# # Set min and max values for SPT-SZ and SPTpol 100d IRAC color errors
+# sptsz_min_color_err, sptsz_max_color_err = 0.02, 0.16
+# sptpol_min_color_err, sptpol_max_color_err = 0.05, 0.22
 # </editor-fold>
 
 # <editor-fold desc="Data Generation">
@@ -501,6 +501,9 @@ real_data = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAG
 real_data.keep_columns(['COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG'])
 real_data = Table(object_rng.permutation(real_data), names=real_data.colnames)
 
+# Select only real data objects with high (>0.5) selection membership
+real_data = real_data[real_data['SELECTION_MEMBERSHIP'] >= 0.5]
+
 # Set up grid of radial positions to place AGN on (normalized by r500)
 r_dist_r500 = np.linspace(0, max_radius, num=200)
 
@@ -566,9 +569,12 @@ params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
 
 cluster_sample = SPT_data.copy()
 
-# Run the catalog generation in parallel
-with MPIPool() as pool:
-    AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
+# # Run the catalog generation in parallel
+# with MPIPool() as pool:
+#     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
+AGN_cats = []
+for cluster in cluster_sample:
+    AGN_cats.append(generate_mock_cluster(cluster))
 
 # Stack the individual cluster catalogs into a single master catalog
 outAGN = vstack(AGN_cats)
@@ -584,7 +590,7 @@ outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Cata
              f'variable_theta/flagged_versions/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}_clseed{cluster_seed}_objseed{object_seed}'
-             f'_photometry_weighted_kde_rejection_flag.fits', overwrite=True)
+             f'_semiempirical.fits', overwrite=True)
 
 # Print out statistics
 print(f'Cluster Seed: {cluster_seed}\tObject Seed: {object_seed}')
