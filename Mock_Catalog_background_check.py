@@ -53,5 +53,8 @@ std_surf_den = np.std(surface_den)
 print(f'{mean_surf_den = :.3f} +- {std_surf_den = :.4f}')
 print(describe(surface_den))
 
-plt.hist(surface_den, bins='auto')
-plt.show()
+fig, ax = plt.subplots()
+ax.hist(surface_den, bins='auto')
+ax.set(xlabel=r'$C$ [arcmin$^{-2}$]', ylabel='N')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
+            'background_check_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333_semiempirical.pdf')
