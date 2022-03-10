@@ -26,12 +26,25 @@ cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 def rebin(a, rebin_factor, wcs=None):
     """
-    Rebin an image to the new shape and adjust the WCS
-    :param a: Original image
-    :param rebin_factor: rebinning scale factor
-    :param wcs: Optional, original WCS object
-    :return:
+    Rebin an image to the new shape and adjust the WCS.
+
+    Parameters
+    ----------
+    a: array-like
+        Original image.
+    rebin_factor: float
+        Rebinning scale factor.
+    wcs: WCS, optional
+        Original image world coordinate system (WCS) object.
+
+    Returns
+    -------
+    new_image: np.ndarray
+        The rebinned image.
+    new_wcs: WCS
+        The updated WCS for the rebinned object.
     """
+
     newshape = tuple(rebin_factor * x for x in a.shape)
 
     assert len(a.shape) == len(newshape)
@@ -62,6 +75,30 @@ def rebin(a, rebin_factor, wcs=None):
 
 
 def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
+    """
+    Computes the fraction of unmasked pixels within an annulus.
+
+    Parameters
+    ----------
+    r: array-like
+        Radial axis on which we will form our annuli.
+    z: float
+        Redshift of the cluster.
+    r500: u.Quantity
+        R500 radius of the cluster.
+    center: Table
+        Center of the cluster.
+    cluster_id: str
+        Cluster name/ID.
+    rescale_factor: float, optional
+        Factor by which to rescale the original image. This rebins the pixels of the image into pixels of size
+        `old_pix / rescale_factor`.
+
+    Returns
+    -------
+    good_pix_frac: list of float
+        A list of the fractional area within each annulus that is unmasked.
+    """
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
@@ -121,7 +158,9 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
     return good_pix_frac
 
 
-def generate_catalog_dict(cluster):
+def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
+    """Parses the input catalog into a dictionary structure containing only the necessary information for the MCMC
+    sampler."""
     cluster_id = cluster['SPT_ID'][0]
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
