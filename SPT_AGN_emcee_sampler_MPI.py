@@ -92,9 +92,9 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     elif args.background_only:
         # Unpack our parameters
         C, = params
-        # Set all other parameters to 0 (or 1 in the case of rc)
-        theta, eta, zeta, beta = [0.]*4
-        rc = 1.
+        # Set all other parameters to neutral values
+        theta, eta, zeta = [0.]*3
+        beta, rc = 1/3., 1.
     else:
         # Unpack our parameters
         theta, eta, zeta, beta, rc, C = params
