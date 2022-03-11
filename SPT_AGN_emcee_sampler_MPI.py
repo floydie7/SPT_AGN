@@ -193,7 +193,9 @@ def lnprior(params):
         C = 0.
     elif args.background_only:
         C, = params
-        theta, eta, zeta, beta, rc = [0.]*5
+        # Set other parameters to values that will pass the priors.
+        theta, eta, zeta, beta = [0.]*4
+        rc = 0.1  # Cannot be 0., min rc = 0.05
     else:
         theta, eta, zeta, beta, rc, C = params
 
