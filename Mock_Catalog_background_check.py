@@ -14,35 +14,29 @@ from scipy.stats import describe
 import matplotlib.pyplot as plt
 
 # Read in the mock catalog
-mock_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
-                          'variable_theta/flagged_versions/mock_AGN_catalog_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333'
-                          '_maxr5.00_clseed890_objseed930_semiempirical.fits')
+# mock_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
+#                           'variable_theta/flagged_versions/mock_AGN_catalog_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333'
+#                           '_maxr5.00_clseed890_objseed930_semiempirical.fits')
+mock_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
 
 surface_den = []
-for cluster in mock_catalog.group_by('SPT_ID').groups:
+for cluster in mock_catalog.group_by('CUTOUT_ID').groups:
     # Get the mask file
     mask_img, mask_hdr = fits.getdata(cluster['MASK_NAME'][0], header=True)
 
     # Get the WCS and from that, the pixel scale
     mask_wcs = WCS(mask_hdr)
-    try:
-        assert mask_wcs.pixel_scale_matrix[0, 1] == 0.
-        pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * mask_wcs.wcs.cunit[1]
-    except AssertionError:
-        # The pixel scale matrix is not diagonal. We need to diagonalize first
-        cd = mask_wcs.pixel_scale_matrix
-        _, eig_vec = np.linalg.eig(cd)
-        cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-        pix_scale = cd_diag[1, 1] * mask_wcs.wcs.cunit[1]
+    pix_scale = mask_wcs.proj_plane_pixel_scales()[0]
 
     # Isolate background galaxies
-    background = cluster[~cluster['CLUSTER_AGN'].astype(bool)]
+    # background = cluster[~cluster['CUTOUT_ID'].astype(bool)]
 
     # Compute the area in the image (in arcmin^2)
     area = (mask_img.sum() * pix_scale * pix_scale).to_value(u.arcmin**2)
 
     # Get the weighted number of objects
-    num_of_gals = np.sum(background['COMPLETENESS_CORRECTION'] * background['SELECTION_MEMBERSHIP'])
+    # num_of_gals = np.sum(background['COMPLETENESS_CORRECTION'] * background['SELECTION_MEMBERSHIP'])
+    num_of_gals = np.sum(cluster['COMPLETENESS_CORRECTION'] * cluster['SELECTION_MEMBERSHIP'])
 
     # Store the surface density
     surface_den.append(num_of_gals / area)
@@ -53,8 +47,19 @@ std_surf_den = np.std(surface_den)
 print(f'{mean_surf_den = :.3f} +- {std_surf_den = :.4f}')
 print(describe(surface_den))
 
+q = np.quantile(surface_den, [0.16, 0.5, 0.84])
+print(q)
+
+bins = np.arange(0.0, 0.8, 0.05)
 fig, ax = plt.subplots()
-ax.hist(surface_den, bins='auto')
+ax.hist(surface_den, bins='auto', histtype='step', color='k')
+ax.axvline(x=q[1], color='k', ls='--', label=r'Median $C$')
+ax.axvline(x=q[0], color='k', ls='--', alpha=0.4)
+ax.axvline(x=q[2], color='k', ls='--', alpha=0.4)
+# ax.axvline(x=0.333, color='tab:blue', label=r'Input $C$')
+# ax.axvline(x=0.296, color='tab:red', label='MCMC fit')
+ax.legend()
 ax.set(xlabel=r'$C$ [arcmin$^{-2}$]', ylabel='N')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
-            'background_check_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333_semiempirical.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
+#             'background_check_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333_semiempirical.pdf')
+plt.show()

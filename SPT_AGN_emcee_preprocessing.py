@@ -184,15 +184,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     # Find the appropriate mesh step size. Since we work in r500 units we convert the pixel scale from angle/pix to
     # r500/pix.
     mask_wcs = WCS(mask_dict[cluster_id][1])
-    try:
-        assert mask_wcs.pixel_scale_matrix[0, 1] == 0.
-        pix_scale = mask_wcs.pixel_scale_matrix[1, 1] * mask_wcs.wcs.cunit[1]
-    except AssertionError:
-        # The pixel scale matrix is not diagonal. We need to diagonalize first
-        cd = mask_wcs.pixel_scale_matrix
-        _, eig_vec = np.linalg.eig(cd)
-        cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-        pix_scale = cd_diag[1, 1] * mask_wcs.wcs.cunit[1]
+    pix_scale = mask_wcs.proj_plane_pixel_scales()[0]
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / pix_scale.unit) / cluster_r500
 
     # Generate a radial integration mesh.

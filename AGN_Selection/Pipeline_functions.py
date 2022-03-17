@@ -328,14 +328,8 @@ class SelectIRAGN:
             # Read in the WCS from the coverage mask we made earlier.
             w = WCS(header)
 
-            try:
-                assert w.pixel_scale_matrix[0, 1] == 0.
-                pix_scale = (w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
-            except AssertionError:
-                cd = w.pixel_scale_matrix
-                _, eig_vec = np.linalg.eig(cd)
-                cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-                pix_scale = (cd_diag[1, 1] * w.wcs.cunit[1]).to(u.arcsec).value
+            # Get the pixel scale from the WCS
+            pix_scale = w.proj_plane_pixel_scales()[0]
 
             # Open the regions file and get the lines containing the shapes.
             with open(region_file, 'r') as region:

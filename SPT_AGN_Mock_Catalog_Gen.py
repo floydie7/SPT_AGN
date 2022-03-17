@@ -147,7 +147,7 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
     # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
@@ -169,20 +169,13 @@ def generate_mock_cluster(cluster):
 
     # Read in the mask's WCS for the pixel scale and making SkyCoords
     w = WCS(mask_name)
-    try:
-        assert w.pixel_scale_matrix[0, 1] == 0.
-        mask_pixel_scale = w.pixel_scale_matrix[1, 1] * w.wcs.cunit[1]
-    except AssertionError:
-        cd = w.pixel_scale_matrix
-        _, eig_vec = np.linalg.eig(cd)
-        cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-        mask_pixel_scale = cd_diag[1, 1] * w.wcs.cunit[1]
+    mask_pixel_scale = w.proj_plane_pixel_scales()[0]
 
     # Also get the mask's image size (- 1 to account for the shift between index and length)
     mask_size_x = w.pixel_shape[0] - 1
     mask_size_y = w.pixel_shape[1] - 1
-    mask_radius_pix = (
-            max_radius * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(u.deg / u.Mpc) / mask_pixel_scale).value
+    mask_radius_pix = (max_radius * r500_cl * cosmo.arcsec_per_kpc_proper(z_cl).to(mask_pixel_scale.unit / u.Mpc)
+                       / mask_pixel_scale).value
 
     # Find the SZ Center for the cluster we are mimicking
     SZ_center_skycoord = SkyCoord(SZ_center['SZ_RA'], SZ_center['SZ_DEC'], unit='deg')
@@ -264,7 +257,7 @@ def generate_mock_cluster(cluster):
     line_of_sight_selection_mem = np.hstack((cluster_agn_selection_membership, background_agn_selection_membership))
     line_of_sight_j_abs_mag = np.hstack((cluster_agn_j_abs_mag, background_agn_j_abs_mag))
     line_of_sight_cluster_agn_flag = np.concatenate((np.full_like(cluster_agn_final_pix[0], True),
-                                              np.full_like(background_agn_pix[0], False)))
+                                                     np.full_like(background_agn_pix[0], False)))
 
     # Set up the table of objects
     AGN_list = Table([line_of_sight_agn_pix[0], line_of_sight_agn_pix[1],
