@@ -31,9 +31,9 @@ hcc_prefix = ''
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 # Generate a random seed
-# cluster_seed, object_seed = np.random.default_rng().integers(1024, size=2)
-cluster_seed = 890
-object_seed = 930
+cluster_seed, object_seed = np.random.default_rng().integers(1024, size=2)
+# cluster_seed = 890
+# object_seed = 930
 
 # Set our random number generators
 cluster_rng = np.random.default_rng(cluster_seed)  # Previously 123
