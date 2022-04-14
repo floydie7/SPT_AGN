@@ -66,9 +66,11 @@ for catalog in catalog_list:
     ax.axvline(x=q[0], color='k', ls='--', alpha=0.4)
     ax.axvline(x=q[2], color='k', ls='--', alpha=0.4)
     ax.axvline(x=0.333, color='tab:blue', label=r'Input $C$')
-    # ax.axvline(x=0.296, color='tab:red', label='MCMC fit')
+    if (int(clseed) == 890) and (int(objseed) == 930):
+        ax.axvline(x=0.296, color='tab:red', label='MCMC fit')
     ax.legend()
     ax.set(xlabel=r'$C$ [arcmin$^{-2}$]', ylabel='N')
-    # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
-    #             'background_check_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333_semiempirical.pdf')
+    fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
+                'background_check_t2.600_e4.00_z-1.00_b1.00_rc0.100_C0.333'
+                f'_clseed{clseed}_objseed{objseed}_semiempirical.pdf')
     plt.show()

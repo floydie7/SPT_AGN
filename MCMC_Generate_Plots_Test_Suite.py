@@ -31,7 +31,8 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
 #            'emcee_chains_mock_miscentering.h5'
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
 #            'emcee_chains_mock_miscentering_0-sigma_only.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_mock_mock_rework.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_mock_mock_rework.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_semiemperical_rng_seeds.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
