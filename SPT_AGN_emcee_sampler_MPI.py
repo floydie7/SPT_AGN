@@ -119,7 +119,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
 
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + background
 
