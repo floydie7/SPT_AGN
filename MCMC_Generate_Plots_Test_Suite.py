@@ -38,7 +38,7 @@ filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Fina
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-# chain_names = [chain_name for chain_name in chain_names if 'no-LF' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'rerun2' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
