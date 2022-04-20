@@ -107,15 +107,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
         image, image_wcs = rebin(image, rescale_factor, wcs=image_wcs)
 
     # From the WCS get the pixel scale
-    try:
-        assert image_wcs.pixel_scale_matrix[0, 1] == 0.
-        pix_scale = image_wcs.pixel_scale_matrix[1, 1] * image_wcs.wcs.cunit[1]
-    except AssertionError:
-        # The pixel scale matrix is not diagonal. We need to diagonalize first
-        cd = image_wcs.pixel_scale_matrix
-        _, eig_vec = np.linalg.eig(cd)
-        cd_diag = np.linalg.multi_dot([np.linalg.inv(eig_vec), cd, eig_vec])
-        pix_scale = cd_diag[1, 1] * image_wcs.wcs.cunit[1]
+    pix_scale = image_wcs.proj_plane_pixel_scales()[0]
 
     # Convert our center into pixel units
     center_pix = image_wcs.wcs_world2pix(center['SZ_RA'], center['SZ_DEC'], 0)
