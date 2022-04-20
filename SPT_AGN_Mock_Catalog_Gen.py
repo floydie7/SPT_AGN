@@ -31,9 +31,9 @@ hcc_prefix = ''
 cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 # Generate a random seed
-cluster_seed, object_seed = np.random.default_rng().integers(1024, size=2)
-# cluster_seed = 890
-# object_seed = 930
+# cluster_seed, object_seed = np.random.default_rng().integers(1024, size=2)
+cluster_seed = 890
+object_seed = 930
 
 # Set our random number generators
 cluster_rng = np.random.default_rng(cluster_seed)  # Previously 123
@@ -579,18 +579,18 @@ outAGN = vstack(AGN_cats)
 #                 'RADIAL_SEP_R500_OFFSET', 'RADIAL_SEP_ARCMIN_HALF_OFFSET', 'RADIAL_SEP_R500_HALF_OFFSET',
 #                 'RADIAL_SEP_ARCMIN_075_OFFSET', 'RADIAL_SEP_R500_075_OFFSET', 'MASK_NAME',
 #                 'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'J_ABS_MAG', 'Cluster_AGN']
-outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/LF_tests/'
-             f'variable_theta/flagged_versions/'
+outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_tests/'
+             f'semiempirical_mock/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}_clseed{cluster_seed}_objseed{object_seed}'
              f'_semiempirical.fits', overwrite=True)
 
 # Print out statistics
 print(f'Cluster Seed: {cluster_seed}\tObject Seed: {object_seed}')
-print('Mock Catalog (no rejection sampling)')
-print_catalog_stats(outAGN)
-
-print('-----\n')
+# print('Mock Catalog (no rejection sampling)')
+# print_catalog_stats(outAGN)
+#
+# print('-----\n')
 outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECT'].astype(bool)]
 print('Mock Catalog (with rejection sampling)')
 print_catalog_stats(outAGN_rejection)
