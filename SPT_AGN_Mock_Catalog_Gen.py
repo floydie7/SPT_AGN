@@ -144,10 +144,10 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
     theta, eta, zeta, beta, rc = params
 
     # Luminosity function number
-    # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
+    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
@@ -583,7 +583,7 @@ outAGN.write(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Cata
              f'semiempirical_mock/'
              f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
              f'_C{C_true:.3f}_maxr{max_radius:.2f}_clseed{cluster_seed}_objseed{object_seed}'
-             f'_semiempirical.fits', overwrite=True)
+             f'_semiempirical_withLF.fits', overwrite=True)
 
 # Print out statistics
 print(f'Cluster Seed: {cluster_seed}\tObject Seed: {object_seed}')
