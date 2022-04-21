@@ -4,36 +4,42 @@ Author: Benjamin Floyd
 
 Creates a nice corner plot using Sebastian Bocquet's pyGTC package.
 """
+import re
 
 import emcee
 import h5py
 import numpy as np
 from pygtc import plotGTC
+from matplotlib import rc
 
 max_radius = 5.0  # Maximum integration radius in r500 units
 
 # Our file storing the full test suite
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/emcee_chains_Mock_fuzzy_selection.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/emcee_chains_Mock_fuzzy_selection.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_clseed890_objseed930.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'fuzzy_selection_mod_like_sum_term_only' in chain_name]
+# chain_names = [chain_name for chain_name in chain_names if 'fuzzy_selection_mod_like_sum_term_only' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'cluster+background_LF-off' in chain_name]
 
 # Select our chain
 chain_name = chain_names[0]
 sampler = emcee.backends.HDFBackend(filename, name=chain_name)
 
 # theta_true, eta_true, zeta_true = np.array(re.findall(r'-?\d+(?:\.\d+)', chain_name), dtype=np.float)
-theta_true = 2.5
-eta_true = 1.2
-zeta_true = -1.0
-beta_true = 1.0  # Radial slope
-rc_true = 0.1  # Core radius (in r500)
-C_true = 0.371  # Background AGN surface density
+# theta_true = 2.5
+# eta_true = 1.2
+# zeta_true = -1.0
+# beta_true = 1.0  # Radial slope
+# rc_true = 0.1  # Core radius (in r500)
+# C_true = 0.371  # Background AGN surface density
 labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
-truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
+# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
+truths = np.array(re.findall(r'-?\d+\.\d+', chain_name), dtype=float)
+theta_true, eta_true, zeta_true, beta_true, rc_true, C_true = truths
 
 # Get the chain from the sampler
 samples = sampler.get_chain()
@@ -77,8 +83,10 @@ str_list.append('Mean acceptance fraction: {:.2f}'.format(np.mean(sampler.accept
 text_str = '\n'.join(str_list)
 
 # Make the plot
-plotName = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/' \
-           f'pretty_corner_fuzzy_selection_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}.pdf'
+# plotName = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/' \
+#            f'pretty_corner_fuzzy_selection_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}.pdf'
+plotName = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/' \
+           f'pretty_corner_clseed890_objseed930_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}_LF-off.pdf'
 fig = plotGTC(flat_samples, paramNames=labels,
               figureSize='APJ_page',
               plotName=plotName,
