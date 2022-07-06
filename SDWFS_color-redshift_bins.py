@@ -63,5 +63,30 @@ non_agn_binned, _, _ = np.histogram2d(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'
 # Combine the two histograms for the total counts
 total_binned = agn_binned + non_agn_binned
 
-# Give bins as a fraction of AGN purity
-agn_purity = agn_binned / total_binned
+# Give bins as a fraction of AGN purity (sanitized to avoid NaNs).
+agn_purity = np.nan_to_num(agn_binned / total_binned, nan=0.0)
+
+
+def purity_to_color_threshold(thresh: float) -> np.array:
+    # Find the first occurance of the purity beging above threshold
+    purity_idx = np.argmax(agn_purity >= thresh, axis=1)
+
+    # Give the corresponding color to the purity threshold
+    color_threshold = color_bins[purity_idx]
+    return color_threshold
+
+
+# Compute the color thresholds for 90% and 80% purities
+purity_90_color = purity_to_color_threshold(thresh=0.9)
+purity_80_color = purity_to_color_threshold(thresh=0.8)
+
+# Report stats
+for i, (color_90, color_80) in enumerate(zip(purity_90_color, purity_80_color)):
+    if i >= len(z_bins):
+        print(f'In redshift bin: z < {z_bins[i]:.1f}:\n'
+              f'\tColor corresponding to 90% purity: {color_90:.2f}\n'
+              f'\tColor corresponding to 80% purity: {color_80:.2f}')
+    else:
+        print(f'In redshift bin: {z_bins[i]:.1f} < z < {z_bins[i+1]:.1f}:\n'
+              f'\tColor corresponding to 90% purity: {color_90:.2f}\n'
+              f'\tColor corresponding to 80% purity: {color_80:.2f}')
