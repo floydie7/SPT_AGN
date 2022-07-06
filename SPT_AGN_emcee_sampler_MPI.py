@@ -118,6 +118,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     # Convert our background surface density from angular units into units of r500^-2
     background = (C / u.arcmin ** 2) * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2
 
+    # TODO: Review and potentially remove
     # For the integrated model, we need to apply the luminosity integration factor to the background term as well.
     if integral and not args.no_luminosity:
         background *= j_mag[-1] - j_mag[0]
