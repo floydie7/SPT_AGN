@@ -5,6 +5,7 @@ Author: Benjamin Floyd
 Creates histograms from the color-redshift plane using SDWFS data.
 """
 
+import json
 import numpy as np
 from astropy.table import Table, join
 
@@ -80,9 +81,14 @@ def purity_to_color_threshold(thresh: float) -> np.array:
 purity_90_color = purity_to_color_threshold(thresh=0.9)
 purity_80_color = purity_to_color_threshold(thresh=0.8)
 
+# Export data to file
+data = {z_bin: color_90 for z_bin, color_90 in zip(z_bins[:-1], purity_90_color)}
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_AGN_purity_90_color-redshift.json', 'w') as f:
+    json.dump(data, f)
+
 # Report stats
 for i, (color_90, color_80) in enumerate(zip(purity_90_color, purity_80_color)):
-    if i >= len(z_bins):
+    if i + 1 >= len(z_bins):
         print(f'In redshift bin: z < {z_bins[i]:.1f}:\n'
               f'\tColor corresponding to 90% purity: {color_90:.2f}\n'
               f'\tColor corresponding to 80% purity: {color_80:.2f}')
