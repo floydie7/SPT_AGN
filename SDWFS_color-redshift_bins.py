@@ -56,7 +56,7 @@ stern_complement_ids = list(set(sdwfs_cat['ID']) - set(stern_AGN['ID']))
 non_agn = sdwfs_cat[np.in1d(sdwfs_cat['ID'], stern_complement_ids)]
 
 # Bin the data in both redshift and color
-z_bins = np.arange(0., 1.7, 0.2)
+z_bins = np.arange(0., 1.75+0.4, 0.2)
 color_bins = np.arange(0., 1.5, 0.05)
 agn_binned, _, _ = np.histogram2d(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], bins=(z_bins, color_bins))
 non_agn_binned, _, _ = np.histogram2d(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], bins=(z_bins, color_bins))
@@ -96,3 +96,13 @@ for i, (color_90, color_80) in enumerate(zip(purity_90_color, purity_80_color)):
         print(f'In redshift bin: {z_bins[i]:.1f} < z < {z_bins[i+1]:.1f}:\n'
               f'\tColor corresponding to 90% purity: {color_90:.2f}\n'
               f'\tColor corresponding to 80% purity: {color_80:.2f}')
+
+#% make plot
+z_bin_centers = np.diff(z_bins) + z_bins[:-1]
+fig, ax = plt.subplots()
+ax.hexbin(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.7, 0., 1.5), cmap='Blues', bins='log', mincnt=1)
+ax.hexbin(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.7, 0., 1.5), cmap='Reds', bins='log', mincnt=1, alpha=0.5)
+ax.step(z_bins[:-1], purity_90_color, color='k', lw=2)
+ax.axhline(y=0.7, color='k', lw=2, ls='--')
+ax.set(xlabel='Photometric Redshift', ylabel='[3.6] - [4.5] (Vega)', ylim=[0, 1.5], xlim=[0, 1.7])
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_purity_90.pdf')
