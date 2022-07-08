@@ -11,6 +11,11 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy.visualization import imshow_norm, ZScaleInterval, LinearStretch
 from astropy.wcs import WCS
+from astropy.cosmology import FlatLambdaCDM
+import astropy.units as u
+from astropy.coordinates import SkyCoord
+
+cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 
 
 def compass(x, y, size, color, ax):
@@ -64,18 +69,22 @@ Least massive cluster
 {min_cluster_id}\tM500 = {min_cluser_mass:.2e} Msun\tz = {min_cluster_z:.2f}\trichness = {len(med_z_clusters[med_z_clusters['SPT_ID'] == min_cluster_id])}""")
 
 # Get the catalogs for each of the clusters
-spt0212_cat = sptcl_iragn[sptcl_iragn['SPT_ID'] == 'SPT-CLJ0212-4657']
-spt2314_cat = sptcl_iragn[sptcl_iragn['SPT_ID'] == 'SPT-CLJ2314-5554']
+spt0212_cat = sptcl_iragn[(sptcl_iragn['SPT_ID'] == 'SPT-CLJ0212-4657') & (sptcl_iragn['SELECTION_MEMBERSHIP'] >= 0.5)]
+spt2314_cat = sptcl_iragn[(sptcl_iragn['SPT_ID'] == 'SPT-CLJ2314-5554') & (sptcl_iragn['SELECTION_MEMBERSHIP'] >= 0.5)]
 
 # Read in the 3.6um images
 spt0212_img, spt0212_hdr = fits.getdata('Data_Repository/Images/SPT/Spitzer_IRAC/SPT-SZ_2500d/I1_SPT-CLJ0212-4656_mosaic.cutout.fits', header=True)
 spt2314_img, spt2314_hdr = fits.getdata('Data_Repository/Images/SPT/Spitzer_IRAC/SPTpol_100d/I1_SPT-CLJ2314-5554_mosaic.cutout.fits',
                                         header=True)
 
+# Get WCSs
+spt0212_wcs = WCS(spt0212_hdr)
+spt2314_wcs = WCS(spt2314_hdr)
+
 #%% Make plots
 fig = plt.figure(figsize=(16, 8), tight_layout=dict(w_pad=2))
-spt0212_ax = fig.add_subplot(121, projection=WCS(spt0212_hdr))
-spt2314_ax = fig.add_subplot(122, projection=WCS(spt2314_hdr))
+spt0212_ax = fig.add_subplot(121, projection=spt0212_wcs)
+spt2314_ax = fig.add_subplot(122, projection=spt2314_wcs)
 spt0212_ax.set(xlabel='Right Ascension', ylabel='Declination')
 spt2314_ax.set(xlabel='Right Ascension', ylabel=' ')
 spt2314_ax.coords[0].set_auto_axislabel(False)
@@ -93,6 +102,18 @@ spt2314_ax.scatter(spt2314_cat['ALPHA_J2000'], spt2314_cat['DELTA_J2000'], marke
 # compass(0.9, 0.1, size=0.1, color='y', ax=spt0212_ax)
 # compass(0.9, 0.1, size=0.1, color='y', ax=spt2314_ax)
 # plt.tight_layout()
+
+# Add scale bars
+spt0212_scale = 500 * u.kpc * cosmo.arcsec_per_kpc_proper(max_cluster_z).to(u.deg / u.kpc)
+spt2314_scale = 500 * u.kpc * cosmo.arcsec_per_kpc_proper(min_cluster_z).to(u.deg / u.kpc)
+spt0212_scale_point = SkyCoord('2h12m18s -45d55m00s')
+spt2314_scale_point = SkyCoord('23h14m00s -55d53m30s')
+spt0212_ax.arrow(spt0212_scale_point.ra.value, spt0212_scale_point.dec.value, dx=spt0212_scale.value, dy=0,
+                 head_width=0, head_length=0, fc='white', ec='white', width=0.003,
+                 transform=spt0212_ax.get_transform('world'))
+spt2314_ax.arrow(spt2314_scale_point.ra.value, spt2314_scale_point.dec.value, dx=spt2314_scale.value, dy=0,
+                 head_width=0, head_length=0, fc='white', ec='white', width=0.003,
+                 transform=spt2314_ax.get_transform('world'))
 plt.show()
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/Example_clusters_SPT0212_SPT2314_magenta.png')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/Example_clusters_SPT0212_SPT2314_magenta.png')
 # fig.savefig('Data/Plots/Example_clusters_SPT0212_SPT2314.pdf')
