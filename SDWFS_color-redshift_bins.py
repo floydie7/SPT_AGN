@@ -7,6 +7,7 @@ Creates histograms from the color-redshift plane using SDWFS data.
 
 import json
 import numpy as np
+import matplotlib.pyplot as plt
 from astropy.table import Table, join
 
 # Read in the SDWFS photometric catalog
