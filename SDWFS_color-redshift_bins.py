@@ -56,7 +56,7 @@ stern_complement_ids = list(set(sdwfs_cat['ID']) - set(stern_AGN['ID']))
 non_agn = sdwfs_cat[np.in1d(sdwfs_cat['ID'], stern_complement_ids)]
 
 # Bin the data in both redshift and color
-z_bins = np.arange(0., 1.7, 0.2)
+z_bins = np.arange(0., 1.75+0.4, 0.2)
 color_bins = np.arange(0., 1.5, 0.05)
 agn_binned, _, _ = np.histogram2d(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], bins=(z_bins, color_bins))
 non_agn_binned, _, _ = np.histogram2d(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], bins=(z_bins, color_bins))
