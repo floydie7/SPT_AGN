@@ -94,26 +94,38 @@ imshow_norm(spt0212_img, ax=spt0212_ax, origin='lower', cmap='Greys', interval=Z
 imshow_norm(spt2314_img, ax=spt2314_ax, origin='lower', cmap='Greys', interval=ZScaleInterval(), stretch=LinearStretch())
 
 # Plot the AGN
-spt0212_ax.scatter(spt0212_cat['ALPHA_J2000'], spt0212_cat['DELTA_J2000'], marker='s', edgecolor='magenta', facecolor='none',
-                   s=300, linewidths=3, transform=spt0212_ax.get_transform('world'))
-spt2314_ax.scatter(spt2314_cat['ALPHA_J2000'], spt2314_cat['DELTA_J2000'], marker='s', edgecolor='magenta', facecolor='none',
-                   s=300, linewidths=3, transform=spt2314_ax.get_transform('world'))
+spt0212_ax.scatter(spt0212_cat['ALPHA_J2000'], spt0212_cat['DELTA_J2000'], marker='s',
+                   edgecolor='magenta', facecolor='none', s=300, linewidths=3,
+                   transform=spt0212_ax.get_transform('world'))
+spt2314_ax.scatter(spt2314_cat['ALPHA_J2000'], spt2314_cat['DELTA_J2000'], marker='s',
+                   edgecolor='magenta', facecolor='none', s=300, linewidths=3,
+                   transform=spt2314_ax.get_transform('world'))
 # # Add compasses
 # compass(0.9, 0.1, size=0.1, color='y', ax=spt0212_ax)
 # compass(0.9, 0.1, size=0.1, color='y', ax=spt2314_ax)
 # plt.tight_layout()
 
 # Add scale bars
-spt0212_scale = 500 * u.kpc * cosmo.arcsec_per_kpc_proper(max_cluster_z).to(u.deg / u.kpc)
-spt2314_scale = 500 * u.kpc * cosmo.arcsec_per_kpc_proper(min_cluster_z).to(u.deg / u.kpc)
-spt0212_scale_point = SkyCoord('2h12m18s -45d55m00s')
-spt2314_scale_point = SkyCoord('23h14m00s -55d53m30s')
-spt0212_ax.arrow(spt0212_scale_point.ra.value, spt0212_scale_point.dec.value, dx=spt0212_scale.value, dy=0,
-                 head_width=0, head_length=0, fc='white', ec='white', width=0.003,
-                 transform=spt0212_ax.get_transform('world'))
-spt2314_ax.arrow(spt2314_scale_point.ra.value, spt2314_scale_point.dec.value, dx=spt2314_scale.value, dy=0,
-                 head_width=0, head_length=0, fc='white', ec='white', width=0.003,
-                 transform=spt2314_ax.get_transform('world'))
+spt0212_scale = (500 * u.kpc * cosmo.arcsec_per_kpc_proper(max_cluster_z).to(u.deg / u.kpc)
+                 / spt0212_wcs.proj_plane_pixel_scales()[0])
+spt2314_scale = (500 * u.kpc * cosmo.arcsec_per_kpc_proper(min_cluster_z).to(u.deg / u.kpc)
+                 / spt2314_wcs.proj_plane_pixel_scales()[0])
+spt0212_scale_point = spt0212_ax.transLimits.inverted().transform((0.7, 0.85))
+spt2314_scale_point = spt2314_ax.transLimits.inverted().transform((0.7, 0.85))
+spt0212_width = 2 / spt0212_wcs.proj_plane_pixel_scales()[0].to_value(u.arcsec)
+spt2314_width = 2 / spt2314_wcs.proj_plane_pixel_scales()[0].to_value(u.arcsec)
+spt0212_offset = 4 / spt0212_wcs.proj_plane_pixel_scales()[0].to_value(u.arcsec)
+spt2314_offset = 4 / spt2314_wcs.proj_plane_pixel_scales()[0].to_value(u.arcsec)
+
+spt0212_ax.arrow(spt0212_scale_point[0], spt0212_scale_point[1], dx=spt0212_scale.value, dy=0,
+                 head_width=0, head_length=0, fc='white', ec='white', width=spt0212_width)
+spt2314_ax.arrow(spt2314_scale_point[0], spt2314_scale_point[1], dx=spt2314_scale.value, dy=0,
+                 head_width=0, head_length=0, fc='white', ec='white', width=spt2314_width)
+spt0212_ax.text(spt0212_scale_point[0], spt0212_scale_point[1] + spt0212_offset, '500 kpc',
+                color='white', fontsize='xx-large', fontweight='bold')
+spt2314_ax.text(spt2314_scale_point[0], spt2314_scale_point[1] + spt0212_offset, '500 kpc',
+                color='white', fontsize='xx-large', fontweight='bold')
+plt.tight_layout()
 plt.show()
 # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/Example_clusters_SPT0212_SPT2314_magenta.png')
 # fig.savefig('Data/Plots/Example_clusters_SPT0212_SPT2314.pdf')
