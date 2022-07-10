@@ -65,13 +65,13 @@ non_agn_binned, _, _ = np.histogram2d(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'
 # Combine the two histograms for the total counts
 total_binned = agn_binned + non_agn_binned
 
-# Give bins as a fraction of AGN purity (sanitized to avoid NaNs).
-agn_purity = np.nan_to_num(agn_binned / total_binned, nan=0.0)
+# Compute the contamination of non-AGN as the complementary CDF
+non_agn_ccdf = 1 - np.cumsum(non_agn_binned / np.sum(non_agn_binned, axis=1), axis=1)
 
 
 def purity_to_color_threshold(thresh: float) -> np.array:
-    # Find the first occurance of the purity beging above threshold
-    purity_idx = np.argmax(agn_purity >= thresh, axis=1)
+    # Find the first occurrence of the purity above threshold
+    purity_idx = np.argmax(non_agn_ccdf <= thresh, axis=1)
 
     # Give the corresponding color to the purity threshold
     color_threshold = color_bins[purity_idx]
@@ -79,8 +79,8 @@ def purity_to_color_threshold(thresh: float) -> np.array:
 
 
 # Compute the color thresholds for 90% and 80% purities
-purity_90_color = purity_to_color_threshold(thresh=0.9)
-purity_80_color = purity_to_color_threshold(thresh=0.8)
+purity_90_color = purity_to_color_threshold(thresh=0.1)
+purity_80_color = purity_to_color_threshold(thresh=0.2)
 
 # Export data to file
 data = {z_bin: color_90 for z_bin, color_90 in zip(z_bins[:-1], purity_90_color)}
@@ -103,7 +103,9 @@ z_bin_centers = np.diff(z_bins) + z_bins[:-1]
 fig, ax = plt.subplots()
 ax.hexbin(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.7, 0., 1.5), cmap='Blues', bins='log', mincnt=1)
 ax.hexbin(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.7, 0., 1.5), cmap='Reds', bins='log', mincnt=1, alpha=0.5)
-ax.step(z_bins[:-1], purity_90_color, color='k', lw=2)
-ax.axhline(y=0.7, color='k', lw=2, ls='--')
+ax.step(z_bins[:-1], purity_90_color, color='tab:orange', lw=2, label='90% threshold')
+ax.step(z_bins[:-1], purity_80_color, color='tab:green', lw=2, label='80% threshold')
+ax.axhline(y=0.7, color='k', lw=2, ls='--', label=r'$[3.6] - [4.5] \geq 0.7$')
+ax.legend()
 ax.set(xlabel='Photometric Redshift', ylabel='[3.6] - [4.5] (Vega)', ylim=[0, 1.5], xlim=[0, 1.7])
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_purity_90.pdf')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_purity_options.pdf')
