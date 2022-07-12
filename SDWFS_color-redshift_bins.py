@@ -9,6 +9,10 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.table import Table, join
+from scipy.interpolate import interp1d
+import scipy.optimize as op
+
+# plt.style.use('tableau-colorblind10')
 
 # Read in the SDWFS photometric catalog
 sdwfs_main = Table.read('Data_Repository/Catalogs/Bootes/SDWFS/ch2v33_sdwfs_2009mar3_apcorr_matched_ap4_Main_v0.4.cat.gz',
@@ -56,7 +60,7 @@ stern_AGN = sdwfs_cat[(sdwfs_cat['CH3_CH4_COLOR'] > 0.6) &
 stern_complement_ids = list(set(sdwfs_cat['ID']) - set(stern_AGN['ID']))
 non_agn = sdwfs_cat[np.in1d(sdwfs_cat['ID'], stern_complement_ids)]
 
-# Bin the data in both redshift and color
+#%% Bin the data in both redshift and color
 z_bins = np.arange(0., 1.75+0.4, 0.2)
 color_bins = np.arange(0., 1.5, 0.05)
 agn_binned, _, _ = np.histogram2d(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], bins=(z_bins, color_bins))
@@ -65,48 +69,58 @@ non_agn_binned, _, _ = np.histogram2d(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'
 # Combine the two histograms for the total counts
 total_binned = agn_binned + non_agn_binned
 
-# Compute the contamination of non-AGN as the complementary CDF
-non_agn_ccdf = 1 - np.cumsum(non_agn_binned / np.sum(non_agn_binned, axis=1)[:, None], axis=1)
+# Loop over the color bins to compute the purities
+contamination_ratios = []
+for i, _ in enumerate(color_bins[:-1]):
+    # Add all objects above our color cut
+    non_agn_above_color = np.sum(non_agn_binned[:, i:], axis=1)
+    total_above_color = np.sum(total_binned[:, i:], axis=1)
 
+    # Compute the contamination ratio
+    contamination = non_agn_above_color / total_above_color
+    contamination_ratios.append(contamination)
 
-def purity_to_color_threshold(thresh: float) -> np.array:
-    # Find the first occurrence of the purity above threshold
-    purity_idx = np.argmax(non_agn_ccdf <= thresh, axis=1)
+# Combine the results and return to [redshift, color] order.
+contamination_ratios = np.array(contamination_ratios).T
 
-    # Give the corresponding color to the purity threshold
-    color_threshold = color_bins[purity_idx]
-    return color_threshold
+# Build interpolator
+contam_interp = interp1d(color_bins[:-1], contamination_ratios, kind='linear', axis=1)
 
+#%% make color-contamination plots
+fig, ax = plt.subplots()
+color_range = np.linspace(color_bins[0], color_bins[-2], num=100)
+for i, z in enumerate(z_bins[:-1]):
+    # ax.step(color_bins[:-1], contamination_ratios[i, :], label=fr'${z:.1f} < z < {z_bins[i+1]:.1f}$')
+    ax.plot(color_range, contam_interp(color_range)[i], label=fr'${z:.1f} < z < {z_bins[i+1]:.1f}$')
+ax.axhline(0.1, ls='--', c='k')
+ax.legend()
+ax.set(xlabel='[3.6] - [4.5]', ylabel='Contamination')
+plt.show()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_AGN_contamination_curves.pdf')
 
-# Compute the color thresholds for 90% and 80% purities
-purity_90_color = purity_to_color_threshold(thresh=0.1)
-purity_80_color = purity_to_color_threshold(thresh=0.2)
+#%% Find the 90% purity colors
+purity_90_color = []
+for i in range(len(z_bins[:-1])):
+    inverse_contam_interp = lambda color, contam_level: contam_interp(color)[i] - contam_level
+    color = op.brentq(inverse_contam_interp, a=color_bins[0], b=color_bins[-2], args=(0.1,))
+    purity_90_color.append(color)
 
-# Export data to file
-# data = {z_bin: color_90 for z_bin, color_90 in zip(z_bins[:-1], purity_90_color)}
-# with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_AGN_purity_90_color-redshift.json', 'w') as f:
-#     json.dump(data, f)
+#%% Write data to file
+data = {'purity_90_colors': purity_90_color}
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'w') as f:
+    json.dump(data, f)
 
-# Report stats
-for i, (color_90, color_80) in enumerate(zip(purity_90_color, purity_80_color)):
-    if i + 1 >= len(z_bins):
-        print(f'In redshift bin: z < {z_bins[i]:.1f}:\n'
-              f'\tColor corresponding to 90% purity: {color_90:.2f}\n'
-              f'\tColor corresponding to 80% purity: {color_80:.2f}')
-    else:
-        print(f'In redshift bin: {z_bins[i]:.1f} < z < {z_bins[i+1]:.1f}:\n'
-              f'\tColor corresponding to 90% purity: {color_90:.2f}\n'
-              f'\tColor corresponding to 80% purity: {color_80:.2f}')
-
-#% make plot
+#%% make plot
 z_bin_centers = np.diff(z_bins) + z_bins[:-1]
 fig, ax = plt.subplots()
-ax.hexbin(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.7, 0., 1.5), cmap='Blues', bins=None, mincnt=1)
-ax.hexbin(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.7, 0., 1.5), cmap='Reds', bins=None, mincnt=1, alpha=0.5)
-ax.step(z_bins[:-1], purity_90_color, color='tab:orange', lw=2, label='90% threshold')
-ax.step(z_bins[:-1], purity_80_color, color='tab:green', lw=2, label='80% threshold')
+ax.hexbin(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.8, 0., 1.5),
+          cmap='Blues', bins=None, mincnt=1)
+ax.hexbin(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.8, 0., 1.5), cmap='Reds',
+          bins=None, mincnt=1, alpha=0.6)
+ax.step(z_bins[:-1], purity_90_color, color='tab:green', lw=2, label='90% threshold')
+# ax.step(z_bins[:-1], purity_80_color, color='tab:green', lw=2, label='80% threshold')
 ax.axhline(y=0.7, color='k', lw=2, ls='--', label=r'$[3.6] - [4.5] \geq 0.7$')
 ax.legend()
-ax.set(xlabel='Photometric Redshift', ylabel='[3.6] - [4.5] (Vega)', ylim=[0, 1.5], xlim=[0, 1.7])
+ax.set(xlabel='Photometric Redshift', ylabel='[3.6] - [4.5] (Vega)', ylim=[0, 1.5], xlim=[0, 1.8])
 plt.show()
-# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_purity_options.pdf')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_90_purity.pdf')
