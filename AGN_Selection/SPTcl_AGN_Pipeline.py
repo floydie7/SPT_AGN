@@ -34,6 +34,10 @@ sptpol_masks_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/
 sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
                           f'SDWFS_number_count_distribution_normed.json'
 
+# SDWFS 90% AGN purity color-redshift file (for color selection thresholds)
+sdwfs_purity_color_threshold = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
+                               f'SDWFS_purity_color.json'
+
 # Polletta QSO2 SED used for computing the J-band absolute magnitudes
 polletta_qso2 = SourceSpectrum.from_file(f'{prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
                                          wave_unit=u.Angstrom, flux_unit=units.FLAM)
@@ -66,16 +70,16 @@ sptpol_ch2_min_coverage = 3
 ch1_bright_mag = 10.0  # Bright-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.46  # Faint-end 4.5 um magnitude
-ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
+# ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 
 # Additional columns to include in catalog from SPT catalog
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-sptsz_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPT-SZ_2500d.fits'
-sptpol_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPTpol_100d.fits'
-sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits'
-sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse.fits'
+sptsz_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPT-SZ_2500d_purity_thresh.fits'
+sptpol_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPTpol_100d_purity_thesh.fits'
+sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_purity_thesh.fits'
+sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse_purity_thresh.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
@@ -120,6 +124,7 @@ spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_
                               spt_catalog=SPTcl,
                               completeness_file=spt_sz_completeness_sim_results,
                               field_number_dist_file=sdwfs_number_count_dist,
+                              purity_color_threshold_file=sdwfs_purity_color_threshold,
                               sed=polletta_qso2,
                               irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
                               j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
@@ -134,7 +139,7 @@ spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
                                                    ch1_bright_mag=ch1_bright_mag,
                                                    ch2_bright_mag=ch2_bright_mag,
                                                    selection_band_faint_mag=ch2_faint_mag,
-                                                   ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
+                                                   spt_colnames=spt_column_names,
                                                    output_name=None,
                                                    output_colnames=output_column_names)
 print('SPT-SZ selection finished. Run time: {:.2f}s'.format(time() - spt_sz_selector_start_time))
@@ -146,6 +151,7 @@ sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_
                               spt_catalog=SPTcl,
                               completeness_file=sptpol_completeness_sim_results,
                               field_number_dist_file=sdwfs_number_count_dist,
+                              purity_color_threshold_file=sdwfs_purity_color_threshold,
                               sed=polletta_qso2,
                               irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
                               j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
@@ -160,7 +166,7 @@ sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,
                                                    ch1_bright_mag=ch1_bright_mag,
                                                    ch2_bright_mag=ch2_bright_mag,
                                                    selection_band_faint_mag=ch2_faint_mag,
-                                                   ch1_ch2_color=ch1_ch2_color, spt_colnames=spt_column_names,
+                                                   spt_colnames=spt_column_names,
                                                    output_name=None,
                                                    output_colnames=output_column_names)
 print('SPTpol 100d selection finished. Run time: {:.2f}s'.format(time() - sptpol_selector_start_time))
