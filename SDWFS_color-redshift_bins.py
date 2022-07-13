@@ -106,7 +106,7 @@ for i in range(len(z_bins[:-1])):
     purity_90_color.append(color)
 
 #%% Write data to file
-data = {'purity_90_colors': purity_90_color}
+data = {'purity_90_colors': purity_90_color, 'redshift_bins': list(z_bins[:-1])}
 with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'w') as f:
     json.dump(data, f)
 
