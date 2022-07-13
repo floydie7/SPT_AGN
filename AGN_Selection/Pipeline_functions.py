@@ -51,13 +51,16 @@ class SelectIRAGN:
         Directory for DS9 regions files describing areas to mask manually.
     mask_dir : str
         Directory to write good pixel masks into
-    spt_catalog : astropy table_like
+    spt_catalog : Table
         Official SPT cluster catalog.
     completeness_file : str or list of str
         File name of the completeness simulation results.
     field_number_dist_file : str
-        Filename containing containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
+        Filename containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
         using the SDWFS field sample and the associated color bins.
+    purity_color_threshold_file : str or None
+        Filename containing the function values of the purity-based color selection thresholds and the associated
+        redshift bins.
     sed : SourceSpectrum
         Spectral energy distribution template of the source object, used for K-correction/absolute magnitude.
     irac_filter : str
@@ -68,7 +71,7 @@ class SelectIRAGN:
     """
 
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 field_number_dist_file, sed, irac_filter, j_band_filter):
+                 field_number_dist_file, purity_color_threshold_file, sed, irac_filter, j_band_filter):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -95,6 +98,9 @@ class SelectIRAGN:
 
         # Number count distribution from SDWFS used to remove Eddington bias
         self._field_number_dist = field_number_dist_file
+
+        # Purity-based color threshold function. This is used in place of a flat color cut in `purify_selection`.
+        self._purity_color_funct = purity_color_threshold_file
 
     def file_pairing(self, include=None, exclude=None):
         """
@@ -193,7 +199,7 @@ class SelectIRAGN:
 
         Parameters
         ----------
-        max_image_catalog_sep : astropy.quantity
+        max_image_catalog_sep : Quantity
             Maximum separation allowed between the image center pixel and the SZ center matched in the official SPT
             catalog.
 
@@ -423,48 +429,12 @@ class SelectIRAGN:
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
             new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
-    # Todo Depreciated, remove pending review
-    def cluster_k_correction(self):
-        """
-        This function computes a modified Hogg et al. (2002) definition of the K-correction. The observed filter and
-        zero-point will be the IRAC 4.5 um values.
-
-        """
-
-        # Load in the IRAC 4.5 um filter as the observed filter
-        irac_45 = SpectralElement.from_file('Data_Repository/filter_curves/Spitzer_IRAC/080924ch2trans_full.txt',
-                                            wave_unit=u.um)
-
-        # Store the official IRAC 4.5 um zero point flux for K-correction computations
-        irac_45_zp = 179.7 * u.Jy
-
-        # If the requested output zero-point is 'vega', pre-load the Vega reference spectrum
-        if isinstance(self._output_zero_pt, str) and self._output_zero_pt.lower() == 'vega':
-            self._output_zero_pt = SourceSpectrum.from_vega()
-
-        for cluster_id, cluster_info in self._catalog_dictionary.items():
-            # Retrieve the cluster redshift from the SPT catalog
-            catalog_idx = cluster_info['SPT_cat_idx']
-            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
-
-            # Compute the K-correction for the cluster's redshift, the given SED and output parameters
-            k_corr = k_correction(z=cluster_z, f_lambda=self._sed,
-                                  g_lambda_R=irac_45_zp, g_lambda_Q=self._output_zero_pt,
-                                  R=irac_45, Q=self._output_filter)
-
-            # Store the cluster redshift and K-correction in cluster_info for later use
-            cluster_info['redshift'] = cluster_z
-            cluster_info['k-correction'] = k_corr
-
     def j_band_abs_mag(self):
         """
-        Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function. We will use the
-        observed apparent 3.6 um magnitude and assume a Polleta  QSO2 SED for all objects to K-correct to the absolute
-        FLAMINGOS J-band magnitude.
+        Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function.
 
-        Returns
-        -------
-
+        To compute the J-band absolute magnitudes, we will use the observed apparent 3.6 um magnitude and assume a
+        Polleta  QSO2 SED for all objects to K-correct to the absolute FLAMINGOS J-band magnitude.
         """
 
         # Load in the IRAC 3.6 um filter as the observed filter
@@ -485,16 +455,14 @@ class SelectIRAGN:
 
             # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
             j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=cluster_z, f_lambda_sed=self._sed,
-                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=flamingos_j,
-                                       em_filter=irac_36, cosmo=self._cosmo)
+                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=irac_36,
+                                       em_filter=flamingos_j, cosmo=self._cosmo)
 
             # Store the J-band absolute magnitude in the catalog and update the data structure
             se_catalog['J_ABS_MAG'] = j_abs_mag
             cluster_info['catalog'] = se_catalog
 
-    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, absolute_mag,
-                         ch1_ch2_color_cut,
-                         selection_band='I2_MAG_APER4'):
+    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, selection_band='I2_MAG_APER4'):
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
@@ -503,11 +471,9 @@ class SelectIRAGN:
          - A magnitude cut is applied on the faint-end of the selection band. This is determined such that the
            completeness limit in the selection band is kept above 80%.
          - A magnitude cut is applied to the bright-end of both bands to remain under the saturation limit.
-         - The [3.6] - [4.5] color cut is applied to select for red objects above which we define as IR-bright AGN.
-         - An absolute magnitude cut is applied to select for only the intrinsically bright AGN in order to have a fair
-           sample across our redshift range.
          - Finally, the surviving objects' positions are checked against the good pixel map to ensure that the object
            lies on an acceptable location.
+         - Further selection refinement is handled by :method:`selection_membership`.
 
         Parameters
         ----------
@@ -517,10 +483,6 @@ class SelectIRAGN:
             Bright-end magnitude threshold for 4.5 um band.
         selection_band_faint_mag : float
             Faint-end magnitude threshold for the specified selection band.
-        absolute_mag : float
-            Absolute magnitude threshold for rest-frame band as used in :method:`cluster_k_correction`.
-        ch1_ch2_color_cut : float
-            [3.6] - [4.5] color cut above which objects will be selected as AGN.
         selection_band : str, optional
             Column name in SExtractor catalog specifying the selection band to use. Defaults to the 4.5 um, 4" aperture
             magnitude photometry.
@@ -545,21 +507,6 @@ class SelectIRAGN:
             # Limits from Eisenhardt+04 for ch1 = 10.0 and ch2 = 9.8
             se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] > ch1_bright_mag]  # [3.6] saturation limit
             se_catalog = se_catalog[se_catalog['I2_MAG_APER4'] > ch2_bright_mag]  # [4.5] saturation limit
-
-            # Calculate the IRAC Ch1 - Ch2 color (4" apertures) and preform the color cut
-            se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] - se_catalog['I2_MAG_APER4'] >= ch1_ch2_color_cut]
-
-            # Using the K-corrections computed earlier and the distance modulus, compute the absolute magnitude of
-            # our AGN
-            if 'k-correction' in cluster_info:
-                dist_modulus = self._cosmo.distmod(cluster_info['redshift']).value
-                se_catalog['AGN_ABSOLUTE_MAG'] = se_catalog['I2_MAG_APER4'] - dist_modulus - cluster_info[
-                    'k-correction']
-
-                # Using the absolute magnitudes, further refine the IR-bright selection to only include AGN that have
-                # intrinsic brightnesses above a given threshold. This will insure that we have a fair sample across our
-                # redshift range.
-                se_catalog = se_catalog[se_catalog['AGN_ABSOLUTE_MAG'] <= absolute_mag]
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
@@ -591,16 +538,36 @@ class SelectIRAGN:
         for cluster_id in clusters_to_remove:
             self._catalog_dictionary.pop(cluster_id, None)
 
-    def purify_selection(self, ch1_ch2_color_cut):
+    def selection_membership(self, color_threshold=None):
         """
-        Purifies the selected sample of AGN by incorporating the color error to remove the Eddington bias the flat color
-        selection has as many blue objects can scatter into our sample.
+        Calculates fuzzy degree of membership of each object to be an AGN.
+
+        Computes the AGN selection membership for each object in the sample by first incorporating the color error to
+        remove the Eddington bias---where we are likely to have truly blue objects scatter into our sample. We then
+        calculate a fuzzy degree of membership for the AGN sample.
 
         Parameters
         ----------
-        ch1_ch2_color_cut : float
-            [3.6] - [4.5] color cut above which objects will be selected as AGN.
+        color_threshold : float, optional
+            Manually specify a [3.6] - [4.5] color threshold to be used. If given, the selection membership function
+            will not use any catalog redshift information to determine the color threshold to be used. Instead, a flat
+            color threshold will be applied to the entire catalog sample.
 
+        Notes
+        -----
+        The selection membership acts as effectively a degree of belief that an object should be included in a sample of
+        AGN. It is computed as an alpha-cut on a fuzzy set membership function given by,
+
+        .. math::
+            \\mu_{\\mathrm{AGN}} = \\frac{\\int_{\\alpha}^{\\infty} \\mathcal{N}(\\mathcal{C}_{12},
+            \\delta\\mathcal{C}_{12}) \\frac{dN}{d(\\mathcal{C}_{12})} d\\mathcal{C}_{12}}{\\int_{-\infty}^{\infty}
+            \\mathcal{N}(\\mathcal{C}_{12}, \\delta\\mathcal{C}_{12}) \\frac{dN}{d(\\mathcal{C}_{12})}
+            d\\mathcal{C}_{12}
+
+        where :math:`\\mathcal{C}_{12}` and :math:`\\delta\\mathcal{C}_{12}` are the [3.6] - [4.5] color and color
+        errors respectively of each object, :math:`\\frac{dN}{d\\mathcal{C}_{12}}` is the standard field (SDWFS)
+        number--color distribution, and :math:`\\alpha` is either a redshift-dependent sample purity-based color
+        threshold or a flat color threshold depending on the user input.
         """
 
         # Read in the number count distribution file
@@ -613,8 +580,29 @@ class SelectIRAGN:
         # Create an interpolation of our number count distribution
         color_probability_distribution = interp1d(color_bins, field_number_counts)
 
+        color_redshift_threshold_function = None
+        if color_threshold is None:
+            # Read in the purity color-redshift threshold file
+            with open(self._purity_color_funct, 'r') as f:
+                color_threshold_data = json.load(f)
+            color_thresholds = color_threshold_data['purity_90_colors']
+            redshift_bins = color_threshold_data['redshift_bins']
+
+            # Create a step function interpolation of the color-redshift function
+            color_redshift_threshold_function = interp1d(redshift_bins, color_thresholds, kind='previous')
+
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
+            # Retrieve the cluster redshift from the SPT catalog
+            catalog_idx = cluster_info['SPT_cat_idx']
+            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
+
+            if color_threshold is None:
+                # Set the color threshold according to the cluster's redshift
+                ch1_ch2_color_cut = color_redshift_threshold_function(cluster_z)
+            else:
+                ch1_ch2_color_cut = color_threshold
+
             # Get the photometric catalog for the cluster
             se_catalog = cluster_info['catalog']
 
@@ -629,42 +617,15 @@ class SelectIRAGN:
             def object_integrand(x):
                 return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
 
-            # Compute the probability contained within the selection region by each object's color error
-            # def degree_of_membership(color, color_err):
-            #     color_prob_in_numer = quad(
-            #         lambda x: norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x),
-            #         a=ch1_ch2_color_cut, b=color_bin_max)[0]
-            #     color_prob_in_denom = quad(
-            #         lambda x: norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x),
-            #         a=color_bin_min, b=color_bin_max, args=(color, color_err))[0]
-            #     return color_prob_in_numer / color_prob_in_denom
-            #
-            # with MultiPool() as pool:
-            #     color_prob_in = pool.map(degree_of_membership, zip(I1_I2_color, I1_I2_color_err))
-            color_prob_in_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bin_max)[0]
-            color_prob_in_denom = quad_vec(object_integrand, a=color_bin_min, b=color_bin_max)[0]
-            color_prob_in = color_prob_in_numer / color_prob_in_denom
+            selection_membership_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bin_max)[0]
+            selection_membership_denom = quad_vec(object_integrand, a=color_bin_min, b=color_bin_max)[0]
+            selection_membership = selection_membership_numer / selection_membership_denom
 
             # Store the degree of membership into the catalog
-            se_catalog['SELECTION_MEMBERSHIP'] = color_prob_in
+            se_catalog['SELECTION_MEMBERSHIP'] = selection_membership
 
             # As objects with degrees of membership of 0 do not contribute to the sample, we can safely remove them.
             se_catalog = se_catalog[se_catalog['SELECTION_MEMBERSHIP'] > 0]
-
-            # def new_color_prob(x, color, color_err, denom_idx):
-            #     return -1. * norm(loc=color, scale=color_err).pdf(x) * color_probability_distribution(x) / \
-            #            color_prob_in_denom[denom_idx]
-
-            # # Maximize the probability distribution
-            # new_color = [minimize_scalar(new_color_prob, args=(color, color_err, denom_idx),
-            #                              bounds=(np.min(color_bins), np.max(color_bins)), method='bounded').x
-            #              for denom_idx, (color, color_err) in enumerate(zip(I1_I2_color, I1_I2_color_err))]
-            #
-            # # Store the new color in the catalog
-            # se_catalog['CORRECTED_COLOR'] = new_color
-            #
-            # # Select only objects that have a (new) color redder than our threshold
-            # se_catalog = se_catalog[se_catalog['CORRECTED_COLOR'] >= ch1_ch2_color_cut]
 
             # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
             # photometric catalog in our database
@@ -717,7 +678,7 @@ class SelectIRAGN:
         """
         Calculates the separations of each object relative to the SZ center.
 
-        Finds both the angular separations and physical separations relative to the cluster's r500 radius.
+        Finds both the angular separations and physical separations relative to the cluster's :math:`r_{500}` radius.
 
         """
 
@@ -818,7 +779,7 @@ class SelectIRAGN:
 
         Returns
         -------
-        final_catalog : `~astropy.table.Table` object or None
+        final_catalog : Table or None
             The final catalog of the survey AGN. If `filename` is specified, the function will write the catalog to disk
             instead of returning.
         """
@@ -838,8 +799,8 @@ class SelectIRAGN:
                 final_catalog.write(filename, overwrite=True)
 
     def run_selection(self, included_clusters, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov,
-                      ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, ch1_ch2_color, spt_colnames,
-                      output_name, output_colnames, absolute_mag=None):
+                      ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, spt_colnames,
+                      output_name, output_colnames, ch1_ch2_color=None):
         """
         Executes full selection pipeline using default values.
 
@@ -861,20 +822,19 @@ class SelectIRAGN:
             Bright-end 4.5 um magnitude for :method:`object_selection`
         selection_band_faint_mag : float
             Faint-end selection band magnitude for :method:`object_selection`
-        ch1_ch2_color : float
-            [3.6] - [4.5] color cut for :method:`object_selection`
         spt_colnames : list_like
             Column names in SPT catalog for :method:`catalog_merge`
         output_name : str or None
             File name of output catalog for :method:`final_catalogs`
         output_colnames : list_like
             Column names to be kept in output catalog for :method:`final_catalogs`
-        absolute_mag : float, optional
-            Absolute magnitude threshold for :method:`object_selection`
+        ch1_ch2_color : float or None
+            Flat [3.6] -[4.5] color threshold to use when computing selection memberships in :method:`purify_selection`.
+            If `None` then the purity based, redshift dependent color threshold relation will be used.
 
         Returns
         -------
-        final_catalog : `~astropy.table.Table` object or None
+        final_catalog : Table or None
             The pipeline will return the final catalog if `output_name` is given as None. Otherwise, the pipeline will
             write the final catalog to disk automatically.
 
@@ -883,11 +843,9 @@ class SelectIRAGN:
         self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
         self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
         self.object_mask()
-        # self.cluster_k_correction()
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
-                              selection_band_faint_mag=selection_band_faint_mag, absolute_mag=absolute_mag,
-                              ch1_ch2_color_cut=ch1_ch2_color)
-        self.purify_selection(ch1_ch2_color_cut=ch1_ch2_color)
+                              selection_band_faint_mag=selection_band_faint_mag)
+        self.selection_membership(color_threshold=ch1_ch2_color)
         self.j_band_abs_mag()
         self.catalog_merge(catalog_cols=spt_colnames)
         self.object_separations()
@@ -904,17 +862,20 @@ class SelectIRAGN:
 
 class SelectSDWFS(SelectIRAGN):
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, sdwfs_master_catalog,
-                 completeness_file, field_number_dist_file):
+                 completeness_file, field_number_dist_file, sed, irac_filter, j_band_filter):
         super().__init__(sextractor_cat_dir=sextractor_cat_dir,
                          irac_image_dir=irac_image_dir,
                          region_file_dir=region_file_dir,
                          mask_dir=mask_dir,
                          spt_catalog=sdwfs_master_catalog,
                          completeness_file=completeness_file,
-                         field_number_dist_file=field_number_dist_file)
+                         field_number_dist_file=field_number_dist_file,
+                         purity_color_threshold_file=None,
+                         sed=sed,
+                         irac_filter=irac_filter,
+                         j_band_filter=j_band_filter)
 
     def object_separations(self):
-        """Calculates the angular separations of each object relative to the image center."""
 
         for cutout_info in self._catalog_dictionary.values():
             catalog = cutout_info['catalog']
@@ -931,6 +892,30 @@ class SelectSDWFS(SelectIRAGN):
 
             # Update the catalog in the data structure
             cutout_info['catalog'] = catalog
+
+    def j_band_abs_mag(self):
+
+        # Load in the IRAC 3.6 um filter as the observed filter
+        irac_36 = SpectralElement.from_file(self._irac_filter, wave_unit=u.um)
+        flamingos_j = SpectralElement.from_file(self._j_band_filter, wave_unit=u.nm)
+
+        # We will use the official IRAC 3.6 um zero-point flux
+        irac_36_zp = 280.9 * u.Jy
+
+        for cutout_id, cutout_info in self._catalog_dictionary.items():
+            # Get the 3.6 um apparent magnitudes and photometric redshifts from the catalog
+            se_catalog = cutout_info['catalog']
+            irac_36_mag = se_catalog['I1_MAG_APER4']
+            galaxy_z = se_catalog['REDSHIFT']
+
+            # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
+            j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=galaxy_z, f_lambda_sed=self._sed,
+                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=irac_36,
+                                       em_filter=flamingos_j, cosmo=self._cosmo)
+
+            # Store the J-band absolute magnitude in the catalog and update the data structure
+            se_catalog['J_ABS_MAG'] = j_abs_mag
+            cutout_info['catalog'] = se_catalog
 
     @classmethod
     def _keyfunct(cls, f):
