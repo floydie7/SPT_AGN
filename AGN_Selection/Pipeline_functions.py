@@ -334,8 +334,8 @@ class SelectIRAGN:
             # Read in the WCS from the coverage mask we made earlier.
             w = WCS(header)
 
-            # Get the pixel scale from the WCS
-            pix_scale = w.proj_plane_pixel_scales()[0].value
+            # Get the pixel scale from the WCS (in arcsec so that all conversions are dimensionally correct)
+            pix_scale = w.proj_plane_pixel_scales()[0].to_value(u.arcsec)
 
             # Open the regions file and get the lines containing the shapes.
             with open(region_file, 'r') as region:
@@ -548,10 +548,10 @@ class SelectIRAGN:
 
         Parameters
         ----------
-        color_threshold : float, optional
+        color_threshold : list_like, optional
             Manually specify a [3.6] - [4.5] color threshold to be used. If given, the selection membership function
             will not use any catalog redshift information to determine the color threshold to be used. Instead, a flat
-            color threshold will be applied to the entire catalog sample.
+            color threshold will be applied to the entire catalog sample for each value in the color_threshold iterable.
 
         Notes
         -----
@@ -594,15 +594,7 @@ class SelectIRAGN:
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
 
-            if color_threshold is None:
-                # Retrieve the cluster redshift from the SPT catalog
-                catalog_idx = cluster_info['SPT_cat_idx']
-                cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
 
-                # Set the color threshold according to the cluster's redshift
-                ch1_ch2_color_cut = color_redshift_threshold_function(cluster_z)
-            else:
-                ch1_ch2_color_cut = color_threshold
 
             # Get the photometric catalog for the cluster
             se_catalog = cluster_info['catalog']
@@ -618,12 +610,28 @@ class SelectIRAGN:
             def object_integrand(x):
                 return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
 
-            selection_membership_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bin_max)[0]
-            selection_membership_denom = quad_vec(object_integrand, a=color_bin_min, b=color_bin_max)[0]
-            selection_membership = selection_membership_numer / selection_membership_denom
+            if color_threshold is None:
+                # Retrieve the cluster redshift from the SPT catalog
+                catalog_idx = cluster_info['SPT_cat_idx']
+                cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
 
-            # Store the degree of membership into the catalog
-            se_catalog['SELECTION_MEMBERSHIP'] = selection_membership
+                # Set the color threshold according to the cluster's redshift
+                ch1_ch2_color_cut = color_redshift_threshold_function(cluster_z)
+
+                selection_membership_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bin_max)[0]
+                selection_membership_denom = quad_vec(object_integrand, a=color_bin_min, b=color_bin_max)[0]
+                selection_membership = selection_membership_numer / selection_membership_denom
+
+                # Store the degree of membership into the catalog
+                se_catalog['SELECTION_MEMBERSHIP'] = selection_membership
+            else:
+                for ch1_ch2_color_cut in color_threshold:
+                    selection_membership_numer = quad_vec(object_integrand, a=ch1_ch2_color_cut, b=color_bin_max)[0]
+                    selection_membership_denom = quad_vec(object_integrand, a=color_bin_min, b=color_bin_max)[0]
+                    selection_membership = selection_membership_numer / selection_membership_denom
+
+                    # Store the degree of membership into the catalog
+                    se_catalog[f'SELECTION_MEMBERSHIP_{ch1_ch2_color_cut:.2f}'] = selection_membership
 
             # As objects with degrees of membership of 0 do not contribute to the sample, we can safely remove them.
             # se_catalog = se_catalog[se_catalog['SELECTION_MEMBERSHIP'] > 0]
