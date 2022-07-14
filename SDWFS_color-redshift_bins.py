@@ -100,13 +100,22 @@ fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS
 
 #%% Find the 90% purity colors
 purity_90_color = []
+purity_92_color = []
+purity_95_color = []
 for i in range(len(z_bins[:-1])):
     inverse_contam_interp = lambda color, contam_level: contam_interp(color)[i] - contam_level
-    color = op.brentq(inverse_contam_interp, a=color_bins[0], b=color_bins[-2], args=(0.1,))
-    purity_90_color.append(color)
+    color_90 = op.brentq(inverse_contam_interp, a=color_bins[0], b=color_bins[-2], args=(0.1,))
+    color_92 = op.brentq(inverse_contam_interp, a=color_bins[0], b=color_bins[-2], args=(0.08,))
+    color_95 = op.brentq(inverse_contam_interp, a=color_bins[0], b=color_bins[-2], args=(0.05,))
+    purity_90_color.append(color_90)
+    purity_92_color.append(color_92)
+    purity_95_color.append(color_95)
 
 #%% Write data to file
-data = {'purity_90_colors': purity_90_color, 'redshift_bins': list(z_bins[:-1])}
+data = {'purity_90_colors': purity_90_color,
+        'purity_92_colors': purity_92_color,
+        'purity_95_colors': purity_95_color,
+        'redshift_bins': list(z_bins[:-1])}
 with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'w') as f:
     json.dump(data, f)
 
@@ -117,10 +126,11 @@ ax.hexbin(non_agn['PHOT_Z'], non_agn['CH1_CH2_COLOR'], gridsize=50, extent=(0., 
           cmap='Blues', bins=None, mincnt=1)
 ax.hexbin(stern_AGN['PHOT_Z'], stern_AGN['CH1_CH2_COLOR'], gridsize=50, extent=(0., 1.8, 0., 1.5), cmap='Reds',
           bins=None, mincnt=1, alpha=0.6)
-ax.step(z_bins[:-1], purity_90_color, color='tab:green', lw=2, label='90% threshold')
-# ax.step(z_bins[:-1], purity_80_color, color='tab:green', lw=2, label='80% threshold')
+ax.step(z_bins[:-1], purity_90_color, color='tab:orange', lw=2, label='90% threshold')
+ax.step(z_bins[:-1], purity_92_color, color='tab:green', lw=2, label='92% threshold')
+ax.step(z_bins[:-1], purity_95_color, color='tab:cyan', lw=2, label='95% threshold')
 ax.axhline(y=0.7, color='k', lw=2, ls='--', label=r'$[3.6] - [4.5] \geq 0.7$')
 ax.legend()
 ax.set(xlabel='Photometric Redshift', ylabel='[3.6] - [4.5] (Vega)', ylim=[0, 1.5], xlim=[0, 1.8])
 plt.show()
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_90_purity.pdf')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/Plots/SDWFS_color-redshift_AGN_purity_options.pdf')
