@@ -335,7 +335,7 @@ class SelectIRAGN:
             w = WCS(header)
 
             # Get the pixel scale from the WCS
-            pix_scale = w.proj_plane_pixel_scales()[0]
+            pix_scale = w.proj_plane_pixel_scales()[0].value
 
             # Open the regions file and get the lines containing the shapes.
             with open(region_file, 'r') as region:
@@ -593,11 +593,12 @@ class SelectIRAGN:
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
-            # Retrieve the cluster redshift from the SPT catalog
-            catalog_idx = cluster_info['SPT_cat_idx']
-            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
 
             if color_threshold is None:
+                # Retrieve the cluster redshift from the SPT catalog
+                catalog_idx = cluster_info['SPT_cat_idx']
+                cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
+
                 # Set the color threshold according to the cluster's redshift
                 ch1_ch2_color_cut = color_redshift_threshold_function(cluster_z)
             else:
@@ -625,7 +626,7 @@ class SelectIRAGN:
             se_catalog['SELECTION_MEMBERSHIP'] = selection_membership
 
             # As objects with degrees of membership of 0 do not contribute to the sample, we can safely remove them.
-            se_catalog = se_catalog[se_catalog['SELECTION_MEMBERSHIP'] > 0]
+            # se_catalog = se_catalog[se_catalog['SELECTION_MEMBERSHIP'] > 0]
 
             # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
             # photometric catalog in our database

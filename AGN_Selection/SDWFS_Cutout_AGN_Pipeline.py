@@ -76,26 +76,29 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'SDWFS_ID', 'ALPHA_J2000', '
 
 # Get the color thresholds from the file
 with open(sdwfs_purity_color_threshold, 'r') as f:
-    color_thresholds = json.load(f)['purity_90_colors']
+    color_threshold_data = json.load(f)
+    color_thresholds = color_threshold_data['purity_90_colors']
 
 # Run the pipeline.
 print('Starting Pipeline.')
 pipeline_start_time = time()
 
-# Initialize the SDWFS AGN selector
-sdwfs_selector = SelectSDWFS(sextractor_cat_dir=sdwfs_catalog_directory, irac_image_dir=sdwfs_image_directory,
-                             region_file_dir=sdwfs_regions_directory, mask_dir=sdwfs_masks_directory,
-                             sdwfs_master_catalog=sdfws_master_cutout_catalog,
-                             completeness_file=sdwfs_completeness_sim_results,
-                             field_number_dist_file=sdwfs_number_count_dist,
-                             sed=polletta_qso2,
-                             irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
-                             j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
-                                           f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
 sdwfs_catalogs = []
 for ch1_ch2_color in color_thresholds:
+    catalog_start_time = time()
     # Output catalog file name
     output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_{ch1_ch2_color}.fits'
+
+    # Initialize the SDWFS AGN selector
+    sdwfs_selector = SelectSDWFS(sextractor_cat_dir=sdwfs_catalog_directory, irac_image_dir=sdwfs_image_directory,
+                                 region_file_dir=sdwfs_regions_directory, mask_dir=sdwfs_masks_directory,
+                                 sdwfs_master_catalog=sdfws_master_cutout_catalog,
+                                 completeness_file=sdwfs_completeness_sim_results,
+                                 field_number_dist_file=sdwfs_number_count_dist,
+                                 sed=polletta_qso2,
+                                 irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
+                                 j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+                                               f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
 
     # Run the SDWFS pipeline and return the catalog
     sdwfs_agn_catalog = sdwfs_selector.run_selection(included_clusters=None,
@@ -113,6 +116,7 @@ for ch1_ch2_color in color_thresholds:
     sdwfs_agn_catalog.rename_column('SPT_ID', 'CUTOUT_ID')
     sdwfs_agn_catalog.write(output_catalog, overwrite=True)
     sdwfs_catalogs.append(sdwfs_agn_catalog)
+    print(f'Catalog with color threshold: {ch1_ch2_color:.2f} made. Run time: {time() - catalog_start_time:.2f}s')
 print('Full pipeline finished. Run time: {:.2f}s'.format(time() - pipeline_start_time))
 
 # List catalog statistics
