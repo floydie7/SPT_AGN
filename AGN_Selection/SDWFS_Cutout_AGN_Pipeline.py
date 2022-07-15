@@ -67,6 +67,11 @@ ch2_faint_mag = 17.46  # Faint-end 4.5 um magnitude
 # Output catalog file name
 output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_purity.fits'
 
+# Get the color thresholds from the file
+with open(sdwfs_purity_color_threshold, 'r') as f:
+    color_threshold_data = json.load(f)
+    color_thresholds = color_threshold_data['purity_90_colors']
+
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'SDWFS_ID', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
                        'I1_FLUX_APER4', 'I2_FLUX_APER4', 'I3_FLUX_APER4', 'I4_FLUX_APER4',
@@ -74,12 +79,8 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'SDWFS_ID', 'ALPHA_J2000', '
                        'I1_MAG_APER4', 'I2_MAG_APER4', 'I3_MAG_APER4', 'I4_MAG_APER4',
                        'I1_MAGERR_APER4', 'I2_MAGERR_APER4', 'I3_MAGERR_APER4', 'I4_MAGERR_APER4',
                        'REDSHIFT', 'J_ABS_MAG',
-                       'COMPLETENESS_CORRECTION', 'SELECTION_MEMBERSHIP', 'MASK_NAME']
-
-# Get the color thresholds from the file
-with open(sdwfs_purity_color_threshold, 'r') as f:
-    color_threshold_data = json.load(f)
-    color_thresholds = color_threshold_data['purity_90_colors']
+                       'COMPLETENESS_CORRECTION',
+                       *[f'SELECTION_MEMBERSHIP_{thresh:.2f}' for thresh in color_thresholds], 'MASK_NAME']
 
 # Run the pipeline.
 print('Starting Pipeline.')
@@ -116,7 +117,8 @@ print('Full pipeline finished. Run time: {:.2f}s'.format(time() - pipeline_start
 
 # List catalog statistics
 # SDWFS
-for selection_membership_key in [colname for colname in sdwfs_agn_catalog.colnames if 'SELECTION_MEMBERSHIP' in colname]:
+for selection_membership_key in [colname for colname in sdwfs_agn_catalog.colnames if
+                                 'SELECTION_MEMBERSHIP' in colname]:
     number_of_cutouts_sdwfs = len(sdwfs_agn_catalog.group_by('CUTOUT_ID').groups.keys)
     total_number_sdwfs = len(sdwfs_agn_catalog)
     total_number_comp_corrected_sdwfs = sdwfs_agn_catalog['COMPLETENESS_CORRECTION'].sum()
