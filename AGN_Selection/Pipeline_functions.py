@@ -594,8 +594,6 @@ class SelectIRAGN:
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
 
-
-
             # Get the photometric catalog for the cluster
             se_catalog = cluster_info['catalog']
 
