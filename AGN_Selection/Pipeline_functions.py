@@ -589,7 +589,7 @@ class SelectIRAGN:
             redshift_bins = color_threshold_data['redshift_bins']
 
             # Create a step function interpolation of the color-redshift function
-            color_redshift_threshold_function = interp1d(redshift_bins, color_thresholds, kind='previous')
+            color_redshift_threshold_function = interp1d(redshift_bins[:-1], color_thresholds, kind='previous')
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
