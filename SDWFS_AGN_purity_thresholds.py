@@ -6,13 +6,13 @@ Computes the AGN purity color thresholds and outputs a file storing the color th
 """
 
 import json
+from json import JSONEncoder
 from typing import Any
 
 import numpy as np
 from astropy.table import Table, join
 from scipy.interpolate import interp1d
 from scipy.optimize import brentq
-from json import JSONEncoder
 
 
 class NumpyArrayEncoder(JSONEncoder):
@@ -122,6 +122,6 @@ data = {'purity_90_colors': purity_90_color,
         'purity_95_colors': purity_95_color,
         'redshift_bins': z_bins,
         'color_bins': color_bins,
-        'contamination_ratios': contamination_ratios}
+        'purity_ratios': 1 - contamination_ratios}
 with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'w') as f:
     json.dump(data, f, cls=NumpyArrayEncoder)
