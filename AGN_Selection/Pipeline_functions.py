@@ -13,7 +13,7 @@ from collections import ChainMap
 from itertools import groupby, product, chain
 
 import numpy as np
-from astro_compendium.utils.k_correction import k_correction, k_corr_abs_mag
+from astro_compendium.utils.k_correction import k_corr_abs_mag
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
@@ -25,13 +25,10 @@ from astropy.wcs import WCS
 from matplotlib.patches import Ellipse
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
-from numpy.random import default_rng
-from scipy.integrate import quad_vec, quad
+from scipy.integrate import quad_vec
 from scipy.interpolate import interp1d
-from scipy.optimize import minimize, minimize_scalar
 from scipy.stats import norm
 from synphot import SourceSpectrum, SpectralElement
-from schwimmbad import MultiPool
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
@@ -462,7 +459,8 @@ class SelectIRAGN:
             se_catalog['J_ABS_MAG'] = j_abs_mag
             cluster_info['catalog'] = se_catalog
 
-    def object_selection(self, ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, selection_band='I2_MAG_APER4'):
+    def object_selection(self, ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag,
+                         selection_band='I2_MAG_APER4'):
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
@@ -479,6 +477,8 @@ class SelectIRAGN:
         ----------
         ch1_bright_mag : float
             Bright-end magnitude threshold for 3.6 um band.
+        ch1_faint_mag : float
+            Faint-end magnitude threshold for 3.6 um band.
         ch2_bright_mag : float
             Bright-end magnitude threshold for 4.5 um band.
         selection_band_faint_mag : float
@@ -500,13 +500,14 @@ class SelectIRAGN:
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
             se_catalog = se_catalog[se_catalog['FLAGS'] < 4]
 
-            # Preform a faint-end magnitude cut in selection band.
-            se_catalog = se_catalog[se_catalog[selection_band] <= selection_band_faint_mag]
-
             # Preform bright-end cuts
             # Limits from Eisenhardt+04 for ch1 = 10.0 and ch2 = 9.8
-            se_catalog = se_catalog[se_catalog['I1_MAG_APER4'] > ch1_bright_mag]  # [3.6] saturation limit
-            se_catalog = se_catalog[se_catalog['I2_MAG_APER4'] > ch2_bright_mag]  # [4.5] saturation limit
+            se_catalog = se_catalog[(se_catalog['I1_MAG_APER4'] > ch1_bright_mag) &  # [3.6] saturation limit
+                                    (se_catalog['I2_MAG_APER4'] > ch2_bright_mag)]   # [4.5] saturation limit
+
+            # Preform a faint-end magnitude cuts.
+            se_catalog = se_catalog[(se_catalog['I1_MAG_APER4'] <= ch1_faint_mag) &            # [3.6] limiting SNR > 10
+                                    (se_catalog[selection_band] <= selection_band_faint_mag)]  # [4.5] median 80% comp.
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
@@ -806,7 +807,7 @@ class SelectIRAGN:
                 final_catalog.write(filename, overwrite=True)
 
     def run_selection(self, included_clusters, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov,
-                      ch1_bright_mag, ch2_bright_mag, selection_band_faint_mag, spt_colnames,
+                      ch1_bright_mag, ch2_bright_mag, ch1_faint_mag, selection_band_faint_mag, spt_colnames,
                       output_name, output_colnames, ch1_ch2_color=None):
         """
         Executes full selection pipeline using default values.
@@ -827,6 +828,8 @@ class SelectIRAGN:
             Bright-end 3.6 um magnitude for :method:`object_selection`
         ch2_bright_mag : float
             Bright-end 4.5 um magnitude for :method:`object_selection`
+        ch1_faint_mag : float
+            Faint-end 3.6 um magnitude for :method:`object_selection`
         selection_band_faint_mag : float
             Faint-end selection band magnitude for :method:`object_selection`
         spt_colnames : list_like
@@ -851,7 +854,7 @@ class SelectIRAGN:
         self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
         self.object_mask()
         self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
-                              selection_band_faint_mag=selection_band_faint_mag)
+                              ch1_faint_mag=ch1_faint_mag, selection_band_faint_mag=selection_band_faint_mag)
         self.selection_membership(color_threshold=ch1_ch2_color)
         self.j_band_abs_mag()
         self.catalog_merge(catalog_cols=spt_colnames)

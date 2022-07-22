@@ -5,12 +5,10 @@ Author: Benjamin Floyd
 A unified IR-AGN selection pipeline for both the SPT-SZ + SPTpol 100d surveys.
 """
 import json
-import re
 from time import time
 
 import astropy.units as u
 import numpy as np
-from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from synphot import SourceSpectrum, units
 
@@ -60,12 +58,13 @@ sdwfs_ch2_min_coverage = 11
 
 # Photometric selection cuts
 ch1_bright_mag = 10.0  # Bright-end 3.6 um magnitude
+ch1_faint_mag = 18.3   # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.46  # Faint-end 4.5 um magnitude
 # ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 
 # Output catalog file name
-output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_purity.fits'
+output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits'
 
 # Get the color thresholds from the file
 with open(sdwfs_purity_color_threshold, 'r') as f:
@@ -105,6 +104,7 @@ sdwfs_agn_catalog = sdwfs_selector.run_selection(included_clusters=None,
                                                  ch2_min_cov=sdwfs_ch2_min_coverage,
                                                  ch1_bright_mag=ch1_bright_mag,
                                                  ch2_bright_mag=ch2_bright_mag,
+                                                 ch1_faint_mag=ch1_faint_mag,
                                                  selection_band_faint_mag=ch2_faint_mag,
                                                  ch1_ch2_color=color_thresholds,
                                                  spt_colnames=None,

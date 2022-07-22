@@ -68,6 +68,7 @@ sptpol_ch2_min_coverage = 3
 
 # Photometric selection cuts
 ch1_bright_mag = 10.0  # Bright-end 3.6 um magnitude
+ch1_faint_mag = 18.3   # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.46  # Faint-end 4.5 um magnitude
 # ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
@@ -76,10 +77,10 @@ ch2_faint_mag = 17.46  # Faint-end 4.5 um magnitude
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-sptsz_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPT-SZ_2500d_purity_thresh.fits'
-sptpol_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPTpol_100d_purity_thesh.fits'
-sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_purity_thesh.fits'
-sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse_purity_thresh.fits'
+sptsz_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPT-SZ_2500d_IRAGN.fits'
+sptpol_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPTpol_100d_IRAGN.fits'
+sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits'
+sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
@@ -137,6 +138,7 @@ spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
                                                    ch1_min_cov=spt_sz_ch1_min_coverage,
                                                    ch2_min_cov=spt_sz_ch2_min_coverage,
                                                    ch1_bright_mag=ch1_bright_mag,
+                                                   ch1_faint_mag=ch1_faint_mag,
                                                    ch2_bright_mag=ch2_bright_mag,
                                                    selection_band_faint_mag=ch2_faint_mag,
                                                    spt_colnames=spt_column_names,
@@ -164,6 +166,7 @@ sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,
                                                    ch1_min_cov=sptpol_ch1_min_coverage,
                                                    ch2_min_cov=sptpol_ch2_min_coverage,
                                                    ch1_bright_mag=ch1_bright_mag,
+                                                   ch1_faint_mag=ch1_faint_mag,
                                                    ch2_bright_mag=ch2_bright_mag,
                                                    selection_band_faint_mag=ch2_faint_mag,
                                                    spt_colnames=spt_column_names,
