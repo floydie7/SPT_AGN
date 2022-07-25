@@ -5,15 +5,12 @@ Author: Benjamin Floyd
 Using our Bayesian model, generates a mock catalog to use in testing the limitations of the model.
 """
 import glob
-import json
-import pickle
 import re
 from argparse import ArgumentParser
 from time import time
 
 import astropy.units as u
 import numpy as np
-from k_correction import k_corr_abs_mag
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
@@ -22,7 +19,8 @@ from astropy.wcs import WCS
 from scipy import stats
 from scipy.interpolate import lagrange
 from synphot import SpectralElement, SourceSpectrum, units
-from schwimmbad import MPIPool
+
+from k_correction import k_corr_abs_mag
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 hcc_prefix = ''
@@ -55,7 +53,7 @@ def poisson_point_process(model, dx, dy=None, lower_dx=0, lower_dy=0):
 
     Returns
     -------
-    coord : ndarray
+    coord : np.ndarray
         Numpy array of (x, y) coordinates of AGN candidates
     """
 
@@ -136,7 +134,7 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
 
     Returns
     -------
-    model : ndarray
+    model : np.ndarray
         A surface density profile of objects as a function of radius and luminosity.
     """
 
