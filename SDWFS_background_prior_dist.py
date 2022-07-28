@@ -75,10 +75,14 @@ upper_errors, lower_errors = small_poisson(numbers_agn)
 agn_surf_den_uerr = upper_errors / total_area
 agn_surf_den_lerr = lower_errors / total_area
 
+# Additionally, calculate the symmetric Poisson errors for the surface densities
+agn_surf_den_symm_errs = np.sqrt(numbers_agn) / total_area
+
 # Store data in file (All arrays are in units of arcmin^-2)
 agn_surf_den_data = {'agn_surf_den': agn_surf_den.to_value(u.arcmin ** -2),
                      'agn_surf_den_uerr': agn_surf_den_uerr.to_value(u.arcmin ** -2),
                      'agn_surf_den_lerr': agn_surf_den_lerr.to_value(u.arcmin ** -2),
+                     'agn_surf_den_err': agn_surf_den_symm_errs.to_value(u.arcmin ** -2),
                      'color_thresholds': color_thresholds}
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json', 'w') as f:
     json.dump(agn_surf_den_data, f, cls=NumpyArrayEncoder)
