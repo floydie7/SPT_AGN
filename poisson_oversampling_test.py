@@ -6,8 +6,11 @@ Perform tests on how we can use a Poisson process to oversample a weighted popul
 Poisson rate.
 """
 
+from time import time
+
 import mpmath as mpm
 import numpy as np
+from astropy.table import Table
 from scipy import stats
 from scipy.special import factorial
 
@@ -111,3 +114,44 @@ for i, w in enumerate(weights):
         output_coords.append(coords[:, i])
         print(f'rate: {np.sum(proposal)/area}')
 
+#%% Test 3 Run with sdwfs objects
+
+sdwfs_agn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
+
+num_clusters = 100
+c0_true = 0.15809248 * num_clusters
+tol = 0.00823251 * 2 * num_clusters
+color_threshold = 0.61155317
+
+image_width = 5
+area = width * width
+
+coords = poisson_point_process(c0_true * 1000, dx=image_width)
+
+for _ in range(10):
+    start_time = time()
+    sdwfs_agn_df = sdwfs_agn.to_pandas().sample(n=coords.shape[-1],
+                                                weights=f'SELECTION_MEMBERSHIP_{color_threshold:.2f}',
+                                                replace=True, random_state=rng)
+    rng.shuffle(sdwfs_agn_df.values)
+    selection_membership = sdwfs_agn_df[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}']
+
+    output_coords, output_weights = [], []
+    for i, mu in enumerate(selection_membership):
+        proposal = [*output_weights, mu]
+        if np.abs(np.sum(proposal) / area - c0_true) <= tol:
+            output_weights.append(mu)
+            output_coords.append(coords[:, i])
+            print(f'Tolerance met, breaking')
+            break
+        elif np.sum(proposal) / area > 2 * c0_true:
+            print(f'Overshot by 2x, breaking')
+            break
+        else:
+            output_weights.append(mu)
+            output_coords.append(coords[:, i])
+    print(f'final rate: {np.sum(output_weights) / area:.4f} (truth: {c0_true:.4f}, '
+          f'error: {np.abs(np.sum(output_weights) / area - c0_true):.4f}), '
+          f'number drawn: {len(output_weights)} Unweighted rate: {len(output_weights) / area:.4f} '
+          f'error: {np.abs(len(output_weights) / area - c0_true):.4f} '
+          f'Time of iteration: {time() - start_time:.2f}s')
