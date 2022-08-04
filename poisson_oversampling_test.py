@@ -119,10 +119,10 @@ for i, w in enumerate(weights):
 
 sdwfs_agn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
 
-num_clusters = 100
+num_clusters = 1
 c0_true = 0.15809248 * num_clusters
 tol = 0.00823251 * num_clusters
-color_threshold = 0.61155317
+color_threshold = 0.765
 
 image_width = 5
 area = image_width * image_width
@@ -130,10 +130,10 @@ area = image_width * image_width
 coords = poisson_point_process(c0_true * 1000, dx=image_width)
 
 num_draws, err, rates = [], [], []
-for _ in range(50):
+for _ in range(10):
     start_time = time()
     sdwfs_agn_df = sdwfs_agn.to_pandas().sample(n=coords.shape[-1],
-                                                weights=f'SELECTION_MEMBERSHIP_{color_threshold:.2f}',
+                                                # weights=f'SELECTION_MEMBERSHIP_{color_threshold:.2f}',
                                                 replace=True, random_state=rng)
     rng.shuffle(sdwfs_agn_df.values)
     selection_membership = sdwfs_agn_df[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}']
@@ -164,6 +164,7 @@ for _ in range(50):
     num_draws.append(len(output_weights))
     err.append(np.abs(np.sum(output_weights) / area - c0_true))
     rates.append(np.sum(output_weights) / area)
+
 #%%
 fig, (ax, bx) = plt.subplots(ncols=2)
 ax.hist(num_draws, bins='auto')
