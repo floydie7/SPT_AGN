@@ -7,7 +7,6 @@ a JSON file for later use.
 """
 
 import json
-from argparse import ArgumentParser
 from time import time
 
 import astropy.units as u
@@ -16,15 +15,16 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-from schwimmbad import MPIPool
+from schwimmbad import SerialPool
 from scipy.spatial.distance import cdist
 from synphot import SourceSpectrum, SpectralElement, units
+
 from k_correction import k_corr_abs_mag
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def rebin(a, rebin_factor, wcs=None):
+def rebin(a, rebin_factor, wcs=None) -> tuple[np.ndarray, WCS] | np.ndarray:
     """
     Rebin an image to the new shape and adjust the WCS.
 
@@ -99,6 +99,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
     good_pix_frac: list of float
         A list of the fractional area within each annulus that is unmasked.
     """
+
     # Read in the mask file and the mask file's WCS
     image, header = mask_dict[cluster_id]  # This is provided by the global variable mask_dict
     image_wcs = WCS(header)
@@ -150,7 +151,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
     return good_pix_frac
 
 
-def generate_catalog_dict(cluster):
+def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     """Parses the input catalog into a dictionary structure containing only the necessary information for the MCMC
     sampler."""
     cluster_id = cluster['SPT_ID'][0]
@@ -159,16 +160,16 @@ def generate_catalog_dict(cluster):
     cluster_r500 = cluster['R500'][0] * u.Mpc
     cluster_sz_cent = cluster['SZ_RA', 'SZ_DEC'][0]
     cluster_completeness = cluster['COMPLETENESS_CORRECTION']
-    # cluster_radial_r500 = cluster['RADIAL_SEP_R500']
+    cluster_radial_r500 = cluster['RADIAL_SEP_R500']
     cluster_agn_membership = cluster['SELECTION_MEMBERSHIP']
     j_band_abs_mag = cluster['J_ABS_MAG']
 
     # Set up a switch to handle the options for the radial separation
-    radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
-                     0.5: cluster['RADIAL_SEP_R500_HALF_OFFSET'],
-                     0.75: cluster['RADIAL_SEP_R500_075_OFFSET'],
-                     1.0: cluster['RADIAL_SEP_R500_OFFSET']}
-    cluster_radial_r500 = radial_switch[args.miscentering]
+    # radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
+    #                  0.5: cluster['RADIAL_SEP_R500_HALF_OFFSET'],
+    #                  0.75: cluster['RADIAL_SEP_R500_075_OFFSET'],
+    #                  1.0: cluster['RADIAL_SEP_R500_OFFSET']}
+    # cluster_radial_r500 = radial_switch[args.miscentering]
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
@@ -180,14 +181,16 @@ def generate_catalog_dict(cluster):
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / pix_scale.unit) / cluster_r500
 
     # Generate a radial integration mesh.
-    rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
+    # rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
+    rall = np.linspace(0., max_radius_r500.value, num=10_000)
 
     # Compute the good pixel fractions
-    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
-                                          rescale_factor=rescale_fact)
+    # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
+    #                                       rescale_factor=rescale_fact)
+    cluster_gpf_all = None
 
     # Select only the objects within the same radial limit we are using for integration.
-    radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
+    radial_r500_maxr = cluster_radial_r500 #[cluster_radial_r500 <= rall[-1]]
     completeness_weight_maxr = cluster_completeness[cluster_radial_r500 <= rall[-1]]
     agn_membership_maxr = cluster_agn_membership[cluster_radial_r500 <= rall[-1]]
     j_band_abs_mag_maxr = j_band_abs_mag[cluster_radial_r500 <= rall[-1]]
@@ -224,43 +227,46 @@ def generate_catalog_dict(cluster):
     return cluster_id, cluster_dict
 
 
-parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
-parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
-parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
-parser.add_argument('--miscentering', help='Factor of miscentering to be used.', choices=[0.5, 0.75, 1.0], default=0.0,
-                    type=float)
-parser_grp = parser.add_mutually_exclusive_group()
-parser_grp.add_argument('--cluster-only', action='store_true',
-                        help='Generate a preprocessing file only on cluster objects.')
-parser_grp.add_argument('--background-only', action='store_true',
-                        help='Generate preprocessing file only on background objects.')
-args = parser.parse_args()
+# parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
+# parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
+# parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
+# parser.add_argument('--miscentering', help='Factor of miscentering to be used.', choices=[0.5, 0.75, 1.0], default=0.0,
+#                     type=float)
+# parser_grp = parser.add_mutually_exclusive_group()
+# parser_grp.add_argument('--cluster-only', action='store_true',
+#                         help='Generate a preprocessing file only on cluster objects.')
+# parser_grp.add_argument('--background-only', action='store_true',
+#                         help='Generate preprocessing file only on background objects.')
+# args = parser.parse_args()
 
-hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-max_radius = 5.0 * u.arcmin  # Maximum integration radius in arcmin
+# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+hcc_prefix = ''
+max_radius = 2.5 * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-sptcl_catalog = Table.read(args.catalog)
+# sptcl_catalog = Table.read(args.catalog)
+sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
+                           'mock_AGN_catalog_t250.000_e4.00_z-1.00_b1.00_rc0.100_C7.905_maxr5.00_seed3775_6x50_quartMasks.fits')
 
 # Filter the catalog using the rejection flag
-if args.rejection:
-    sptcl_catalog = sptcl_catalog[sptcl_catalog['COMPLETENESS_REJECT'].astype(bool)]
+# if args.rejection:
+#     sptcl_catalog = sptcl_catalog[sptcl_catalog['COMPLETENESS_REJECT'].astype(bool)]
 
 # Separate the cluster and background objects
 cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 background_only = sptcl_catalog[~sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 
-if args.cluster_only:
-    # Run on only cluster objects
-    sptcl_catalog = cluster_only
-elif args.background_only:
-    # Run on only background objects
-    sptcl_catalog = background_only
-else:
-    # Run on full catalog
-    sptcl_catalog = sptcl_catalog
+# if args.cluster_only:
+#     # Run on only cluster objects
+#     sptcl_catalog = cluster_only
+# elif args.background_only:
+#     # Run on only background objects
+#     sptcl_catalog = background_only
+# else:
+#     # Run on full catalog
+#     sptcl_catalog = sptcl_catalog
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
@@ -271,18 +277,19 @@ mask_dict = {cluster_id: fits.getdata(f'{hcc_prefix}{mask_file}', header=True) f
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
-with MPIPool() as pool:
+with SerialPool() as pool:
     # if not pool.is_master():
     #     pool.wait()
     #     sys.exit(0)
     pool_results = pool.map(generate_catalog_dict, sptcl_catalog_grp.groups)
 
-    if pool.is_master():
-        catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
+    # if pool.is_master():
+catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-preprocess_file = 'SPTcl_IRAGN_preprocessing.json'
+local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)

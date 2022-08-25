@@ -4,6 +4,7 @@ Author: Benjamin Floyd
 
 Generates the chain walker and corner plots for a previously generated emcee chain file.
 """
+import json
 
 import corner
 import emcee
@@ -11,35 +12,49 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MaxNLocator
+from scipy.interpolate import interp1d
 
-theta_true = 2.6
+# Read in the purity and surface density files
+with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f,
+      open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json',
+           'r') as g):
+    sdwfs_purity_data = json.load(f)
+    sdwfs_prior_data = json.load(g)
+z_bins = sdwfs_purity_data['redshift_bins'][:-1]
+threshold_bins = sdwfs_prior_data['color_thresholds'][:-1]
+
+# Set up interpolators
+agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
+agn_surf_den = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den'], kind='previous')
+
+
+# For convenience, set up the function compositions
+def agn_prior_surf_den(redshift: float) -> float:
+    return agn_surf_den(agn_purity_color(redshift))
+
+
+cluster_amp = 500
+
+theta_true = 5.0
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
 rc_true = 0.1
-C_true = 0.333
-truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, C_true]
-labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C$']
+c0_true = agn_prior_surf_den(0.)
+
+theta_true *= cluster_amp
+c0_true *= cluster_amp
+truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true]
+labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Chains/emcee_chains_SDWFS_IRAGN.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/fuzzy_selection/' \
-#            'emcee_chains_Mock_fuzzy_selection.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
-#            'emcee_chains_mock_phot_features.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
-#            'emcee_chains_mock_miscentering.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/phot_features/' \
-#            'emcee_chains_mock_miscentering_0-sigma_only.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_mock_mock_rework.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_semiemperical_rng_seeds.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Final_tests/mock_rework/emcee_chains_clseed890_objseed930.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'LF-on_bkg_intLF_fix' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if '3scripts' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -77,14 +92,9 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
-    #             f'Param_chains_SDWFS_Background_{chain_name}.png', dpi=300)
-    # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
-    #             f'Param_chains_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}'
-    #             f'_{chain_name}.png', dpi=300)
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
-                f'Param_chains_SPTcl_{chain_name}.png', dpi=300)
-    # plt.show()
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
+                f'Param_chains_mock_{chain_name}.pdf')
+    plt.show()
 
     try:
         # Calculate the autocorrelation time
@@ -133,14 +143,9 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SDWFS_Background/Plots/'
-    #             f'Corner_plot_SDWFS_Background_{chain_name}.pdf')
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/fuzzy_selection/'
-    #             f'Corner_plot_Mock_t{theta_true}_e{eta_true}_z{zeta_true}_b{beta_true}_rc{rc_true}_C{C_true}'
-    #             f'_{chain_name}.pdf')
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Final_tests/mock_rework/'
-                f'Corner_plot_SPTcl_{chain_name}.pdf')
-    # plt.show()
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
+                f'Corner_plot_mock_{chain_name}.pdf')
+    plt.show()
 
     print(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
@@ -155,7 +160,7 @@ for chain_name, sampler in sampler_dict.items():
             truth_list = truths
         mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
         q = np.diff(mcmc)
-        print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true})'
+        print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true:.2f})'
               .format(labels=label_list[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0],
                       true=truth_list[i]))
 

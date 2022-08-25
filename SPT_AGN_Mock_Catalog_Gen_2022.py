@@ -17,7 +17,6 @@ import corner
 import emcee
 import matplotlib.pyplot as plt
 import numpy as np
-from astro_compendium.utils.custom_math import trap_weight
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
@@ -117,7 +116,7 @@ def generate_mock_cluster(cluster_catalog: Table, color_threshold: float, c_true
     lower_y = SZ_center_pix[1] - mask_radius_pix
 
     # # As we aren't using real masks yet, we will crop our data to fit within the image bounds using the image center as reference
-    # image_center = SkyCoord.from_pixel(mask_size_x / 2, mask_size_y / 2, wcs=w, origin=0, mode='wcs')
+    image_center = SkyCoord.from_pixel(mask_size_x / 2, mask_size_y / 2, wcs=w, origin=0, mode='wcs')
 
     # Scale the true background rate from arcmin^-2 units to pixel units
     background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
@@ -211,9 +210,9 @@ def generate_mock_cluster(cluster_catalog: Table, color_threshold: float, c_true
     los_cat = los_cat[mask_data[np.floor(los_cat['y']).astype(int), np.floor(los_cat['x']).astype(int)]]
 
     # Crop the data to be within 2.5 arcmin of the image center
-    # los_coords_skycoord = SkyCoord.from_pixel(los_cat['x'], los_cat['y'], wcs=w, origin=0, mode='wcs')
-    # image_center_sep = image_center.separation(los_coords_skycoord).to(u.arcmin)
-    # los_cat = los_cat[image_center_sep <= 2.5 * u.arcmin]
+    los_coords_skycoord = SkyCoord.from_pixel(los_cat['x'], los_cat['y'], wcs=w, origin=0, mode='wcs')
+    image_center_sep = image_center.separation(los_coords_skycoord).to(u.arcmin)
+    los_cat = los_cat[image_center_sep <= 2.5 * u.arcmin]
 
     return los_cat
 
@@ -432,7 +431,7 @@ def lnlike(params: tuple[float, ...]):
         nall = model_rate(params, cluster_z, cluster_m, cluster_r500, rall, cluster_id)
 
         # We use a Poisson likelihood function
-        ln_like_func = np.sum(np.log(ni * ri * mu_agn)) - trap_weight(nall * 2 * np.pi * rall, rall, weight=gpf_all)
+        ln_like_func = np.sum(np.log(ni * ri * mu_agn)) - 0.25 * np.trapz(nall * 2 * np.pi * rall, rall)
         cluster_like.append(ln_like_func)
 
     # Compute the total likelihood value
@@ -629,8 +628,9 @@ def preprocessing(cat: Table) -> tuple[str, dict]:
     # Generate a radial integration mesh.
     rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
     # Compute the good pixel fractions
-    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
-                                          rescale_factor=rescale_fact)
+    # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
+    #                                       rescale_factor=rescale_fact)
+    cluster_gpf_all = None
 
     # Select only the objects within the same radial limit we are using for integration.
     radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
@@ -678,7 +678,7 @@ delta_c = interp1d(z_bins, agn_prior_surf_den(z_bins) - agn_prior_surf_den(0.), 
 ## Generate mock catalog
 # %%
 # Select out a number of clusters to use as examples
-num_cl = 6
+num_cl = 10
 
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
 cluster_amp = 50
@@ -715,10 +715,10 @@ with MultiPool() as pool:
 
 catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
 
-with open(
-        'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/preprocessing.json',
-        'w') as f:
-    json.dump(catalog_dict, f)
+# with open(
+#         'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/preprocessing.json',
+#         'w') as f:
+#     json.dump(catalog_dict, f)
 # %% md
 ## Apply Bayesian model to refit data
 # %%
@@ -778,9 +778,9 @@ else:
         ax.axhline(y=truth, c='b')
         ax.set(ylabel=label, xlim=[0, len(samples)])
     axes[-1].set(xlabel='Steps')
-fig.savefig(
-    f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
-    f'param_chains_full_los_{ndim}param_{num_cl}x{cluster_amp}clusters_r500_quarter_masks_gpf.pdf')
+# fig.savefig(
+#     f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
+#     f'param_chains_full_los_{ndim}param_{num_cl}x{cluster_amp}clusters_r500_quarter_masks_gpf.pdf')
 plt.show()
 # %%
 # Plot posterior
@@ -790,7 +790,7 @@ if ndim == 1:
                         quantiles=[0.16, 0.5, 0.84])
 else:
     fig = corner.corner(flat_samples, labels=labels, truths=truths, show_titles=True, quantiles=[0.16, 0.5, 0.84])
-fig.savefig(
-    f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
-    f'corner_full_los_{ndim}param_{num_cl}x{cluster_amp}clusters_r500_quarter_masks_gpf.pdf')
+# fig.savefig(
+#     f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
+#     f'corner_full_los_{ndim}param_{num_cl}x{cluster_amp}clusters_r500_quarter_masks_gpf.pdf')
 plt.show()
