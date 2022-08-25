@@ -181,16 +181,16 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     pix_scale_r500 = pix_scale * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / pix_scale.unit) / cluster_r500
 
     # Generate a radial integration mesh.
-    # rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
-    rall = np.linspace(0., max_radius_r500.value, num=10_000)
+    rall = np.arange(0., max_radius_r500, pix_scale_r500 / rescale_fact)
+    # rall = np.linspace(0., max_radius_r500.value, num=10_000)
 
     # Compute the good pixel fractions
-    # cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
-    #                                       rescale_factor=rescale_fact)
-    cluster_gpf_all = None
+    cluster_gpf_all = good_pixel_fraction(rall, cluster_z, cluster_r500, cluster_sz_cent, cluster_id,
+                                          rescale_factor=rescale_fact)
+    # cluster_gpf_all = None
 
     # Select only the objects within the same radial limit we are using for integration.
-    radial_r500_maxr = cluster_radial_r500 #[cluster_radial_r500 <= rall[-1]]
+    radial_r500_maxr = cluster_radial_r500[cluster_radial_r500 <= rall[-1]]
     completeness_weight_maxr = cluster_completeness[cluster_radial_r500 <= rall[-1]]
     agn_membership_maxr = cluster_agn_membership[cluster_radial_r500 <= rall[-1]]
     j_band_abs_mag_maxr = j_band_abs_mag[cluster_radial_r500 <= rall[-1]]
@@ -241,14 +241,14 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 hcc_prefix = ''
-max_radius = 2.5 * u.arcmin  # Maximum integration radius in arcmin
+max_radius = 5. * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
 # sptcl_catalog = Table.read(args.catalog)
 sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
-                           'mock_AGN_catalog_t250.000_e4.00_z-1.00_b1.00_rc0.100_C7.905_maxr5.00_seed3775_6x50_quartMasks.fits')
+                           'mock_AGN_catalog_t250.000_e4.00_z-1.00_b1.00_rc0.100_C7.905_maxr5.00_seed3775_6x50_fullMasks_forGPF.fits')
 
 # Filter the catalog using the rejection flag
 # if args.rejection:
@@ -290,6 +290,6 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Store the results in a JSON file to be used later by the MCMC sampler
 local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
-preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing.json'
+preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF.json'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)

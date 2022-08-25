@@ -349,10 +349,10 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
     # prob_reject = 1 / los_cat['COMPLETENESS_CORRECTION']
     # los_cat['COMPLETENESS_REJECT'] = prob_reject >= alpha
 
-    image_center = SkyCoord.from_pixel(mask_size_x / 2, mask_size_y / 2, wcs=w, origin=0, mode='wcs')
-    los_coords = SkyCoord(los_cat['RA'], los_cat['DEC'], unit=u.deg)
-    image_center_sep = image_center.separation(los_coords).to(u.arcmin)
-    los_cat = los_cat[image_center_sep <= 2.5 * u.arcmin]
+    # image_center = SkyCoord.from_pixel(mask_size_x / 2, mask_size_y / 2, wcs=w, origin=0, mode='wcs')
+    # los_coords = SkyCoord(los_cat['RA'], los_cat['DEC'], unit=u.deg)
+    # image_center_sep = image_center.separation(los_coords).to(u.arcmin)
+    # los_cat = los_cat[image_center_sep <= 2.5 * u.arcmin]
 
     plot_mock_cluster(los_cat, cluster)
 
@@ -366,7 +366,7 @@ def plot_mock_cluster(cat, cluster_catalog):
     mask_img, mask_hdr = fits.getdata(cluster_catalog['MASK_NAME'], header=True)
     wcs = WCS(mask_hdr)
     _, ax = plt.subplots(subplot_kw=dict(projection=wcs))
-    # ax.imshow(mask_img, origin='lower', cmap='Greys')
+    ax.imshow(mask_img, origin='lower', cmap='Greys')
     ax.scatter(background_objects['RA'], background_objects['DEC'], edgecolors='blue', facecolors='none', alpha=0.4,
                label='Background', transform=ax.get_transform('world'))
     ax.scatter(cluster_objects['RA'], cluster_objects['DEC'], edgecolors='red', facecolors='red', alpha=0.6,
@@ -500,8 +500,8 @@ SPTcl['M500_lerr'] *= 1e14
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
 # For our masks, we will co-op the masks for the real clusters.
-masks_files = [*glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPT-SZ_2500d/quarter_masks/*.fits'),
-               *glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d/quarter_masks/*.fits')]
+masks_files = [*glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPT-SZ_2500d/*.fits'),
+               *glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d/*.fits')]
 
 # Make sure all the masks have matches in the catalog
 masks_files = [f for f in masks_files if re.search(r'SPT-CLJ\d+-\d+', f).group(0) in SPTcl['SPT_ID']]
@@ -569,7 +569,7 @@ for cluster_catalog, cluster_color_threshold, bkg_rate_true in zip(SPT_data, col
 outAGN = vstack(AGN_cats)
 filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
             f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_quartMasks.fits')
+            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_fullMasks_forGPF.fits')
 outAGN.write(filename, overwrite=True)
 print(filename)
 

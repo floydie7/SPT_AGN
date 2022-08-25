@@ -18,6 +18,8 @@ from schwimmbad import MultiPool
 from scipy.interpolate import lagrange, interp1d
 from tqdm.contrib import tenumerate
 
+from custom_math import trap_weight
+
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 seed = 3775
@@ -135,7 +137,7 @@ def lnlike(param: tuple[float, ...]):
     lnlike_list = []
     for cluster_id in catalog_dict:
         # Get the good pixel fraction for this cluster
-        # gpf_all = catalog_dict[cluster_id]['gpf_rall']
+        gpf_all = catalog_dict[cluster_id]['gpf_rall']
 
         # Get the radial positions of the AGN
         ri = catalog_dict[cluster_id]['radial_r500_maxr']
@@ -172,7 +174,7 @@ def lnlike(param: tuple[float, ...]):
         n_mesh = model_rate_opted(param, cluster_id, rall) #, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * ri)) - 0.25 * np.trapz(n_mesh * 2 * np.pi * rall, rall))
+        cluster_lnlike = (np.sum(np.log(ni * ri)) - trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
 
         lnlike_list.append(cluster_lnlike)
 
@@ -274,7 +276,7 @@ args = parser.parse_args()
 
 # Load in the prepossessing file
 local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
-preprocess_file = os.path.abspath(f'{local_dir}SPTcl_IRAGN_preprocessing.json')
+preprocess_file = os.path.abspath(f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF.json')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 

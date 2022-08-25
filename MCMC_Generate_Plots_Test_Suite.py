@@ -33,7 +33,7 @@ def agn_prior_surf_den(redshift: float) -> float:
     return agn_surf_den(agn_purity_color(redshift))
 
 
-cluster_amp = 500
+cluster_amp = 50
 
 theta_true = 5.0
 eta_true = 4.0
@@ -54,7 +54,7 @@ filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if '3scripts' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'fullMasks_3scripts_withGPF' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
