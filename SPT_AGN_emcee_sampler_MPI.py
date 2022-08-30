@@ -66,7 +66,7 @@ def luminosity_function(abs_mag, redshift):
     return Phi
 
 
-def model_rate_opted(params, cluster_id, r_r500): #, j_mag, integral=False):
+def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     """
     Our generating model.
 
@@ -102,7 +102,10 @@ def model_rate_opted(params, cluster_id, r_r500): #, j_mag, integral=False):
     #     beta, rc = 1/3., 1.
     # else:
     #     # Unpack our parameters
-    theta, eta, zeta, beta, rc, c0 = params
+    ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
+
+    # Exponentiate all the log-sampled parameters
+    theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -110,15 +113,15 @@ def model_rate_opted(params, cluster_id, r_r500): #, j_mag, integral=False):
     r500 = catalog_dict[cluster_id]['r500']
 
     # Luminosity function number
-    # if integral:
-    #     lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
-    # else:
-    #     lum_funct_value = luminosity_function(j_mag, z)
+    if integral:
+        lum_funct_value = np.trapz(luminosity_function(j_mag, z), j_mag)
+    else:
+        lum_funct_value = luminosity_function(j_mag, z)
 
     # if args.no_luminosity or args.poisson_only:
     #     LF = 1
     # else:
-    #     LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
+    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
     # Convert our background surface density from angular units into units of r500^-2
     cz = (((c0 + delta_c(z) * cluster_amp) / u.arcmin ** 2)
@@ -152,13 +155,15 @@ def lnlike(param: tuple[float, ...]):
         #     agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
 
         # Get the J-band absolute magnitudes
-        # j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
+        j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
 
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
 
         # Get the luminosity mesh for integration
-        # jall = catalog_dict[cluster_id]['jall']
+        jall = catalog_dict[cluster_id]['jall']
+
+        Rall, Jall = np.meshgrid(rall, jall)
 
         # Compute the completeness ratio for this cluster
         # if args.no_completeness or args.poisson_only:
@@ -167,11 +172,11 @@ def lnlike(param: tuple[float, ...]):
         #     completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, ri) #, j_band_abs_mag)
+        ni = model_rate_opted(param, cluster_id, ri, j_band_abs_mag)
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
-        n_mesh = model_rate_opted(param, cluster_id, rall) #, jall, integral=True)
+        n_mesh = model_rate_opted(param, cluster_id, rall, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
         cluster_lnlike = (np.sum(np.log(ni * ri)) - trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
@@ -196,7 +201,10 @@ def lnprior(params: tuple[float, ...]):
     #     theta, eta, zeta, beta = [0.]*4
     #     rc = 0.1  # Cannot be 0., min rc = 0.05
     # else:
-    theta, eta, zeta, beta, rc, c0 = params
+    ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
+
+    # Exponentiate all the log-sampled parameters
+    theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
 
     cluster_lnprior = []
     for cluster_id in catalog_dict:
@@ -353,12 +361,12 @@ nsteps = 5000
 #                       for i in range(nwalkers)])
 # else:
 pos0 = np.array([
-    rng.normal(theta_true, 1e-4, size=nwalkers),
+    rng.normal(np.log(theta_true), 1e-4, size=nwalkers),
     rng.normal(eta_true, 1e-4, size=nwalkers),
     rng.normal(zeta_true, 1e-4, size=nwalkers),
     rng.normal(beta_true, 1e-4, size=nwalkers),
-    rng.normal(rc_true, 1e-4, size=nwalkers),
-    rng.normal(c0_true, 1e-4, size=nwalkers)]).T
+    rng.normal(np.log(rc_true), 1e-4, size=nwalkers),
+    rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
 autocorr = np.empty(nsteps)

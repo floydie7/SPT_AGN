@@ -139,11 +139,10 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
     theta, eta, zeta, beta, rc = params
 
     # Luminosity function number
-    # LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
-    # LF = 1.
+    LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * luminosity_function(j_mag, z)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta  # * LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
     # Our model rate is a surface density of objects in angular units (as we only have the background in angular units)
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5)
@@ -161,6 +160,9 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
     SZ_center = cluster['SZ_RA', 'SZ_DEC']
     SZ_theta_core = cluster['THETA_CORE'] * u.arcmin
     SZ_xi = cluster['XI']
+
+    # Make a cut in the SDWFS catalog to only include objects with selection memberships >= 50%
+    # sdwfs_agn_mu_cut = sdwfs_agn[sdwfs_agn[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'] >= 0.5]
 
     # Read in the mask's WCS for the pixel scale and making SkyCoords
     w = WCS(mask_name)
@@ -193,8 +195,16 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
                                          obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
     j_grid = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=200)
 
+    R, J = np.meshgrid(r_grid, j_grid)
+
     # Calculate the model values for the AGN candidates in the cluster
-    model_cluster_agn = model_rate(params_true, z_cl, m500_cl, r500_cl, r_grid, j_grid)
+    model_cluster_agn = model_rate(params_true, z_cl, m500_cl, r500_cl, R, J)
+    if spt_id == 'SPT_Mock_000':
+        fig, ax = plt.subplots(subplot_kw=dict(projection='3d'))
+        ax.plot_surface(R, J, model_cluster_agn)
+        ax.set(xlabel=r'$r/r_{500}$', ylabel=r'$M_J$', zlabel=r'$N(r,M_J)$')
+        # ax.view_init(elev=0, azim=0)
+        plt.show()
 
     # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
     # the cluster. Then convert to pix^-2 units.
@@ -354,7 +364,8 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
     # image_center_sep = image_center.separation(los_coords).to(u.arcmin)
     # los_cat = los_cat[image_center_sep <= 2.5 * u.arcmin]
 
-    plot_mock_cluster(los_cat, cluster)
+    if spt_id == 'SPT_Mock_000':
+        plot_mock_cluster(los_cat, cluster)
 
     return los_cat
 
@@ -366,8 +377,8 @@ def plot_mock_cluster(cat, cluster_catalog):
     mask_img, mask_hdr = fits.getdata(cluster_catalog['MASK_NAME'], header=True)
     wcs = WCS(mask_hdr)
     _, ax = plt.subplots(subplot_kw=dict(projection=wcs))
-    ax.imshow(mask_img, origin='lower', cmap='Greys')
-    ax.scatter(background_objects['RA'], background_objects['DEC'], edgecolors='blue', facecolors='none', alpha=0.4,
+    ax.imshow(mask_img, origin='lower', cmap='Greys_r')
+    ax.scatter(background_objects['RA'], background_objects['DEC'], edgecolors='blue', facecolors='blue', alpha=0.4,
                label='Background', transform=ax.get_transform('world'))
     ax.scatter(cluster_objects['RA'], cluster_objects['DEC'], edgecolors='red', facecolors='red', alpha=0.6,
                label='Cluster', transform=ax.get_transform('world'))
@@ -439,7 +450,7 @@ def agn_prior_surf_den_err(redshift: float) -> float:
 n_cl = 6
 
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
-cluster_amp = 50
+cluster_amp = 2
 
 # Set parameter values
 theta_true = 5.0  # Amplitude
@@ -531,7 +542,7 @@ SPT_data['MASK_NAME'] = masks_bank
 assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_SPT_ID'], SPT_data['MASK_NAME'])])
 
 # Set up grid of radial positions to place AGN on (normalized by r500)
-r_grid = np.linspace(0., max_radius, num=100)
+r_grid = np.linspace(0., max_radius, num=200)
 
 # For the luminosities read in the filters and SED from which we will perform k-corrections on
 irac_36_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/Spitzer_IRAC/'
@@ -569,8 +580,8 @@ for cluster_catalog, cluster_color_threshold, bkg_rate_true in zip(SPT_data, col
 outAGN = vstack(AGN_cats)
 filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
             f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_fullMasks_forGPF.fits')
-outAGN.write(filename, overwrite=True)
+            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_fullMasks_forGPF_withLF.fits')
+# outAGN.write(filename, overwrite=True)
 print(filename)
 
 # Print out statistics
