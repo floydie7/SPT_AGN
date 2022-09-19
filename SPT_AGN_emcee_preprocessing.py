@@ -7,6 +7,7 @@ a JSON file for later use.
 """
 
 import json
+from argparse import ArgumentParser
 from time import time
 
 import astropy.units as u
@@ -15,7 +16,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-from schwimmbad import MultiPool
+from schwimmbad import SerialPool
 from scipy.spatial.distance import cdist
 from synphot import SourceSpectrum, SpectralElement, units
 
@@ -214,7 +215,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
                                          obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
 
     # Generate a luminosity integration mesh defined by the J-band equivalents of the 4.5 um apparent magnitude limits
-    jall = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=200)
+    jall = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=400)
 
     # Construct our cluster dictionary with all data needed for the sampler.
     # Additionally, store only values in types that can be serialized to JSON
@@ -227,17 +228,18 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     return cluster_id, cluster_dict
 
 
-# parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
-# parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
-# parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
-# parser.add_argument('--miscentering', help='Factor of miscentering to be used.', choices=[0.5, 0.75, 1.0], default=0.0,
-#                     type=float)
-# parser_grp = parser.add_mutually_exclusive_group()
-# parser_grp.add_argument('--cluster-only', action='store_true',
-#                         help='Generate a preprocessing file only on cluster objects.')
-# parser_grp.add_argument('--background-only', action='store_true',
-#                         help='Generate preprocessing file only on background objects.')
-# args = parser.parse_args()
+parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
+parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
+parser.add_argument('--output', help='Output filename', default='SPTcl_IRAGN_preprocessing.json', type=str)
+parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
+parser.add_argument('--miscentering', help='Factor of miscentering to be used.', choices=[0.5, 0.75, 1.0], default=0.0,
+                    type=float)
+parser_grp = parser.add_mutually_exclusive_group()
+parser_grp.add_argument('--cluster-only', action='store_true',
+                        help='Generate a preprocessing file only on cluster objects.')
+parser_grp.add_argument('--background-only', action='store_true',
+                        help='Generate preprocessing file only on background objects.')
+args = parser.parse_args()
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 hcc_prefix = ''
@@ -246,9 +248,9 @@ max_radius = 5. * u.arcmin  # Maximum integration radius in arcmin
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
 # Read in the mock catalog
-# sptcl_catalog = Table.read(args.catalog)
-sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
-                           'mock_AGN_catalog_t10.000_e4.00_z-1.00_b1.00_rc0.100_C0.316_maxr5.00_seed3775_6x2_fullMasks_forGPF_withLF.fits')
+sptcl_catalog = Table.read(args.catalog)
+# sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
+#                            'mock_AGN_catalog_t10.000_e4.00_z-1.00_b1.00_rc0.100_C0.316_maxr5.00_seed3775_6x2_fullMasks_forGPF_withLF.fits')
 
 # Filter the catalog using the rejection flag
 # if args.rejection:
@@ -258,15 +260,15 @@ sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Cat
 cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 background_only = sptcl_catalog[~sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 
-# if args.cluster_only:
-#     # Run on only cluster objects
-#     sptcl_catalog = cluster_only
-# elif args.background_only:
-#     # Run on only background objects
-#     sptcl_catalog = background_only
-# else:
-#     # Run on full catalog
-#     sptcl_catalog = sptcl_catalog
+if args.cluster_only:
+    # Run on only cluster objects
+    sptcl_catalog = cluster_only
+elif args.background_only:
+    # Run on only background objects
+    sptcl_catalog = background_only
+else:
+    # Run on full catalog
+    sptcl_catalog = sptcl_catalog
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
@@ -277,7 +279,7 @@ mask_dict = {cluster_id: fits.getdata(f'{hcc_prefix}{mask_file}', header=True) f
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
-with MultiPool() as pool:
+with SerialPool() as pool:
     # if not pool.is_master():
     #     pool.wait()
     #     sys.exit(0)
@@ -290,6 +292,8 @@ print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Store the results in a JSON file to be used later by the MCMC sampler
 local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
-preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF.json'
+# preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF_2kdenseJall_100cl_t50.json'
+preprocess_file = f'{local_dir}{args.output}'
 with open(preprocess_file, 'w') as f:
     json.dump(catalog_dict, f, ensure_ascii=False, indent=4)
+print(args.output)

@@ -5,6 +5,7 @@ Author: Benjamin Floyd
 Generates the chain walker and corner plots for a previously generated emcee chain file.
 """
 import json
+import re
 
 import corner
 import emcee
@@ -33,9 +34,9 @@ def agn_prior_surf_den(redshift: float) -> float:
     return agn_surf_den(agn_purity_color(redshift))
 
 
-cluster_amp = 50
+cluster_amp = 20
 
-theta_true = 5.0
+theta_true = 2.5
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
@@ -46,8 +47,12 @@ theta_true *= cluster_amp
 c0_true *= cluster_amp
 # truths = [np.log(theta_true), eta_true, zeta_true, beta_true, np.log(rc_true), np.log(c0_true)]
 truths = [theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true]
+# truths = [theta_true, eta_true, zeta_true, beta_true, rc_true]
+# truths = [eta_true, zeta_true, beta_true, rc_true, c0_true]
 # labels = [r'$\ln \theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$\ln r_c$', r'$\ln C_0$']
 labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
+# labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$']
+# labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
 filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
@@ -56,7 +61,7 @@ filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if '6x50_fullMasks_withGPF_logsample' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'intgdLF_t50_c3.162_catLFJabsMag_clOnly_fitIntLF_both' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -64,6 +69,9 @@ sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name)
 # Process each chain
 for chain_name, sampler in sampler_dict.items():
     print(f'-----\n{chain_name}')
+
+    param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
+    # *truths, cluster_amp = np.array(param_pattern.findall(chain_name), dtype=float)
 
     # Get the chain from the sampler
     samples = sampler.get_chain()
@@ -73,7 +81,7 @@ for chain_name, sampler in sampler_dict.items():
     # samples = np.apply_over_axes(np.exp, samples, axes=[0, 4, 5])
     samples[:, :, 0] = np.exp(samples[:, :, 0])
     samples[:, :, 4] = np.exp(samples[:, :, 4])
-    samples[:, :, 5] = np.exp(samples[:, :, 5])
+    # samples[:, :, 5] = np.exp(samples[:, :, 5])
 
     # To get the number of iterations ran, number of walkers used, and the number of parameters measured
     nsteps, nwalkers, ndim = samples.shape
@@ -135,7 +143,7 @@ for chain_name, sampler in sampler_dict.items():
     flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
     flat_samples[:, 0] = np.exp(flat_samples[:, 0])
     flat_samples[:, 4] = np.exp(flat_samples[:, 4])
-    flat_samples[:, 5] = np.exp(flat_samples[:, 5])
+    # flat_samples[:, 5] = np.exp(flat_samples[:, 5])
     # flat_log_prob_samples = sampler.get_log_prob(discard=burnin, thin=thinning, flat=True)
     # all_samples = np.concatenate((flat_samples, flat_log_prob_samples[:, None]), axis=1)
     # labels[-1] = r'$\ln(Post)$'

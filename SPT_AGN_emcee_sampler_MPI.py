@@ -89,23 +89,27 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         A surface density profile of objects as a function of radius and luminosity.
     """
 
-    # if args.cluster_only:
-    #     # Unpack our parameters
-    #     theta, eta, zeta, beta, rc = params
-    #     # Set background parameter to 0
-    #     c0 = 0
-    # elif args.background_only:
-    #     # Unpack our parameters
-    #     c0, = params
-    #     # Set all other parameters to neutral values
-    #     theta, eta, zeta = [0.]*3
-    #     beta, rc = 1/3., 1.
-    # else:
-    #     # Unpack our parameters
-    ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
+    if args.cluster_only:
+        # Unpack our parameters
+        ln_theta, eta, zeta, beta, ln_rc = params
+        theta, rc = np.exp([ln_theta, ln_rc])
+        # Set background parameter to 0
+        c0 = 0
+    elif args.background_only:
+        # Unpack our parameters
+        c0, = params
+        # Set all other parameters to neutral values
+        theta, eta, zeta = [0.]*3
+        beta, rc = 1/3., 1.
+    else:
+        # Unpack our parameters
+        ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
+    # eta, zeta, beta, ln_rc, ln_c0 = params
 
     # Exponentiate all the log-sampled parameters
-    theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
+        theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
+    # rc, c0 = np.exp([ln_rc, ln_c0])
+    # theta = 50.
 
     # Extract our data from the catalog dictionary
     z = catalog_dict[cluster_id]['redshift']
@@ -124,11 +128,14 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     LF = cosmo.angular_diameter_distance(z) ** 2 * r500 * lum_funct_value
 
     # Convert our background surface density from angular units into units of r500^-2
-    cz = (((c0 + delta_c(z) * cluster_amp) / u.arcmin ** 2)
-          * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2)
+    if args.cluster_only:
+        cz = 0.
+    else:
+        cz = (((c0 + delta_c(z) * cluster_amp) / u.arcmin ** 2)
+              * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2)
 
     # Our amplitude is determined from the cluster data
-    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta #* LF
+    a = theta * (1 + z) ** eta * (m / (1e15 * u.Msun)) ** zeta * LF
 
     model = a * (1 + (r_r500 / rc) ** 2) ** (-1.5 * beta + 0.5) + cz
 
@@ -163,8 +170,6 @@ def lnlike(param: tuple[float, ...]):
         # Get the luminosity mesh for integration
         jall = catalog_dict[cluster_id]['jall']
 
-        Rall, Jall = np.meshgrid(rall, jall)
-
         # Compute the completeness ratio for this cluster
         # if args.no_completeness or args.poisson_only:
         #     completeness_ratio = 1.
@@ -172,7 +177,7 @@ def lnlike(param: tuple[float, ...]):
         #     completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
-        ni = model_rate_opted(param, cluster_id, ri, j_band_abs_mag)
+        ni = model_rate_opted(param, cluster_id, ri, jall, integral=True)
 
         # Compute the full model along the radial direction.
         # The completeness weight is set to `1` as the model in the integration is assumed to be complete.
@@ -192,19 +197,24 @@ def lnlike(param: tuple[float, ...]):
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params: tuple[float, ...]):
     # Extract our parameters
-    # if args.cluster_only:
-    #     theta, eta, zeta, beta, rc = params
-    #     c0 = 0.
-    # elif args.background_only:
-    #     c0, = params
-    #     # Set other parameters to values that will pass the priors.
-    #     theta, eta, zeta, beta = [0.]*4
-    #     rc = 0.1  # Cannot be 0., min rc = 0.05
-    # else:
-    ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
+    if args.cluster_only:
+        ln_theta, eta, zeta, beta, ln_rc = params
+        theta, rc = np.exp([ln_theta, ln_rc])
+        c0 = c0_true
+    elif args.background_only:
+        ln_c0, = params
+        c0 = np.exp(ln_c0)
+        # Set other parameters to values that will pass the priors.
+        theta, eta, zeta, beta = [0.]*4
+        rc = 0.1  # Cannot be 0., min rc = 0.05
+    else:
+        ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
+    # eta, zeta, beta, ln_rc, ln_c0 = params
 
     # Exponentiate all the log-sampled parameters
-    theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
+        theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
+    # rc, c0 = np.exp([ln_rc, ln_c0])
+    # theta = 50.
 
     cluster_lnprior = []
     for cluster_id in catalog_dict:
@@ -228,10 +238,10 @@ def lnprior(params: tuple[float, ...]):
             zeta_lnprior = 0.0
             beta_lnprior = 0.0
             rc_lnprior = 0.0
-            # if args.cluster_only:
-            #     c_lnprior = 0.
-            # else:
-            c_lnprior = -0.5 * np.sum((cz - h_c) ** 2 / h_c_err ** 2)
+            if args.cluster_only:
+                c_lnprior = 0.
+            else:
+                c_lnprior = -0.5 * np.sum((cz - h_c) ** 2 / h_c_err ** 2)
             # C_lnprior = 0.0
         else:
             theta_lnprior = -np.inf
@@ -268,6 +278,7 @@ parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
 parser.add_argument('name', help='Chain name', type=str)
+parser.add_argument('--preprocessing', help='Preprocessing file name', default='SPTcl_IRAGN_preprocessing.json', type=str)
 parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
 parser.add_argument('--no-selection-membership', action='store_true',
                     help='Deactivate fuzzy degree of membership for AGN selection in likelihood function.')
@@ -284,7 +295,8 @@ args = parser.parse_args()
 
 # Load in the prepossessing file
 local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
-preprocess_file = os.path.abspath(f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF.json')
+# preprocess_file = os.path.abspath(f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF_2kdenseJall_100cl.json')
+preprocess_file = os.path.abspath(f'{local_dir}{args.preprocessing}')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
@@ -323,7 +335,7 @@ for cluster_id, cluster_info in catalog_dict.items():
     for data_name, data in filter(lambda x: isinstance(x[1], list), cluster_info.items()):
         catalog_dict[cluster_id][data_name] = np.array(data)
 
-theta_true = 5.0
+theta_true = 2.5
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
@@ -331,42 +343,39 @@ rc_true = 0.1
 c0_true = agn_prior_surf_den(0.)
 
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
-cluster_amp = 50
+cluster_amp = 20
 
 theta_true *= cluster_amp
 c0_true *= cluster_amp
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
-# ndim = 5 if args.cluster_only else (1 if args.background_only else 6)
+ndim = 5 if args.cluster_only else (1 if args.background_only else 6)
 # nwalkers = 6 * ndim
-ndim = 6
+# ndim = 6
 nwalkers = 50
 
 # Also, set the number of steps to run the sampler for.
 nsteps = 5000
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-# if args.cluster_only:
-#     pos0 = np.vstack([[np.random.uniform(0., 12.),  # theta
-#                        np.random.uniform(-1., 6.),  # eta
-#                        np.random.uniform(-3., 3.),  # zeta
-#                        np.random.uniform(-3., 3.),  # beta
-#                        np.random.normal(loc=0.1, scale=6e-3)  # rc
-#                        ]
-#                       for i in range(nwalkers)])
-# elif args.background_only:
-#     pos0 = np.vstack([[np.random.normal(loc=agn_prior_surf_den(0.), scale=agn_prior_surf_den_err(0.))  # C
-#                        ]
-#                       for i in range(nwalkers)])
-# else:
-pos0 = np.array([
-    rng.normal(np.log(theta_true), 1e-4, size=nwalkers),
-    rng.normal(eta_true, 1e-4, size=nwalkers),
-    rng.normal(zeta_true, 1e-4, size=nwalkers),
-    rng.normal(beta_true, 1e-4, size=nwalkers),
-    rng.normal(np.log(rc_true), 1e-4, size=nwalkers),
-    rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
+if args.cluster_only:
+    pos0 = np.array([
+        rng.normal(np.log(theta_true), 1e-4, size=nwalkers),
+        rng.normal(eta_true, 1e-4, size=nwalkers),
+        rng.normal(zeta_true, 1e-4, size=nwalkers),
+        rng.normal(beta_true, 1e-4, size=nwalkers),
+        rng.normal(np.log(rc_true), 1e-4, size=nwalkers)]).T
+elif args.background_only:
+    pos0 = np.array([rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
+else:
+    pos0 = np.array([
+        rng.normal(np.log(theta_true), 1e-4, size=nwalkers),
+        rng.normal(eta_true, 1e-4, size=nwalkers),
+        rng.normal(zeta_true, 1e-4, size=nwalkers),
+        rng.normal(beta_true, 1e-4, size=nwalkers),
+        rng.normal(np.log(rc_true), 1e-4, size=nwalkers),
+        rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
 autocorr = np.empty(nsteps)
