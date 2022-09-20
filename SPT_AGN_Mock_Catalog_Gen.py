@@ -552,8 +552,8 @@ beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
-eta_range = np.arange(-5., 6., 1.)
-zeta_range = np.arange(-2., 3., 1.)
+eta_range = np.arange(-4., 5., 2.)
+zeta_range = np.arange(-1., 2., 1.)
 
 # We will amplify our true parameters to increase the SNR
 theta_true *= cluster_amp

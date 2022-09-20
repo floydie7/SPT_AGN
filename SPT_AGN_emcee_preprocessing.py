@@ -241,8 +241,8 @@ parser_grp.add_argument('--background-only', action='store_true',
                         help='Generate preprocessing file only on background objects.')
 args = parser.parse_args()
 
-# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-hcc_prefix = ''
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# hcc_prefix = ''
 max_radius = 5. * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
