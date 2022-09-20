@@ -271,8 +271,8 @@ def lnpost(params: tuple[float, ...]):
     return lp + lnlike(params)
 
 
-# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-hcc_prefix = ''
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# hcc_prefix = ''
 
 parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
@@ -294,7 +294,8 @@ parser_grp.add_argument('--background-only', action='store_true',
 args = parser.parse_args()
 
 # Load in the prepossessing file
-local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+# local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+local_dir = ''
 # preprocess_file = os.path.abspath(f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF_2kdenseJall_100cl.json')
 preprocess_file = os.path.abspath(f'{local_dir}{args.preprocessing}')
 with open(preprocess_file, 'r') as f:
@@ -387,7 +388,7 @@ with MPIPool() as pool:
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = f'{local_dir}emcee_mock_pure_poisson.h5'
+    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
     backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
                                                          f'{"_no-mu" if args.no_selection_membership else ""}'

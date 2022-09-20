@@ -291,7 +291,8 @@ with MPIPool() as pool:
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+# local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+local_dir = ''
 # preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF_2kdenseJall_100cl_t50.json'
 preprocess_file = f'{local_dir}{args.output}'
 with open(preprocess_file, 'w') as f:
