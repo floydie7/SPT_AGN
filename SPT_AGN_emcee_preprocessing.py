@@ -16,7 +16,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-from schwimmbad import SerialPool
+from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
 from synphot import SourceSpectrum, SpectralElement, units
 
@@ -279,14 +279,14 @@ mask_dict = {cluster_id: fits.getdata(f'{hcc_prefix}{mask_file}', header=True) f
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
-with SerialPool() as pool:
+with MPIPool() as pool:
     # if not pool.is_master():
     #     pool.wait()
     #     sys.exit(0)
     pool_results = pool.map(generate_catalog_dict, sptcl_catalog_grp.groups)
 
-    # if pool.is_master():
-catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
+    if pool.is_master():
+        catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
