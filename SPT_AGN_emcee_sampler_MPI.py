@@ -14,7 +14,7 @@ import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
-from schwimmbad import MultiPool
+from schwimmbad import MPIPool
 from scipy.interpolate import lagrange, interp1d
 from tqdm.contrib import tenumerate
 
@@ -381,7 +381,7 @@ else:
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
-with MultiPool() as pool:
+with MPIPool() as pool:
     # if not pool.is_master():
     #     pool.wait()
     #     sys.exit(0)
