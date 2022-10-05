@@ -426,9 +426,9 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
     los_cat = los_cat[mask_image[np.floor(los_cat['y_pixel']).astype(int), np.floor(los_cat['x_pixel']).astype(int)]]
 
     # # Perform a rejection sampling based on the completeness value for each object.
-    # alpha = rng.uniform(0, 1, size=len(los_cat))
-    # prob_reject = 1 / los_cat['COMPLETENESS_CORRECTION']
-    # los_cat['COMPLETENESS_REJECT'] = prob_reject >= alpha
+    alpha = rng.uniform(0, 1, size=len(los_cat))
+    prob_reject = 1 / los_cat['COMPLETENESS_CORRECTION']
+    los_cat['COMPLETENESS_REJECT'] = prob_reject >= alpha
 
     # image_center = SkyCoord.from_pixel(mask_size_x / 2, mask_size_y / 2, wcs=w, origin=0, mode='wcs')
     # los_coords = SkyCoord(los_cat['RA'], los_cat['DEC'], unit=u.deg)
@@ -539,21 +539,21 @@ def agn_prior_surf_den_err(redshift: float) -> float:
 # args = parser.parse_args()
 
 # Number of clusters to generate
-n_cl = 6
+n_cl = 15
 
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
 cluster_amp = 20
 
 # Set parameter values
-theta_true = 2.5  # Amplitude
+theta_true = 5.0  # Amplitude
 eta_true = 4.0  # Redshift slope
 zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
-eta_range = np.arange(-4., 5., 2.)
-zeta_range = np.arange(-1., 2., 1.)
+# eta_range = np.arange(-4., 5., 2.)
+# zeta_range = np.arange(-1., 2., 1.)
 
 # We will amplify our true parameters to increase the SNR
 theta_true *= cluster_amp
@@ -651,39 +651,39 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
 # </editor-fold>
 
 catalog_start_time = time()
-for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
-    params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
+# for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
+params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
 
-    # Find the appropriate color thresholds for our clusters
-    color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
+# Find the appropriate color thresholds for our clusters
+color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
 
-    # Set the redshift dependent background rates
-    c_truths = np.array([agn_prior_surf_den(z) for z in SPT_data['REDSHIFT']])
-    c_err_truths = np.array([agn_prior_surf_den_err(z) for z in SPT_data['REDSHIFT']])
+# Set the redshift dependent background rates
+c_truths = np.array([agn_prior_surf_den(z) for z in SPT_data['REDSHIFT']])
+c_err_truths = np.array([agn_prior_surf_den_err(z) for z in SPT_data['REDSHIFT']])
 
-    # We will amplify the true parameters by the number of clusters in the sample.
-    c_truths *= cluster_amp
-    c_err_truths *= cluster_amp
+# We will amplify the true parameters by the number of clusters in the sample.
+c_truths *= cluster_amp
+c_err_truths *= cluster_amp
 
-    # # Run the catalog generation in parallel
-    # with MPIPool() as pool:
-    #     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
-    AGN_cats = []
-    for cluster_catalog, cluster_color_threshold, bkg_rate_true in zip(SPT_data, color_thresholds, c_truths):
-        AGN_cats.append(generate_mock_cluster(cluster_catalog, cluster_color_threshold, bkg_rate_true))
+# # Run the catalog generation in parallel
+# with MPIPool() as pool:
+#     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
+AGN_cats = []
+for cluster_catalog, cluster_color_threshold, bkg_rate_true in zip(SPT_data, color_thresholds, c_truths):
+    AGN_cats.append(generate_mock_cluster(cluster_catalog, cluster_color_threshold, bkg_rate_true))
 
-    # Stack the individual cluster catalogs into a single master catalog
-    outAGN = vstack(AGN_cats)
-    filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-                f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-                f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_eta-zeta_grid.fits')
-    outAGN.write(filename, overwrite=True)
-    print(filename)
+# Stack the individual cluster catalogs into a single master catalog
+outAGN = vstack(AGN_cats)
+filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
+            f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
+            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp.fits')
+outAGN.write(filename, overwrite=True)
+print(filename)
 
-    # Print out statistics
-    print(f'RNG Seed: {seed}')
-    print('Mock Catalog (no rejection sampling)')
-    print_catalog_stats(outAGN)
+# Print out statistics
+print(f'RNG Seed: {seed}')
+print('Mock Catalog (no rejection sampling)')
+print_catalog_stats(outAGN)
 
 # print('-----\n')
 # outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECT'].astype(bool)]

@@ -14,7 +14,7 @@ import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
-from schwimmbad import MPIPool
+from schwimmbad import MultiPool
 from scipy.interpolate import lagrange, interp1d
 from tqdm.contrib import tenumerate
 
@@ -153,7 +153,7 @@ def lnlike(param: tuple[float, ...]):
         ri = catalog_dict[cluster_id]['radial_r500_maxr']
 
         # Get the completeness weights for the AGN
-        # completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
+        completeness_weight_maxr = catalog_dict[cluster_id]['completeness_weight_maxr']
 
         # Get the AGN sample degrees of membership
         # if args.no_selection_membership or args.poisson_only:
@@ -171,10 +171,10 @@ def lnlike(param: tuple[float, ...]):
         jall = catalog_dict[cluster_id]['jall']
 
         # Compute the completeness ratio for this cluster
-        # if args.no_completeness or args.poisson_only:
-        #     completeness_ratio = 1.
-        # else:
-        #     completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
+        if args.no_completeness or args.poisson_only:
+            completeness_ratio = 1.
+        else:
+            completeness_ratio = len(completeness_weight_maxr) / np.sum(completeness_weight_maxr)
 
         # Compute the model rate at the locations of the AGN.
         ni = model_rate_opted(param, cluster_id, ri, jall, integral=True)
@@ -184,7 +184,7 @@ def lnlike(param: tuple[float, ...]):
         n_mesh = model_rate_opted(param, cluster_id, rall, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * ri)) - trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
+        cluster_lnlike = (np.sum(np.log(ni * ri)) - completeness_ratio * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
 
         lnlike_list.append(cluster_lnlike)
 
@@ -271,8 +271,8 @@ def lnpost(params: tuple[float, ...]):
     return lp + lnlike(params)
 
 
-hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-# hcc_prefix = ''
+# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+hcc_prefix = ''
 
 parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
@@ -294,8 +294,8 @@ parser_grp.add_argument('--background-only', action='store_true',
 args = parser.parse_args()
 
 # Load in the prepossessing file
-# local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
-local_dir = ''
+local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+# local_dir = ''
 # preprocess_file = os.path.abspath(f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF_2kdenseJall_100cl.json')
 preprocess_file = os.path.abspath(f'{local_dir}{args.preprocessing}')
 with open(preprocess_file, 'r') as f:
@@ -336,7 +336,7 @@ for cluster_id, cluster_info in catalog_dict.items():
     for data_name, data in filter(lambda x: isinstance(x[1], list), cluster_info.items()):
         catalog_dict[cluster_id][data_name] = np.array(data)
 
-theta_true = 2.5
+theta_true = 5.0
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
@@ -382,13 +382,15 @@ else:
 autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
-with MPIPool() as pool:
+# with MPIPool() as pool:
+with MultiPool() as pool:
     # if not pool.is_master():
     #     pool.wait()
     #     sys.exit(0)
 
     # Filename for hd5 backend
-    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
+    # chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
+    chain_file = f'{local_dir}emcee_mock_pure_poisson.h5'
     backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
                                                          f'{"_no-mu" if args.no_selection_membership else ""}'

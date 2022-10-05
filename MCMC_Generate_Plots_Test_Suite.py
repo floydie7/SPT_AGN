@@ -36,7 +36,7 @@ def agn_prior_surf_den(redshift: float) -> float:
 
 cluster_amp = 20
 
-theta_true = 2.5
+theta_true = 5.0
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
@@ -56,12 +56,13 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
 filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'intgdLF_t50_c3.162_catLFJabsMag_clOnly_fitIntLF_both' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'fixedCliFlags' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -76,15 +77,19 @@ for chain_name, sampler in sampler_dict.items():
     # Get the chain from the sampler
     samples = sampler.get_chain()
 
-    # Exponentiate the chains of the log-sampled parameters
-    # samples = np.exp(samples, axis=(0, 4, 5), keepdims=True)
-    # samples = np.apply_over_axes(np.exp, samples, axes=[0, 4, 5])
-    samples[:, :, 0] = np.exp(samples[:, :, 0])
-    samples[:, :, 4] = np.exp(samples[:, :, 4])
-    # samples[:, :, 5] = np.exp(samples[:, :, 5])
-
     # To get the number of iterations ran, number of walkers used, and the number of parameters measured
     nsteps, nwalkers, ndim = samples.shape
+
+    # Exponentiate the chains of the log-sampled parameters
+    if ndim == 1:
+        samples[:, :, 0] = np.exp(samples[:, :, 0])
+    elif ndim == 5:
+        samples[:, :, 0] = np.exp(samples[:, :, 0])
+        samples[:, :, 4] = np.exp(samples[:, :, 4])
+    else:
+        samples[:, :, 0] = np.exp(samples[:, :, 0])
+        samples[:, :, 4] = np.exp(samples[:, :, 4])
+        samples[:, :, 5] = np.exp(samples[:, :, 5])
 
     # Plot the chains
     fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
@@ -141,9 +146,15 @@ for chain_name, sampler in sampler_dict.items():
         thinning = 1
 
     flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
-    flat_samples[:, 0] = np.exp(flat_samples[:, 0])
-    flat_samples[:, 4] = np.exp(flat_samples[:, 4])
-    # flat_samples[:, 5] = np.exp(flat_samples[:, 5])
+    if ndim == 1:
+        flat_samples[:, 0] = np.exp(flat_samples[:, 0])
+    elif ndim == 5:
+        flat_samples[:, 0] = np.exp(flat_samples[:, 0])
+        flat_samples[:, 4] = np.exp(flat_samples[:, 4])
+    else:
+        flat_samples[:, 0] = np.exp(flat_samples[:, 0])
+        flat_samples[:, 4] = np.exp(flat_samples[:, 4])
+        flat_samples[:, 5] = np.exp(flat_samples[:, 5])
     # flat_log_prob_samples = sampler.get_log_prob(discard=burnin, thin=thinning, flat=True)
     # all_samples = np.concatenate((flat_samples, flat_log_prob_samples[:, None]), axis=1)
     # labels[-1] = r'$\ln(Post)$'
