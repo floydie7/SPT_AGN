@@ -17,7 +17,6 @@ from astropy.io import fits
 from astropy.table import Table, join, unique, vstack
 from astropy.wcs import WCS
 from matplotlib import pyplot as plt
-from schwimmbad import MPIPool
 from scipy import stats
 from scipy.interpolate import lagrange, interp1d
 from synphot import SpectralElement, SourceSpectrum, units
@@ -199,7 +198,7 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
     return model  # .value
 
 
-def generate_mock_los(cluster: Table, color_threshold: float, c_true: float) -> Table:
+def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float) -> Table:
     """Task function to create the line-of-sight cluster catalogs."""
     spt_id = cluster['SPT_ID']
     mask_name = cluster['MASK_NAME']
@@ -247,34 +246,103 @@ def generate_mock_los(cluster: Table, color_threshold: float, c_true: float) -> 
 
     # R, J = np.meshgrid(r_grid, j_grid)
 
+    # Calculate the model values for the AGN candidates in the cluster
+    model_cluster_agn = model_rate(params_true, z_cl, m500_cl, r500_cl, r_grid, j_grid)
+    # if spt_id == 'SPT_Mock_000':
+    #     fig, ax = plt.subplots(subplot_kw=dict(projection='3d'))
+    #     ax.plot_surface(R, J, model_cluster_agn)
+    #     ax.set(xlabel=r'$r/r_{500}$', ylabel=r'$M_J$', zlabel=r'$N(r,M_J)$')
+    #     # ax.view_init(elev=0, azim=0)
+    #     plt.show()
+
+    # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
+    # the cluster. Then convert to pix^-2 units.
+    max_rate = np.max(model_cluster_agn)  # r500^-2 units
+    max_rate_inv_pix2 = ((max_rate / r500_cl ** 2) * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) ** 2
+                         * mask_pixel_scale.to(u.arcmin) ** 2)
+
+    # Simulate the AGN using the spatial Poisson point process.
+    cluster_agn_coords_pix = poisson_point_process(max_rate_inv_pix2, dx=upper_x, dy=upper_y,
+                                                   lower_dx=lower_x, lower_dy=lower_y)
+
+    # For the cluster, we need to select only objects within a redshift range of the cluster redshift.
+    sdwfs_agn_at_z = sdwfs_agn_mu_cut[np.abs(sdwfs_agn_mu_cut['REDSHIFT'] - z_cl) <= delta_z]
+
+    # plot_lf_cluster(sdwfs_agn_at_z['J_ABS_MAG'], z_cl, r500_cl, cluster_id='Raw SDWFS', before=True)
+
+    # Now we will assign each cluster object a random completeness value, degree of membership, and J-band abs. mag.
+    cl_cat_df = sdwfs_agn_at_z.to_pandas().sample(n=cluster_agn_coords_pix.shape[-1], replace=True,
+                                                  random_state=rng)
+    cl_cat = Table.from_pandas(cl_cat_df)
+    cl_cat['x_pixel'] = cluster_agn_coords_pix[0]
+    cl_cat['y_pixel'] = cluster_agn_coords_pix[1]
+
+    # Filter for only the columns we care about
+    cl_cat = cl_cat['x_pixel', 'y_pixel', 'REDSHIFT', 'COMPLETENESS_CORRECTION',
+                    f'SELECTION_MEMBERSHIP_{color_threshold:.2f}', 'J_ABS_MAG']
+    cl_cat.rename_columns(['REDSHIFT', f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'],
+                          ['galaxy_redshift', 'SELECTION_MEMBERSHIP'])
+
+    # # Draw J-band luminosities for each object from the luminosity function at the cluster redshift
+    # lf_cl_rv = LFpdf(z=z_cl, a=bright_end_j_absmag, b=faint_end_j_absmag)
+    # cluster_agn_j_abs_mag = lf_cl_rv.rvs(size=cluster_agn_coords_pix.shape[-1], random_state=rng)
+    #
+    # # For testing, overwrite the empirical J-band absolute magnitudes with the ones drawn directly from the LF
+    # cl_cat['J_ABS_MAG'] = cluster_agn_j_abs_mag
+
+    # Do a quick rejection sampling method to build the luminosities
+    # lf_norm = np.trapz(luminosity_function(j_grid, z_cl), j_grid)
+    # abs_mag_cans = rng.uniform(bright_end_j_absmag, faint_end_j_absmag, size=10 * len(cl_cat))
+    # lf_at_mag = luminosity_function(abs_mag_cans, z_cl) / lf_norm
+    # alpha = rng.uniform(0, 1, size=abs_mag_cans.size)
+    # cluster_agn_j_abs_mag = abs_mag_cans[lf_at_mag >= alpha][:len(cl_cat)]
+    #
+    # cl_cat['J_ABS_MAG'] = cluster_agn_j_abs_mag
+    #
+    # plot_lf_cluster(cl_cat['J_ABS_MAG'], z_cl, r500_cl, spt_id, before=True)
+
+    # Find the radius of each point placed scaled by the cluster's r500 radius
+    cluster_agn_skycoord = SkyCoord.from_pixel(cl_cat['x_pixel'], cl_cat['y_pixel'], wcs=w, origin=0, mode='wcs')
+    radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
+    radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
+
+    # Filter the candidates through the model to establish the radial trend in the data.
+    rate_at_rad = model_rate(params_true, z_cl, m500_cl, r500_cl, radii_r500, j_grid)
+
+    # Our rejection rate is the model rate at the radius scaled by the maximum rate
+    prob_reject = rate_at_rad / max_rate
+
+    # Draw a random number for each candidate
+    alpha = rng.uniform(0., 1., size=len(rate_at_rad))
+
+    # Perform the rejection sampling
+    cl_cat = cl_cat[prob_reject >= alpha]
+
+    # Add flag to cluster objects
+    cl_cat['CLUSTER_AGN'] = np.full_like(cl_cat['x_pixel'], True)
+
     # plot_lf_cluster(cl_cat['J_ABS_MAG'], z_cl, r500_cl, spt_id, before=False)
 
     # Background Catalog
-    bkg_cat = generate_background_field(c_true, color_threshold, lower_x, lower_y, mask_pixel_scale, upper_x, upper_y)
+    # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
+    background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
+    background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
+                                               lower_dx=lower_x, lower_dy=lower_y)
 
-    # Cluster catalog
-    snr = 0.
-    theta_test = 5. * cluster_amp
-    cl_cat = Table(names=bkg_cat.colnames, dtype=bkg_cat.dtype)
-    while not np.abs(snr - snr_target) < 0.5:
-        # Generate a cluster catalog with the test cluster amplitude
-        cl_cat = generate_cluster(theta_test, SZ_center_skycoord, color_threshold, j_grid, lower_x, lower_y, m500_cl,
-                                  mask_pixel_scale, r500_cl, sdwfs_agn_mu_cut, upper_x, upper_y, w, z_cl)
+    # For each background AGN we will also need a random completeness value, degree of membership, and J-band abs. mag.
+    bkg_cat_df = sdwfs_agn.to_pandas().sample(n=background_agn_pix.shape[-1], replace=True, random_state=rng)
+    bkg_cat = Table.from_pandas(bkg_cat_df)
+    bkg_cat['x_pixel'] = background_agn_pix[0]
+    bkg_cat['y_pixel'] = background_agn_pix[1]
 
-        # compute the snr
-        no_cl_agn = cl_cat['COMPLETENESS_CORRECTION'].sum()
-        no_los_agn = no_cl_agn + bkg_cat['COMPLETENESS_CORRECTION'].sum()
-        snr = no_cl_agn / no_los_agn
+    # Filter for only the columns we care about
+    bkg_cat = bkg_cat['x_pixel', 'y_pixel', 'REDSHIFT', 'COMPLETENESS_CORRECTION',
+                      f'SELECTION_MEMBERSHIP_{color_threshold:.2f}', 'J_ABS_MAG']
+    bkg_cat.rename_columns(['REDSHIFT', f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'],
+                           ['galaxy_redshift', 'SELECTION_MEMBERSHIP'])
 
-        if snr > snr_target:
-            # We overproduced the cluster AGN, decrease the amplitude and try again
-            theta_test -= 0.1
-        elif snr < snr_target:
-            # We are underproducing cluster AGN, increase the amplitude and try again
-            theta_test += 0.1
-        else:
-            print(f'{theta_test = }, {snr = :.2f}')
-            break
+    # Add flag to background objects
+    bkg_cat['CLUSTER_AGN'] = np.full_like(bkg_cat['x_pixel'], False)
 
     # Concatenate the cluster sources with the background sources
     los_cat = vstack([cl_cat, bkg_cat])
@@ -371,72 +439,6 @@ def generate_mock_los(cluster: Table, color_threshold: float, c_true: float) -> 
     #     plot_mock_cluster(los_cat, cluster)
 
     return los_cat
-
-
-def generate_cluster(theta, SZ_center_skycoord, color_threshold, j_grid, lower_x, lower_y, m500_cl, mask_pixel_scale,
-                     r500_cl,
-                     sdwfs_agn_mu_cut, upper_x, upper_y, w, z_cl):
-    params = (theta, *params_true[1:])
-
-    # Calculate the model values for the AGN candidates in the cluster
-    model_cluster_agn = model_rate(params, z_cl, m500_cl, r500_cl, r_grid, j_grid)
-    # Find the maximum rate. This establishes that the number of AGN in the cluster is tied to the redshift and mass of
-    # the cluster. Then convert to pix^-2 units.
-    max_rate = np.max(model_cluster_agn)  # r500^-2 units
-    max_rate_inv_pix2 = ((max_rate / r500_cl ** 2) * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) ** 2
-                         * mask_pixel_scale.to(u.arcmin) ** 2)
-    # Simulate the AGN using the spatial Poisson point process.
-    cluster_agn_coords_pix = poisson_point_process(max_rate_inv_pix2, dx=upper_x, dy=upper_y,
-                                                   lower_dx=lower_x, lower_dy=lower_y)
-    # For the cluster, we need to select only objects within a redshift range of the cluster redshift.
-    sdwfs_agn_at_z = sdwfs_agn_mu_cut[np.abs(sdwfs_agn_mu_cut['REDSHIFT'] - z_cl) <= delta_z]
-    # plot_lf_cluster(sdwfs_agn_at_z['J_ABS_MAG'], z_cl, r500_cl, cluster_id='Raw SDWFS', before=True)
-    # Now we will assign each cluster object a random completeness value, degree of membership, and J-band abs. mag.
-    cl_cat_df = sdwfs_agn_at_z.to_pandas().sample(n=cluster_agn_coords_pix.shape[-1], replace=True,
-                                                  random_state=rng)
-    cl_cat = Table.from_pandas(cl_cat_df)
-    cl_cat['x_pixel'] = cluster_agn_coords_pix[0]
-    cl_cat['y_pixel'] = cluster_agn_coords_pix[1]
-    # Filter for only the columns we care about
-    cl_cat = cl_cat['x_pixel', 'y_pixel', 'REDSHIFT', 'COMPLETENESS_CORRECTION',
-                    f'SELECTION_MEMBERSHIP_{color_threshold:.2f}', 'J_ABS_MAG']
-    cl_cat.rename_columns(['REDSHIFT', f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'],
-                          ['galaxy_redshift', 'SELECTION_MEMBERSHIP'])
-    # Find the radius of each point placed scaled by the cluster's r500 radius
-    cluster_agn_skycoord = SkyCoord.from_pixel(cl_cat['x_pixel'], cl_cat['y_pixel'], wcs=w, origin=0, mode='wcs')
-    radii_arcmin = SZ_center_skycoord.separation(cluster_agn_skycoord).to(u.arcmin)
-    radii_r500 = radii_arcmin * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl
-    # Filter the candidates through the model to establish the radial trend in the data.
-    rate_at_rad = model_rate(params, z_cl, m500_cl, r500_cl, radii_r500, j_grid)
-    # Our rejection rate is the model rate at the radius scaled by the maximum rate
-    prob_reject = rate_at_rad / max_rate
-    # Draw a random number for each candidate
-    alpha = rng.uniform(0., 1., size=len(rate_at_rad))
-    # Perform the rejection sampling
-    cl_cat = cl_cat[prob_reject >= alpha]
-    # Add flag to cluster objects
-    cl_cat['CLUSTER_AGN'] = np.full_like(cl_cat['x_pixel'], True)
-    return cl_cat
-
-
-def generate_background_field(c_true, color_threshold, lower_x, lower_y, mask_pixel_scale, upper_x, upper_y):
-    # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
-    background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
-    background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
-                                               lower_dx=lower_x, lower_dy=lower_y)
-    # For each background AGN we will also need a random completeness value, degree of membership, and J-band abs. mag.
-    bkg_cat_df = sdwfs_agn.to_pandas().sample(n=background_agn_pix.shape[-1], replace=True, random_state=rng)
-    bkg_cat = Table.from_pandas(bkg_cat_df)
-    bkg_cat['x_pixel'] = background_agn_pix[0]
-    bkg_cat['y_pixel'] = background_agn_pix[1]
-    # Filter for only the columns we care about
-    bkg_cat = bkg_cat['x_pixel', 'y_pixel', 'REDSHIFT', 'COMPLETENESS_CORRECTION',
-                      f'SELECTION_MEMBERSHIP_{color_threshold:.2f}', 'J_ABS_MAG']
-    bkg_cat.rename_columns(['REDSHIFT', f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'],
-                           ['galaxy_redshift', 'SELECTION_MEMBERSHIP'])
-    # Add flag to background objects
-    bkg_cat['CLUSTER_AGN'] = np.full_like(bkg_cat['x_pixel'], False)
-    return bkg_cat
 
 
 def plot_lf_cluster(j_mag, redshift: float, r500: float, cluster_id: str, before: bool, weight=1.):
@@ -542,28 +544,19 @@ n_cl = 15
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
 cluster_amp = 20
 
-# Set cluster-to-background S/N target
-snr_target = 8.
-
 # Set parameter values
-# theta_true = 5.0  # Amplitude
-# eta_true = 4.0  # Redshift slope
-# zeta_true = -1.0  # Mass slope
+theta_true = 5.0  # Amplitude
+eta_true = 4.0  # Redshift slope
+zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
-global theta_test
-global theta_true
-global eta_true
-global zeta_true
-global params_true
-eta_range = [-5., -3., 0., 3., 4., 5.]
-zeta_range = [-2., -1., 0., 1., 2.]
-eta_zeta_grid = np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2)
+# eta_range = np.arange(-4., 5., 2.)
+# zeta_range = np.arange(-1., 2., 1.)
 
 # We will amplify our true parameters to increase the SNR
-# theta_true *= cluster_amp
+theta_true *= cluster_amp
 c0_true *= cluster_amp
 
 # Set the maximum radius we will generate objects to as a factor of r500
@@ -658,6 +651,9 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
 # </editor-fold>
 
 catalog_start_time = time()
+# for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
+params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
+
 # Find the appropriate color thresholds for our clusters
 color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
 
@@ -669,37 +665,25 @@ c_err_truths = np.array([agn_prior_surf_den_err(z) for z in SPT_data['REDSHIFT']
 c_truths *= cluster_amp
 c_err_truths *= cluster_amp
 
+# # Run the catalog generation in parallel
+# with MPIPool() as pool:
+#     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
+AGN_cats = []
+for cluster_catalog, cluster_color_threshold, bkg_rate_true in zip(SPT_data, color_thresholds, c_truths):
+    AGN_cats.append(generate_mock_cluster(cluster_catalog, cluster_color_threshold, bkg_rate_true))
 
-# for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
-def run_catalogs(eta_zeta):
-    eta_true, zeta_true = eta_zeta
-    theta_true = 5. * cluster_amp
-    global params_true
-    params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
-
-    AGN_cats = []
-    for cluster_catalog, cluster_color_threshold, bkg_rate_true in zip(SPT_data, color_thresholds, c_truths):
-        AGN_cats.append(generate_mock_los(cluster_catalog, cluster_color_threshold, bkg_rate_true))
-        outAGN = vstack(AGN_cats)
-        theta_true = theta_test
-        filename = (
-            f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-            f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_eta-zeta.fits')
-        outAGN.write(filename, overwrite=True)
-
-
-# Run the catalog generation in parallel
-with MPIPool() as pool:
-    pool.map(run_catalogs, eta_zeta_grid)
 # Stack the individual cluster catalogs into a single master catalog
+outAGN = vstack(AGN_cats)
+filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
+            f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
+            f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp.fits')
+outAGN.write(filename, overwrite=True)
+print(filename)
 
-# print(filename)
-#
-# # Print out statistics
-# print(f'RNG Seed: {seed}')
-# print('Mock Catalog (no rejection sampling)')
-# print_catalog_stats(outAGN)
+# Print out statistics
+print(f'RNG Seed: {seed}')
+print('Mock Catalog (no rejection sampling)')
+print_catalog_stats(outAGN)
 
 # print('-----\n')
 # outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECT'].astype(bool)]
