@@ -344,7 +344,7 @@ rc_true = 0.1
 c0_true = agn_prior_surf_den(0.)
 
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
-cluster_amp = 20
+cluster_amp = 1.
 
 theta_true *= cluster_amp
 c0_true *= cluster_amp
