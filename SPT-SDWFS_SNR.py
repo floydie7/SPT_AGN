@@ -45,9 +45,9 @@ for z, cluster_bin in zip(z_bin_centers, sptcl_iragn_binned.groups):
     # Estimate the number of cluster AGN
     no_cluster_agn = np.abs(no_los_agn - no_field_agn)
 
-    cl_bkg_snr.append(no_cluster_agn / no_los_agn)
+    cl_bkg_snr.append(no_cluster_agn / no_field_agn)
 
 fig, ax = plt.subplots()
 ax.bar(z_bin_centers, cl_bkg_snr, width=np.diff(z_bins))
-ax.set(xlabel='redshift', ylabel='SNR [# cluster AGN / # total AGN]')
+ax.set(xlabel='redshift', ylabel='SNR [# cluster AGN / # background AGN]')
 plt.show()
