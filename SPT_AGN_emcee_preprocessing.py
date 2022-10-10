@@ -16,7 +16,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-from schwimmbad import SerialPool
+from schwimmbad import SerialPool, MPIPool
 from scipy.spatial.distance import cdist
 from synphot import SourceSpectrum, SpectralElement, units
 
@@ -241,8 +241,8 @@ parser_grp.add_argument('--background-only', action='store_true',
                         help='Generate preprocessing file only on background objects.')
 args = parser.parse_args()
 
-# hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
-hcc_prefix = ''
+hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
+# hcc_prefix = ''
 max_radius = 5. * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
@@ -279,8 +279,8 @@ mask_dict = {cluster_id: fits.getdata(f'{hcc_prefix}{mask_file}', header=True) f
 # Compute the good pixel fractions for each cluster and store the array in the catalog.
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
-# with MPIPool() as pool:
-with SerialPool() as pool:
+with MPIPool() as pool:
+# with SerialPool() as pool:
     # if not pool.is_master():
     #     pool.wait()
     #     sys.exit(0)
@@ -292,8 +292,8 @@ with SerialPool() as pool:
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
 
 # Store the results in a JSON file to be used later by the MCMC sampler
-local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
-# local_dir = ''
+# local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
+local_dir = ''
 # preprocess_file = f'{local_dir}SPTcl_IRAGN_preprocessing_fullMasks_withGPF_withLF_2kdenseJall_100cl_t50.json'
 preprocess_file = f'{local_dir}{args.output}'
 with open(preprocess_file, 'w') as f:
