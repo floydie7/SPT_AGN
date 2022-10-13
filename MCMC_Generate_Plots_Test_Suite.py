@@ -34,7 +34,7 @@ def agn_prior_surf_den(redshift: float) -> float:
     return agn_surf_den(agn_purity_color(redshift))
 
 
-cluster_amp = 20
+cluster_amp = 1.
 
 theta_true = 5.0
 eta_true = 4.0
@@ -55,14 +55,14 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 # labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid.h5'
+# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'fixedCliFlags' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if '308cl' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -72,7 +72,7 @@ for chain_name, sampler in sampler_dict.items():
     print(f'-----\n{chain_name}')
 
     param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
-    # *truths, cluster_amp = np.array(param_pattern.findall(chain_name), dtype=float)
+    truths = np.array(param_pattern.findall(chain_name), dtype=float)
 
     # Get the chain from the sampler
     samples = sampler.get_chain()
@@ -114,8 +114,8 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
-                f'Param_chains_mock_{chain_name}_expParams.pdf')
+    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+    #             f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
     try:
@@ -174,8 +174,8 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/pure_poisson/'
-                f'Corner_plot_mock_{chain_name}_expParams.pdf')
+    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+    #             f'Corner_plot_mock_{chain_name}_expParams.pdf')
     plt.show()
 
     print(f'Iterations ran: {sampler.iteration}')

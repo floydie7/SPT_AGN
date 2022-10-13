@@ -34,6 +34,8 @@ seed = 3775
 rng = np.random.default_rng(seed)
 print(f'Using RNG seed: {seed}')
 
+tez_pattern = re.compile(r'[tez](-*\d+.\d+|\d+)')
+
 # Set up the luminosity and density evolution using the fits from Assef+11 Table 2
 z_i = [0.25, 0.5, 1., 2., 4.]
 m_star_z_i = [-23.51, -24.64, -26.10, -27.08]
@@ -210,8 +212,8 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
     SZ_xi = cluster['XI']
 
     # Make a cut in the SDWFS catalog to only include objects with selection memberships >= 50%
-    sdwfs_agn_mu_cut = sdwfs_agn[sdwfs_agn[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'] >= 0.5]
-    # sdwfs_agn_mu_cut = sdwfs_agn
+    # sdwfs_agn_mu_cut = sdwfs_agn[sdwfs_agn[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'] >= 0.5]
+    sdwfs_agn_mu_cut = sdwfs_agn
 
     # Read in the mask's WCS for the pixel scale and making SkyCoords
     w = WCS(mask_name)
@@ -539,7 +541,7 @@ def agn_prior_surf_den_err(redshift: float) -> float:
 # args = parser.parse_args()
 
 # Number of clusters to generate
-n_cl = 15
+n_cl = 308
 
 # We'll boost the number of objects in our sample by duplicating this cluster by a factor.
 cluster_amp = 1.
@@ -651,8 +653,10 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
                                     wave_unit=u.Angstrom, flux_unit=units.FLAM)
 # </editor-fold>
 
+catalog_list = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/targeted_snr/*.fits')
 catalog_start_time = time()
-for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
+# for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
+for theta_true, eta_true, zeta_true in np.array([tez_pattern.findall(name) for name in catalog_list], dtype=float):
     params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
 
     # Find the appropriate color thresholds for our clusters
@@ -676,6 +680,7 @@ for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_ran
     # Stack the individual cluster catalogs into a single master catalog
     outAGN = vstack(AGN_cats)
     filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+                f'full_sample_targeted_snr/'
                 f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
                 f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
