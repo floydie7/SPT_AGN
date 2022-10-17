@@ -64,8 +64,8 @@ selection_membership_columns = [colname for colname in sdwfs_agn.colnames if 'SE
 numbers_agn = []
 for color in color_thresholds[:-1]:
     # cat = sdwfs_agn[sdwfs_agn['I1_MAG_APER4'] - sdwfs_agn['I2_MAG_APER4'] >= color]
-    cat = sdwfs_agn
-    numbers_agn.append(np.sum(cat['COMPLETENESS_CORRECTION'] * cat[f'SELECTION_MEMBERSHIP_{color:.2f}']))
+    cat = sdwfs_agn[sdwfs_agn[f'SELECTION_MEMBERSHIP_{color:.2f}'] >= 0.5]
+    numbers_agn.append(np.sum(cat['COMPLETENESS_CORRECTION']))
 
 # Create surface density array
 agn_surf_den = np.array(numbers_agn) / total_area
@@ -84,5 +84,5 @@ agn_surf_den_data = {'agn_surf_den': agn_surf_den.to_value(u.arcmin ** -2),
                      'agn_surf_den_lerr': agn_surf_den_lerr.to_value(u.arcmin ** -2),
                      'agn_surf_den_err': agn_surf_den_symm_errs.to_value(u.arcmin ** -2),
                      'color_thresholds': color_thresholds}
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions_mu_cut.json', 'w') as f:
     json.dump(agn_surf_den_data, f, cls=NumpyArrayEncoder)
