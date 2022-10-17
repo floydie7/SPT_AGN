@@ -114,8 +114,8 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
-    #             f'Param_chains_mock_{chain_name}_expParams.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/targeted_snr_308cl/'
+                f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
     try:
@@ -174,8 +174,8 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
-    #             f'Corner_plot_mock_{chain_name}_expParams.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/targeted_snr_308cl/'
+                f'Corner_plot_mock_{chain_name}_expParams.pdf')
     plt.show()
 
     print(f'Iterations ran: {sampler.iteration}')
