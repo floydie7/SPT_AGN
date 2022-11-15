@@ -75,7 +75,7 @@ for z in np.arange(1.0, 1.3, 0.05):
     ax.plot(f2100w.waveset.to(u.um), f2100w(f2100w.waveset.to(u.um)) * 2)
 
     ax.legend()
-    ax.set(title=f'z = {z:.2f}', xlabel='Wavelength (um)', ylabel='Flux', xlim=[2, 25], ylim=[0, 5])
+    ax.set(title=f'z = {z:.2f}', xlabel='Wavelength (um)', ylabel='Flux', xlim=[2, 25], ylim=[0, 2.5])
     plt.show()
 
 results = []
