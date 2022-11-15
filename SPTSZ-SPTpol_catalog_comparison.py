@@ -21,6 +21,7 @@ from astropy.visualization.wcsaxes import SphericalCircle
 from astropy.wcs import WCS
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.ticker import MultipleLocator
+from scipy.interpolate import interp1d
 
 
 def sanitize_fluxes(channel, targeted_cat, ssdf_cat):
@@ -52,10 +53,21 @@ def sanitize_fluxes_merged(channel, merged_catalog, targeted_flux_limit, ssdf_fl
     return merged_catalog
 
 
-def add_vega_axes(ax, channel, xaxis=True):
-    # Add a magnitude scale at the top
-    f_v0 = 280.9 * u.Jy if channel == 1 else 179.7 * u.Jy  # Zero-point flux
-    zpt_mag = 2.5 * np.log10(f_v0.to_value(u.uJy))
+def add_vega_axes(ax, channel, xaxis=True, color=False, mag_diff=False):
+    if not color and not mag_diff:
+        # Add a magnitude scale at the top
+        f_v0 = 280.9 * u.Jy if channel == 1 else 179.7 * u.Jy  # Zero-point flux
+        zpt_mag = 2.5 * np.log10(f_v0.to_value(u.uJy))
+    else:
+        zpt_mag = 0.
+
+    if color:
+        label = '[3.6] - [4.5] (Vega)'
+    elif mag_diff:
+        label = (fr'[{"3.6" if channel == 1 else "4.5"}$_{{\rm Targeted}}$]'
+                 fr'- [{"3.6" if channel == 1 else "4.5"}$_{{\rm SSDF}}$]')
+    else:
+        label = 'Vega Magnitude'
 
     if xaxis:
         ax_mag_top = ax.twiny()
@@ -63,7 +75,7 @@ def add_vega_axes(ax, channel, xaxis=True):
         ax_mag_top.set_xlim(-2.5 * x_logflux_min + zpt_mag, -2.5 * x_logflux_max + zpt_mag)
         ax_mag_top.xaxis.set_major_locator(MultipleLocator(1))
         ax_mag_top.xaxis.set_minor_locator(MultipleLocator(0.25))
-        ax_mag_top.set(xlabel='Vega Magnitude')
+        ax_mag_top.set(xlabel=label)
         return ax_mag_top
     else:
         ax_mag_right = ax.twinx()
@@ -71,7 +83,7 @@ def add_vega_axes(ax, channel, xaxis=True):
         ax_mag_right.set_ylim(-2.5 * y_logflux_min + zpt_mag, -2.5 * y_logflux_max + zpt_mag)
         ax_mag_right.yaxis.set_major_locator(MultipleLocator(1))
         ax_mag_right.yaxis.set_minor_locator(MultipleLocator(0.25))
-        ax_mag_right.set(ylabel='Vega Magnitude')
+        ax_mag_right.set(ylabel=label)
         return ax_mag_right
 
 
@@ -156,44 +168,15 @@ def plot_image(fig, targeted_cat, ssdf_cat, targeted_agn_cat=None, ssdf_agn_cat=
 
 def flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     # Merge the catalogs into a unified catalog
-    targeted_coord = SkyCoord(targeted_cat['ALPHA_J2000'], targeted_cat['DELTA_J2000'], unit=u.deg)
-    ssdf_coord = SkyCoord(ssdf_cat['ALPHA_J2000'], ssdf_cat['DELTA_J2000'], unit=u.deg)
-
-    # Match the catalogs
-    idx, sep, _ = targeted_coord.match_to_catalog_sky(ssdf_coord)
-    sep_constraint = sep <= 1 * u.arcsec
-    targeted_matches = targeted_cat[sep_constraint]
-    ssdf_matches = ssdf_cat[idx[sep_constraint]]
-
-    # Also identify the non-matches
-    targeted_nonmatches = setdiff(targeted_cat, targeted_matches)
-    ssdf_nonmatches = setdiff(ssdf_cat, ssdf_matches)
-
-    # Concatenate the flux columns using the scheme: (common matches, targeted non-matches, ssdf non-matches)
-    targeted_flux = np.concatenate([targeted_matches[f'I{channel}_FLUX_APER4'],
-                                    targeted_nonmatches[f'I{channel}_FLUX_APER4'],
-                                    np.full_like(ssdf_nonmatches[f'I{channel}_FLUX_APER4'], -99.)])
-    ssdf_flux = np.concatenate([ssdf_matches[f'I{channel}_FLUX_APER4'],
-                                np.full_like(targeted_nonmatches[f'I{channel}_FLUX_APER4'], -99.),
-                                ssdf_nonmatches[f'I{channel}_FLUX_APER4']])
-
-    # Do the same for the flux errors
-    targeted_flux_err = np.concatenate([targeted_matches[f'I{channel}_FLUXERR_APER4'],
-                                        targeted_nonmatches[f'I{channel}_FLUXERR_APER4'],
-                                        np.full_like(ssdf_nonmatches[f'I{channel}_FLUXERR_APER4'], -99.)])
-    ssdf_flux_err = np.concatenate([ssdf_matches[f'I{channel}_FLUXERR_APER4'],
-                                    np.full_like(targeted_nonmatches[f'I{channel}_FLUXERR_APER4'], -99.),
-                                    ssdf_nonmatches[f'I{channel}_FLUXERR_APER4']])
+    merged_catalog, ssdf_nonmatches, targeted_matches, targeted_nonmatches = merge_catalogs(channel, targeted_cat,
+                                                                                            ssdf_cat,
+                                                                                            matches_nonmatches=True)
 
     # Do the same as well for the colors where we prefer the colors from the targeted catalog for common matches
-    colors = np.concatenate([targeted_matches['I1_MAG_APER4'] - targeted_matches['I2_MAG_APER4'],
-                             targeted_nonmatches['I1_MAG_APER4'] - targeted_nonmatches['I2_MAG_APER4'],
-                             ssdf_nonmatches['I1_MAG_APER4'] - ssdf_nonmatches['I2_MAG_APER4']])
-
-    # Finally, collect everything into a single table
-    merged_catalog = Table([targeted_flux, targeted_flux_err, ssdf_flux, ssdf_flux_err, colors],
-                           names=[f'TARGETED_I{channel}_FLUX', f'TARGETED_I{channel}_FLUXERR', f'SSDF_I{channel}_FLUX',
-                                  f'SSDF_I{channel}_FLUXERR', 'I1-I2_COLOR'])
+    merged_catalog['I1-I2_COLOR'] = np.concatenate([targeted_matches['I1_MAG_APER4'] - targeted_matches['I2_MAG_APER4'],
+                                                    targeted_nonmatches['I1_MAG_APER4'] - targeted_nonmatches[
+                                                        'I2_MAG_APER4'],
+                                                    ssdf_nonmatches['I1_MAG_APER4'] - ssdf_nonmatches['I2_MAG_APER4']])
 
     # To handle non-detections/non-matches, we will set all "-99.0" entries to the 1-sigma flux error.
     targeted_flux_limit = targeted_I1_flux_err if channel == 1 else targeted_I2_flux_err
@@ -239,21 +222,17 @@ def flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     return cm
 
 
-def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
-    # Merge the catalogs into a unified catalog
+def merge_catalogs(channel, targeted_cat, ssdf_cat, matches_nonmatches=False):
     targeted_coord = SkyCoord(targeted_cat['ALPHA_J2000'], targeted_cat['DELTA_J2000'], unit=u.deg)
     ssdf_coord = SkyCoord(ssdf_cat['ALPHA_J2000'], ssdf_cat['DELTA_J2000'], unit=u.deg)
-
     # Match the catalogs
     idx, sep, _ = targeted_coord.match_to_catalog_sky(ssdf_coord)
     sep_constraint = sep <= 1 * u.arcsec
     targeted_matches = targeted_cat[sep_constraint]
     ssdf_matches = ssdf_cat[idx[sep_constraint]]
-
     # Also identify the non-matches
     targeted_nonmatches = setdiff(targeted_cat, targeted_matches)
     ssdf_nonmatches = setdiff(ssdf_cat, ssdf_matches)
-
     # Concatenate the flux columns using the scheme: (common matches, targeted non-matches, ssdf non-matches)
     targeted_flux = np.concatenate([targeted_matches[f'I{channel}_FLUX_APER4'],
                                     targeted_nonmatches[f'I{channel}_FLUX_APER4'],
@@ -261,7 +240,6 @@ def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     ssdf_flux = np.concatenate([ssdf_matches[f'I{channel}_FLUX_APER4'],
                                 np.full_like(targeted_nonmatches[f'I{channel}_FLUX_APER4'], -99.),
                                 ssdf_nonmatches[f'I{channel}_FLUX_APER4']])
-
     # Do the same for the flux errors
     targeted_flux_err = np.concatenate([targeted_matches[f'I{channel}_FLUXERR_APER4'],
                                         targeted_nonmatches[f'I{channel}_FLUXERR_APER4'],
@@ -269,11 +247,19 @@ def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     ssdf_flux_err = np.concatenate([ssdf_matches[f'I{channel}_FLUXERR_APER4'],
                                     np.full_like(targeted_nonmatches[f'I{channel}_FLUXERR_APER4'], -99.),
                                     ssdf_nonmatches[f'I{channel}_FLUXERR_APER4']])
-
     # Finally, collect everything into a single table
     merged_catalog = Table([targeted_flux, targeted_flux_err, ssdf_flux, ssdf_flux_err],
                            names=[f'TARGETED_I{channel}_FLUX', f'TARGETED_I{channel}_FLUXERR', f'SSDF_I{channel}_FLUX',
                                   f'SSDF_I{channel}_FLUXERR'])
+    if matches_nonmatches:
+        return merged_catalog, ssdf_nonmatches, targeted_matches, targeted_nonmatches
+    else:
+        return merged_catalog
+
+
+def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
+    # Merge the catalogs into a unified catalog
+    merged_catalog = merge_catalogs(channel, targeted_cat, ssdf_cat)
 
     # To handle non-detections/non-matches, we will set all "-99.0" entries to a log-flux of 0
     merged_catalog = sanitize_fluxes_merged(channel=channel, merged_catalog=merged_catalog,
@@ -309,20 +295,23 @@ def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     if channel == 1:
         ax_mag_top.axvline(x=10., ls='--', color='k', alpha=0.4)
         ax_mag_right.axhline(y=10., ls='--', color='k', alpha=0.4)
+        ax_mag_top.axvline(x=18.3, ls='--', color='k', alpha=0.4)
+        ax_mag_right.axhline(y=18.3, ls='--', color='k', alpha=0.4)
 
         ax.set(xlabel=r'Targeted $\log\/S_{{3.6\mu\rm m}}\/[\mu\rm Jy]$',
                ylabel=r'SSDF $\log\/S_{{3.6\mu\rm m}}\/[\mu\rm Jy]$')
     else:
         ax_mag_top.axvline(x=10.45, ls='--', color='k', alpha=0.4)
         ax_mag_right.axhline(y=10.45, ls='--', color='k', alpha=0.4)
-        ax_mag_top.axvline(x=16.99, ls='--', color='k', alpha=0.4)
-        ax_mag_right.axhline(y=16.99, ls='--', color='k', alpha=0.4)
+        ax_mag_top.axvline(x=17.46, ls='--', color='k', alpha=0.4)
+        ax_mag_right.axhline(y=17.46, ls='--', color='k', alpha=0.4)
 
         ax.set(xlabel=r'Targeted $\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$',
                ylabel=r'SSDF $\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$')
 
 
-def color_mag_plot(ax, channel, targeted_cat, ssdf_cat, targeted_agn_cat=None, ssdf_agn_cat=None):
+def color_mag_plot(ax, channel, targeted_cat, ssdf_cat, targeted_agn_cat=None, ssdf_agn_cat=None, color_threshold=None,
+                   errors=False):
     # Separate the AGN from galaxies
     if targeted_agn_cat:
         targeted_galaxies = setdiff(targeted_cat, targeted_agn_cat)
@@ -333,28 +322,69 @@ def color_mag_plot(ax, channel, targeted_cat, ssdf_cat, targeted_agn_cat=None, s
     else:
         ssdf_galaxies = ssdf_cat
 
+    if errors:
+        targeted_gal_color_err = np.sqrt((2.5 * targeted_galaxies['I1_FLUXERR_APER4'] /
+                                          (targeted_galaxies['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                         (2.5 * targeted_galaxies['I2_FLUXERR_APER4'] /
+                                          (targeted_galaxies['I2_FLUX_APER4'] * np.log(10))) ** 2)
+        ssdf_gal_color_err = np.sqrt((2.5 * ssdf_galaxies['I1_FLUXERR_APER4'] /
+                                      (ssdf_galaxies['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                     (2.5 * ssdf_galaxies['I2_FLUXERR_APER4'] /
+                                      (ssdf_galaxies['I2_FLUX_APER4'] * np.log(10))) ** 2)
+        if targeted_agn_cat:
+            targeted_agn_color_err = np.sqrt((2.5 * targeted_agn_cat['I1_FLUXERR_APER4'] /
+                                              (targeted_agn_cat['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                             (2.5 * targeted_agn_cat['I2_FLUXERR_APER4'] /
+                                              (targeted_agn_cat['I2_FLUX_APER4'] * np.log(10))) ** 2)
+        if ssdf_agn_cat:
+            ssdf_agn_color_err = np.sqrt((2.5 * ssdf_agn_cat['I1_FLUXERR_APER4'] /
+                                          (ssdf_agn_cat['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                         (2.5 * ssdf_agn_cat['I2_FLUXERR_APER4'] /
+                                          (ssdf_agn_cat['I2_FLUX_APER4'] * np.log(10))) ** 2)
+    else:
+        targeted_gal_color_err = None
+        ssdf_gal_color_err = None
+        targeted_agn_color_err = None
+        ssdf_agn_color_err = None
+
     # Plot the galaxies, excluding the AGN if provided
-    ax.scatter(targeted_galaxies[f'I{channel}_MAG_APER4'],
-               targeted_galaxies['I1_MAG_APER4'] - targeted_galaxies['I2_MAG_APER4'], marker='s', color='C0',
-               label='Targeted')
-    ax.scatter(ssdf_galaxies[f'I{channel}_MAG_APER4'],
-               ssdf_galaxies['I1_MAG_APER4'] - ssdf_galaxies['I2_MAG_APER4'], marker='o', color='C1', label='SSDF')
+    ax.errorbar(targeted_galaxies[f'I{channel}_MAG_APER4'],
+                targeted_galaxies['I1_MAG_APER4'] - targeted_galaxies['I2_MAG_APER4'],
+                yerr=targeted_gal_color_err,
+                ls='', marker='s', color='C0',
+                label='Targeted')
+    ax.errorbar(ssdf_galaxies[f'I{channel}_MAG_APER4'],
+                ssdf_galaxies['I1_MAG_APER4'] - ssdf_galaxies['I2_MAG_APER4'],
+                yerr=ssdf_gal_color_err,
+                ls='', marker='o', color='C1', label='SSDF')
 
     # Plot the AGN if provided
     if targeted_agn_cat:
-        ax.scatter(targeted_agn_cat[f'I{channel}_MAG_APER4'],
-                   targeted_agn_cat['I1_MAG_APER4'] - targeted_agn_cat['I2_MAG_APER4'], marker='s', facecolor='none',
-                   edgecolor='C0', label='Targeted AGN')
+        ax.errorbar(targeted_agn_cat[f'I{channel}_MAG_APER4'],
+                    targeted_agn_cat['I1_MAG_APER4'] - targeted_agn_cat['I2_MAG_APER4'],
+                    yerr=targeted_agn_color_err,
+                    ls='', marker='s', markerfacecolor='none',
+                    markeredgecolor='C0', ecolor='C0', label='Targeted AGN')
     if ssdf_agn_cat:
-        ax.scatter(ssdf_agn_cat[f'I{channel}_MAG_APER4'],
-                   ssdf_agn_cat['I1_MAG_APER4'] - ssdf_agn_cat['I2_MAG_APER4'], marker='o', facecolor='none',
-                   edgecolor='C1', label='SSDF AGN')
+        ax.errorbar(ssdf_agn_cat[f'I{channel}_MAG_APER4'],
+                    ssdf_agn_cat['I1_MAG_APER4'] - ssdf_agn_cat['I2_MAG_APER4'],
+                    yerr=ssdf_agn_color_err,
+                    ls='', marker='o', markerfacecolor='none',
+                    markeredgecolor='C1', ecolor='C1', label='SSDF AGN')
+
+    # Add the color threshold line
+    if color_threshold is not None:
+        ax.axhline(y=color_threshold, ls='--', c='k', alpha=0.6)
 
     ax.legend()
     ax.set(ylabel='[3.6] - [4.5] (Vega)')
+    if channel == 1:
+        ax.set(xlabel='[3.6] (Vega)')
+    else:
+        ax.set(xlabel='[4.5] (Vega)')
 
 
-def color_mag_snr_plot(ax, channel, targeted_cat, ssdf_cat):
+def color_mag_snr_plot(ax, channel, targeted_cat, ssdf_cat, color_threshold):
     # Compute the SNRs for all objects
     targeted_snr = targeted_cat[f'I{channel}_FLUX_APER4'] / targeted_cat[f'I{channel}_FLUXERR_APER4']
     ssdf_snr = ssdf_cat[f'I{channel}_FLUX_APER4'] / ssdf_cat[f'I{channel}_FLUXERR_APER4']
@@ -368,7 +398,7 @@ def color_mag_snr_plot(ax, channel, targeted_cat, ssdf_cat):
                          c=ssdf_snr, cmap='Blues_r', vmin=5, vmax=30, marker='o', label='SSDF')
 
     # Plot a line indicating the AGN selection threshold
-    ax.axhline(y=0.7, ls='--', c='k', alpha=0.6)
+    ax.axhline(y=color_threshold, ls='--', c='k', alpha=0.6)
 
     ax.legend()
     ax.set(ylabel='[3.6] - [4.5] (Vega)')
@@ -393,6 +423,90 @@ def flux_err_plot(ax, channel, targeted_cat, ssdf_cat):
         ax.set(xlabel=r'$S_{4.5\mu\rm m} [\mu\rm Jy]$', ylabel=r'$\delta S_{4.5\mu\rm m} [\mu\rm Jy]$')
 
 
+def color_color_err_plot(ax, targeted_cat, ssdf_cat, targeted_agn_cat=None, ssdf_agn_cat=None,
+                         color_threshold=None):
+    # Separate the AGN from galaxies
+    if targeted_agn_cat:
+        targeted_galaxies = setdiff(targeted_cat, targeted_agn_cat)
+    else:
+        targeted_galaxies = targeted_cat
+    if ssdf_agn_cat:
+        ssdf_galaxies = setdiff(ssdf_cat, ssdf_agn_cat)
+    else:
+        ssdf_galaxies = ssdf_cat
+
+    # Compute the color errors
+    targeted_gal_color_err = np.sqrt((2.5 * targeted_galaxies['I1_FLUXERR_APER4'] /
+                                      (targeted_galaxies['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                     (2.5 * targeted_galaxies['I2_FLUXERR_APER4'] /
+                                      (targeted_galaxies['I2_FLUX_APER4'] * np.log(10))) ** 2)
+    ssdf_gal_color_err = np.sqrt((2.5 * ssdf_galaxies['I1_FLUXERR_APER4'] /
+                                  (ssdf_galaxies['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                 (2.5 * ssdf_galaxies['I2_FLUXERR_APER4'] /
+                                  (ssdf_galaxies['I2_FLUX_APER4'] * np.log(10))) ** 2)
+
+    ax.scatter(targeted_galaxies['I1_MAG_APER4'] - targeted_galaxies['I2_MAG_APER4'], targeted_gal_color_err,
+               marker='s', c='C0', label='Targeted')
+    ax.scatter(ssdf_galaxies['I1_MAG_APER4'] - ssdf_galaxies['I2_MAG_APER4'], ssdf_gal_color_err,
+               marker='o', c='C1', label='SSDF')
+    if targeted_agn_cat:
+        targeted_agn_color_err = np.sqrt((2.5 * targeted_agn_cat['I1_FLUXERR_APER4'] /
+                                          (targeted_agn_cat['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                         (2.5 * targeted_agn_cat['I2_FLUXERR_APER4'] /
+                                          (targeted_agn_cat['I2_FLUX_APER4'] * np.log(10))) ** 2)
+        ax.scatter(targeted_agn_cat['I1_MAG_APER4'] - targeted_agn_cat['I2_MAG_APER4'], targeted_agn_color_err,
+                   marker='s', edgecolor='C0', facecolor='none', label='Targeted AGN')
+    if ssdf_agn_cat:
+        ssdf_agn_color_err = np.sqrt((2.5 * ssdf_agn_cat['I1_FLUXERR_APER4'] /
+                                      (ssdf_agn_cat['I1_FLUX_APER4'] * np.log(10))) ** 2 +
+                                     (2.5 * ssdf_agn_cat['I2_FLUXERR_APER4'] /
+                                      (ssdf_agn_cat['I2_FLUX_APER4'] * np.log(10))) ** 2)
+        ax.scatter(ssdf_agn_cat['I1_MAG_APER4'] - ssdf_agn_cat['I2_MAG_APER4'], ssdf_agn_color_err,
+                   marker='o', edgecolor='C1', facecolor='none', label='SSDF AGN')
+
+    if color_threshold is not None:
+        ax.axvline(x=color_threshold, ls='--', c='k', alpha=0.6)
+
+    ax.legend()
+    ax.set(xlabel='[3.6] - [4.5] (Vega)', ylabel=r'$\delta$([3.6] - [4.5]) (Vega)')
+
+
+def mag_diff_plot(ax, channel, targeted_cat, ssdf_cat):
+    # Merge the catalogs
+    merged_catalog = merge_catalogs(channel, targeted_cat, ssdf_cat)
+
+    # To handle non-detections/non-matches, we will set all "-99.0" entries to the 1-sigma flux error.
+    targeted_flux_limit = targeted_I1_flux_err if channel == 1 else targeted_I2_flux_err
+    ssdf_flux_limit = ssdf_I1_flux_err if channel == 1 else ssdf_I2_flux_err
+    merged_catalog = sanitize_fluxes_merged(channel=channel, merged_catalog=merged_catalog,
+                                            targeted_flux_limit=targeted_flux_limit, ssdf_flux_limit=ssdf_flux_limit,
+                                            err=False)
+
+    # Since we're primarily working in flux space, we'll do a log flux ratio for the mag difference
+    log_flux_ratio = np.log10(merged_catalog[f'TARGETED_I{channel}_FLUX'] / merged_catalog[f'SSDF_I{channel}_FLUX'])
+
+    # We want to find the mean of the matched data only
+    mean_log_flux_ratio = np.mean(log_flux_ratio[np.abs(log_flux_ratio) < 0.5])
+
+    # Make a plot of log-flux ratio vs log-flux
+    ax.scatter(np.log10(merged_catalog[f'TARGETED_I{channel}_FLUX']), log_flux_ratio,
+               label=rf'mean = {mean_log_flux_ratio:.2e} $\mu$Jy ({-2.5 * mean_log_flux_ratio:.2f} Vega Magnitude)')
+    ax.axhline(y=0., ls='--', c='k', alpha=0.6)
+    ax.legend(loc='upper left', frameon=False)
+
+    # Add Vega axes (Magnitudes on x-axis, color on y-axis)
+    add_vega_axes(ax=ax, channel=channel, xaxis=True, mag_diff=False)
+    add_vega_axes(ax=ax, channel=channel, xaxis=False, mag_diff=True)
+
+    # Set the axes labels
+    if channel == 1:
+        ax.set(xlabel=r'Targeted $\log\/S_{{3.6\mu\rm m}}\/[\mu\rm Jy]$',
+               ylabel=r'$\log(S_{{3.6\mu\rm m, Targeted}} / S_{{3.6\mu\rm m, SSDF}})$')
+    else:
+        ax.set(xlabel=r'Targeted $\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$',
+               ylabel=r'$\log(S_{{4.5\mu\rm m, Targeted}} / S_{{4.5\mu\rm m, SSDF}})$')
+
+
 # Read in the catalog of all clusters common to both the targeted and SSDF programs
 common_cluster_cat = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Misc/common_clusters_2500d_100d.fits')
 
@@ -411,6 +525,18 @@ with open('Data_Repository/Project_Data/SPT-IRAGN/Misc/SPT-SZ_observed_to_offici
     obs_to_off_ids = json.load(f)
     off_to_obs_ids = json.load(g)
 
+# Read in the purity and surface density files
+with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f,
+      open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json',
+           'r') as g):
+    sdwfs_purity_data = json.load(f)
+    sdwfs_prior_data = json.load(g)
+z_bins = sdwfs_purity_data['redshift_bins'][:-1]
+threshold_bins = sdwfs_prior_data['color_thresholds'][:-1]
+
+# Set up interpolators
+agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
+
 # Get list of photometric catalogs
 targeted_cat_names = glob.glob('Data_Repository/Catalogs/SPT/Spitzer_catalogs/SPT-SZ_2500d/*.cat')
 ssdf_cat_names = glob.glob('Data_Repository/Catalogs/SPT/Spitzer_catalogs/SPTpol_100d/*.cat')
@@ -419,9 +545,11 @@ ssdf_cat_names = glob.glob('Data_Repository/Catalogs/SPT/Spitzer_catalogs/SPTpol
 image_names = glob.glob('Data_Repository/Images/SPT/Spitzer_IRAC/SPT-SZ_2500d/I2*_mosaic.cutout.fits')
 
 spt_id = re.compile(r'SPT-CLJ\d+-\d+')
-targeted_catalogs_raw, targeted_catalogs_mag_cuts, targeted_catalogs_mag_SNR_cuts = [], [], []
-ssdf_catalogs_raw, ssdf_catalogs_mag_cuts, ssdf_catalogs_mag_SNR_cuts = [], [], []
-for cluster_id in common_cluster_cat['SPT_ID']:
+targeted_catalogs, ssdf_catalogs = [], []
+for cluster in common_cluster_cat:
+    cluster_id = cluster['SPT_ID']
+    cluster_z = cluster['REDSHIFT_Bocquet']
+
     # Pull the sky error values
     targeted_I1_flux_err = targeted_sky_errors['I1_flux_error'][
         targeted_sky_errors['SPT_ID'] == off_to_obs_ids[cluster_id]]
@@ -457,137 +585,121 @@ for cluster_id in common_cluster_cat['SPT_ID']:
     ssdf_catalog['I1_flux_error'] = ssdf_I1_flux_err
     ssdf_catalog['I2_flux_error'] = ssdf_I2_flux_err
 
-    # Store the catalogs for stacking later
-    targeted_catalogs_raw.append(targeted_catalog)
-    ssdf_catalogs_raw.append(ssdf_catalog)
-
     # Make magnitude cuts
     targeted_catalog = targeted_catalog[(10.0 <= targeted_catalog['I1_MAG_APER4']) &
+                                        (targeted_catalog['I1_MAG_APER4'] <= 18.3) &
                                         (10.45 <= targeted_catalog['I2_MAG_APER4']) &
-                                        (targeted_catalog['I2_MAG_APER4'] <= 16.99)]
+                                        (targeted_catalog['I2_MAG_APER4'] <= 17.46)]
     ssdf_catalog = ssdf_catalog[(10.0 <= ssdf_catalog['I1_MAG_APER4']) &
+                                (ssdf_catalog['I1_MAG_APER4'] <= 18.3) &
                                 (10.45 <= ssdf_catalog['I2_MAG_APER4']) &
-                                (ssdf_catalog['I2_MAG_APER4'] <= 16.99)]
+                                (ssdf_catalog['I2_MAG_APER4'] <= 17.46)]
+    targeted_catalogs.append(targeted_catalog)
+    ssdf_catalogs.append(ssdf_catalog)
 
-    # Store catalogs for stacking later
-    targeted_catalogs_mag_cuts.append(targeted_catalog)
-    ssdf_catalogs_mag_cuts.append(ssdf_catalog)
+    # Make AGN color cut
+    selection_color = agn_purity_color(cluster_z)
+    targeted_agn = targeted_catalog[
+        targeted_catalog['I1_MAG_APER4'] - targeted_catalog['I2_MAG_APER4'] >= selection_color]
+    ssdf_agn = ssdf_catalog[ssdf_catalog['I1_MAG_APER4'] - ssdf_catalog['I2_MAG_APER4'] >= selection_color]
 
-    # Make SNR cuts
-    targeted_catalog = targeted_catalog[
-        (targeted_catalog['I2_FLUX_APER4'] / targeted_catalog['I2_FLUXERR_APER4'] >= 10) &
-        (targeted_catalog['I1_FLUX_APER4'] / targeted_catalog['I1_FLUXERR_APER4'] >= 10)]
-    ssdf_catalog = ssdf_catalog[(ssdf_catalog['I2_FLUX_APER4'] / ssdf_catalog['I2_FLUXERR_APER4'] >= 10) &
-                                (ssdf_catalog['I1_FLUX_APER4'] / ssdf_catalog['I1_FLUXERR_APER4'] >= 10)]
-
-    # Store catalogs for stacking later
-    targeted_catalogs_mag_SNR_cuts.append(targeted_catalog)
-    ssdf_catalogs_mag_SNR_cuts.append(ssdf_catalog)
-
-# Collect all the catalogs
-raw_catalogs = [targeted_catalogs_raw, ssdf_catalogs_raw]
-mag_cut_catalogs = [targeted_catalogs_mag_cuts, ssdf_catalogs_mag_cuts]
-mag_cut_snr_catalogs = [targeted_catalogs_mag_SNR_cuts, ssdf_catalogs_mag_SNR_cuts]
-
-for cat_type, (targeted_catalogs, ssdf_catalogs) in zip(['no_cuts', 'new_mag_cuts_only', 'new_mag_cuts_SNR_cuts'],
-                                                        [raw_catalogs, mag_cut_catalogs, mag_cut_snr_catalogs]):
-    # First, make plots for the individual clusters
-    for cluster_id, targeted_catalog, ssdf_catalog in zip(common_cluster_cat['SPT_ID'],
-                                                          targeted_catalogs, ssdf_catalogs):
-        # Extract the sky flux errors
-        targeted_I1_flux_err, targeted_I2_flux_err = targeted_catalog['I1_flux_error', 'I2_flux_error'][0]
-        ssdf_I1_flux_err, ssdf_I2_flux_err = ssdf_catalog['I1_flux_error', 'I2_flux_error'][0]
-
-        # We'll plot the 3-, 5-, and 10-sigma flux limits
-        I1_sigma_3510 = [3 * targeted_I1_flux_err, 5 * targeted_I1_flux_err, 10 * targeted_I1_flux_err]
-        I2_sigma_3510 = [3 * targeted_I2_flux_err, 5 * targeted_I2_flux_err, 10 * targeted_I2_flux_err]
-
-        if cat_type is not 'no_cuts':
-            # Make AGN color cut
-            targeted_agn = targeted_catalog[targeted_catalog['I1_MAG_APER4'] - targeted_catalog['I2_MAG_APER4'] >= 0.7]
-            ssdf_agn = ssdf_catalog[ssdf_catalog['I1_MAG_APER4'] - ssdf_catalog['I2_MAG_APER4'] >= 0.7]
-        else:
-            targeted_agn = None
-            ssdf_agn = None
-
-        # Make the source count plots
-        fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
-        source_count_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
-                          targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn,
-                          sigma_levels=I1_sigma_3510)
-        source_count_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
-                          targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn,
-                          sigma_levels=I2_sigma_3510)
-        fig.suptitle(f'{cluster_id}')
-        plt.tight_layout()
-        fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/'
-                    f'{cat_type}/source_counts/{cluster_id}_{cat_type}_source_count.pdf')
-
-        # Plot the objects on the targeted I2 image
-        fig = plt.figure(figsize=(8, 8))
-        plot_image(fig, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
-                   targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn, )
-        fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/'
-                    f'{cat_type}/images/{cluster_id}_{cat_type}_image.pdf')
-
-        # Plot the flux photometry comparison
-        fig, axarr = plt.subplots(ncols=2, figsize=(17, 8), constrained_layout=True)
-        ax_I1, ax_I2 = axarr
-        flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
-        cm = flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
-        cbar = plt.colorbar(cm, ax=axarr, extend='both')
-        cbar.set_label('[3.6] - [4.5]')
-        fig.suptitle(f'{cluster_id}')
-        fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/'
-                    f'{cat_type}/phot_comparison/{cluster_id}_{cat_type}_phot_comparison.pdf')
-
-        # Make the flux-flux err plot
-        fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
-        flux_err_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
-        flux_err_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
-        fig.suptitle(f'{cluster_id}')
-        fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/'
-                    f'{cat_type}/flux_error/{cluster_id}_{cat_type}_flux_error.pdf')
-
-        # Make the color-mag-snr plot
-        fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
-        color_mag_snr_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
-        color_mag_snr_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
-        fig.suptitle(f'{cluster_id}')
-        fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/'
-                    f'{cat_type}/color_mag_snr/{cluster_id}_{cat_type}_color_mag_snr.pdf')
-
-        plt.close('all')
-
-    # For the remaining plots we will stack the catalogs together
-    targeted_stacked = vstack(targeted_catalogs, metadata_conflicts='silent')
-    ssdf_stacked = vstack(ssdf_catalogs, metadata_conflicts='silent')
-
-    if cat_type is not 'no_cut':
-        targeted_stacked_agn = targeted_stacked[
-            targeted_stacked['I1_MAG_APER4'] - targeted_stacked['I2_MAG_APER4'] >= 0.7]
-        ssdf_stacked_agn = ssdf_stacked[ssdf_stacked['I1_MAG_APER4'] - ssdf_stacked['I2_MAG_APER4'] >= 0.7]
-    else:
-        targeted_stacked_agn = None
-        ssdf_stacked_agn = None
-
-    # Create the stacked, differential source count plot for I2
-    fig, ax = plt.subplots()
-    source_count_plot(ax=ax, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked,
-                      targeted_agn_cat=targeted_stacked_agn, ssdf_agn_cat=ssdf_stacked_agn,
-                      cumulative=False)
-    ax.set(title='All Common Clusters', xlabel=r'$\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$', ylabel='Number')
-    plt.tight_layout()
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/{cat_type}/'
-                f'common_clusters_stacked_{cat_type}_noncum_hist.pdf')
-
-    # Create the stacked flux comparison plot
+    # Make the source count plots
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
-    stacked_flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
-    stacked_flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
-    fig.suptitle('All Common Clusters')
+    source_count_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
+                      targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn)
+    source_count_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
+                      targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn)
+    fig.suptitle(f'{cluster_id}')
     plt.tight_layout()
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/{cat_type}/'
-                f'common_clusters_stacked_{cat_type}_phot_comparison.pdf')
+    fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts'
+                f'/source_counts/{cluster_id}_source_count.pdf')
+
+    # Plot the objects on the targeted I2 image
+    fig = plt.figure(figsize=(8, 8))
+    plot_image(fig, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
+               targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn, )
+    fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+                f'images/{cluster_id}_image.pdf')
+
+    # Plot the flux photometry comparison
+    fig, axarr = plt.subplots(ncols=2, figsize=(17, 8), constrained_layout=True)
+    ax_I1, ax_I2 = axarr
+    flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    cm = flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    cbar = plt.colorbar(cm, ax=axarr, extend='both')
+    cbar.set_label('[3.6] - [4.5]')
+    fig.suptitle(f'{cluster_id}')
+    fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+                f'phot_comparison/{cluster_id}_phot_comparison.pdf')
+
+    # Make the mag difference plot
+    fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, sharey='row', figsize=(17, 8), constrained_layout=True)
+    mag_diff_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    mag_diff_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    fig.suptitle(f'{cluster_id}')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+                f'mag_diff/{cluster_id}_mag_diff.pdf')
+
+    # Make the flux-flux err plot
+    fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
+    flux_err_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    flux_err_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    fig.suptitle(f'{cluster_id}')
+    fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+                f'flux_error/{cluster_id}_flux_error.pdf')
+
+    # Make the color-mag plot
+    fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
+    color_mag_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
+                   targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn, color_threshold=selection_color, errors=True)
+    color_mag_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
+                   targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn, color_threshold=selection_color, errors=True)
+    fig.suptitle(f'{cluster_id}')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+                f'color_mag/{cluster_id}_color_mag.pdf')
+
+    # # Make the color-mag-snr plot
+    # fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
+    # color_mag_snr_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    # color_mag_snr_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    # fig.suptitle(f'{cluster_id}')
+    # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Source_Counts/'
+    #             f'{cat_type}/color_mag_snr/{cluster_id}_{cat_type}_color_mag_snr.pdf')
+
+    # Make color-color error plot
+    fig, ax = plt.subplots(figsize=(9, 9))
+    color_color_err_plot(ax=ax, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog, targeted_agn_cat=targeted_agn,
+                         ssdf_agn_cat=ssdf_agn, color_threshold=selection_color)
+    ax.set(title=f'{cluster_id}')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+                f'color_color_err/{cluster_id}_color_color_err.pdf')
 
     plt.close('all')
+
+# For the remaining plots we will stack the catalogs together
+targeted_stacked = vstack(targeted_catalogs, metadata_conflicts='silent')
+ssdf_stacked = vstack(ssdf_catalogs, metadata_conflicts='silent')
+
+# targeted_stacked_agn = targeted_stacked[targeted_stacked['I1_MAG_APER4'] - targeted_stacked['I2_MAG_APER4'] >= 0.7]
+# ssdf_stacked_agn = ssdf_stacked[ssdf_stacked['I1_MAG_APER4'] - ssdf_stacked['I2_MAG_APER4'] >= 0.7]
+
+# Create the stacked, differential source count plot for I2
+fig, ax = plt.subplots()
+source_count_plot(ax=ax, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked,
+                  targeted_agn_cat=None, ssdf_agn_cat=None,
+                  cumulative=False)
+ax.set(title='All Common Clusters', xlabel=r'$\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$', ylabel='Number')
+plt.tight_layout()
+fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+            f'common_clusters_stacked_noncum_hist.pdf')
+
+# Create the stacked flux comparison plot
+fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
+stacked_flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+stacked_flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+fig.suptitle('All Common Clusters')
+plt.tight_layout()
+fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/Updated_4mag_cuts/'
+            f'common_clusters_stacked_phot_comparison.pdf')
+
+plt.close('all')
