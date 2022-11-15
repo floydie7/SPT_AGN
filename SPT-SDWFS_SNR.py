@@ -81,13 +81,13 @@ for z, cluster_bin, field_bin in zip(z_bin_centers, sptcl_iragn_binned.groups, s
     no_field_agn = np.sum(field_agn['COMPLETENESS_CORRECTION'])
     no_field_agn_zbin = np.sum(field_agn_zbin['COMPLETENESS_CORRECTION'])
 
-    # Estimate the number of cluster AGN
-    no_cluster_agn = np.abs(no_los_agn - no_field_agn)
-    no_cluster_agn_zbin = np.abs(no_los_agn - no_field_agn_zbin)
+    # Estimate the number of cluster AGN surface densities
+    # cluster_surf_den = (no_los_agn - no_field_agn) / cluster_bin_area
+    # cluster_surf_den_z_bin = (no_los_agn - no_field_agn_zbin) / cluster_bin_area
+    cluster_surf_den = (no_los_agn / cluster_bin_area - no_field_agn / sdwfs_area)
+    cluster_surf_den_z_bin = (no_los_agn / cluster_bin_area - no_field_agn_zbin / field_bin_area)
 
-    # Surface Densities
-    cluster_surf_den = no_cluster_agn / cluster_bin_area
-    cluster_surf_den_z_bin = no_cluster_agn_zbin / cluster_bin_area
+    # Field Surface Densities
     field_surf_den = no_field_agn / sdwfs_area
     field_surf_den_zbin = no_field_agn_zbin / field_bin_area
 
@@ -102,3 +102,24 @@ ax.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]'
 bx.bar(z_bin_centers, cl_bkg_snr_zbin, width=np.diff(z_bins))
 bx.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over SDWFS @ z')
 plt.show()
+
+#%%
+# # Narrow in on the wierd redshift bin
+# sdwfs_iragn_z07 = sdwfs_iragn[(sdwfs_iragn['REDSHIFT'] > z_bins[3]) & (sdwfs_iragn['REDSHIFT'] <= z_bins[4])]
+# sdwfs_iragn_z07_mu_cut = sdwfs_iragn_z07[
+#     sdwfs_iragn_z07[f'SELECTION_MEMBERSHIP_{agn_purity_color(np.mean([z_bins[3], z_bins[4]])):.2f}'] >= 0.5]
+#
+# bins = np.arange(z_bins[3], z_bins[4] + 0.025, 0.025)
+#
+# fig, ax = plt.subplots()
+# ax.hist(sdwfs_iragn_z07['REDSHIFT'], bins=bins)
+# ax.hist(sdwfs_iragn_z07_mu_cut['REDSHIFT'], bins=bins, label=r'$\mu_{AGN} \geq 0.5$')
+# ax.legend()
+# ax.set(xlabel='redshift', ylabel=r'$N_{AGN}$', yscale='log')
+# plt.show()
+#
+# fig, ax = plt.subplots()
+# ax.scatter(sdwfs_iragn_z07['REDSHIFT'], sdwfs_iragn_z07['I1_MAG_APER4'] - sdwfs_iragn_z07['I2_MAG_APER4'])
+# ax.axhline(agn_purity_color(np.mean([z_bins[3], z_bins[4]])))
+# ax.set(xlabel='redshift', ylabel='[3.6] - [4.5]')
+# plt.show()

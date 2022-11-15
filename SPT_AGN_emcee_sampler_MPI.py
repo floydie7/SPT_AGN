@@ -14,7 +14,7 @@ import astropy.units as u
 import emcee
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
-from schwimmbad import MultiPool, MPIPool
+from schwimmbad import MPIPool
 from scipy.interpolate import lagrange, interp1d
 from tqdm.contrib import tenumerate
 
@@ -390,7 +390,7 @@ with MPIPool() as pool:
 
     # Filename for hd5 backend
     # chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
-    chain_file = f'{local_dir}emcee_mock_pure_poisson.h5'
+    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr13.h5'
     backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
                                                          f'{"_no-mu" if args.no_selection_membership else ""}'

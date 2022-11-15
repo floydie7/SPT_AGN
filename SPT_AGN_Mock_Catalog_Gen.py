@@ -212,14 +212,13 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
     SZ_xi = cluster['XI']
 
     # Make a cut in the SDWFS catalog to only include objects with selection memberships >= 50%
-    # sdwfs_agn_mu_cut = sdwfs_agn[sdwfs_agn[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'] >= 0.5]
-    sdwfs_agn_mu_cut = sdwfs_agn
+    sdwfs_agn_mu_cut = sdwfs_agn[sdwfs_agn[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'] >= 0.5]
+    # sdwfs_agn_mu_cut = sdwfs_agn
 
     # Read in the mask's WCS for the pixel scale and making SkyCoords
     w = WCS(mask_name)
     mask_pixel_scale = w.proj_plane_pixel_scales()[0]
 
-    # Cluster Catalog
     # Also get the mask's image size (- 1 to account for the shift between index and length)
     mask_size_x = w.pixel_shape[0] - 1
     mask_size_y = w.pixel_shape[1] - 1
@@ -246,8 +245,28 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
                                          obs_filter=irac_45_filter, em_filter=flamingos_j_filter, cosmo=cosmo)
     j_grid = np.linspace(bright_end_j_absmag, faint_end_j_absmag, num=200)
 
-    # R, J = np.meshgrid(r_grid, j_grid)
+    # Background Catalog
+    # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
+    background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
+    background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
+                                               lower_dx=lower_x, lower_dy=lower_y)
 
+    # For each background AGN we will also need a random completeness value, degree of membership, and J-band abs. mag.
+    bkg_cat_df = sdwfs_agn_mu_cut.to_pandas().sample(n=background_agn_pix.shape[-1], replace=True, random_state=rng)
+    bkg_cat = Table.from_pandas(bkg_cat_df)
+    bkg_cat['x_pixel'] = background_agn_pix[0]
+    bkg_cat['y_pixel'] = background_agn_pix[1]
+
+    # Filter for only the columns we care about
+    bkg_cat = bkg_cat['x_pixel', 'y_pixel', 'REDSHIFT', 'COMPLETENESS_CORRECTION',
+                      f'SELECTION_MEMBERSHIP_{color_threshold:.2f}', 'J_ABS_MAG']
+    bkg_cat.rename_columns(['REDSHIFT', f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'],
+                           ['galaxy_redshift', 'SELECTION_MEMBERSHIP'])
+
+    # Add flag to background objects
+    bkg_cat['CLUSTER_AGN'] = np.full_like(bkg_cat['x_pixel'], False)
+
+    # Cluster Catalog
     # Calculate the model values for the AGN candidates in the cluster
     model_cluster_agn = model_rate(params_true, z_cl, m500_cl, r500_cl, r_grid, j_grid)
     # if spt_id == 'SPT_Mock_000':
@@ -325,31 +344,15 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
 
     # plot_lf_cluster(cl_cat['J_ABS_MAG'], z_cl, r500_cl, spt_id, before=False)
 
-    # Background Catalog
-    # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
-    background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
-    background_agn_pix = poisson_point_process(background_rate, dx=upper_x, dy=upper_y,
-                                               lower_dx=lower_x, lower_dy=lower_y)
-
-    # For each background AGN we will also need a random completeness value, degree of membership, and J-band abs. mag.
-    bkg_cat_df = sdwfs_agn_mu_cut.to_pandas().sample(n=background_agn_pix.shape[-1], replace=True, random_state=rng)
-    bkg_cat = Table.from_pandas(bkg_cat_df)
-    bkg_cat['x_pixel'] = background_agn_pix[0]
-    bkg_cat['y_pixel'] = background_agn_pix[1]
-
-    # Filter for only the columns we care about
-    bkg_cat = bkg_cat['x_pixel', 'y_pixel', 'REDSHIFT', 'COMPLETENESS_CORRECTION',
-                      f'SELECTION_MEMBERSHIP_{color_threshold:.2f}', 'J_ABS_MAG']
-    bkg_cat.rename_columns(['REDSHIFT', f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'],
-                           ['galaxy_redshift', 'SELECTION_MEMBERSHIP'])
-
-    # Add flag to background objects
-    bkg_cat['CLUSTER_AGN'] = np.full_like(bkg_cat['x_pixel'], False)
-
     # Concatenate the cluster sources with the background sources
     los_cat = vstack([cl_cat, bkg_cat])
 
-    los_cat['SPT_ID'] = spt_id
+    try:
+        los_cat['SPT_ID'] = spt_id
+    except TypeError:
+        print(f'{params_true}\n{spt_id = }: {len(cl_cat) = }, {len(bkg_cat) = }')
+        return los_cat
+
     los_cat['SZ_RA'] = SZ_center_skycoord.ra
     los_cat['SZ_DEC'] = SZ_center_skycoord.dec
     los_cat['M500'] = m500_cl
@@ -490,21 +493,20 @@ def print_catalog_stats(catalog):
     total_number_comp_corrected = catalog['COMPLETENESS_CORRECTION'].sum()
     total_number_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'] * catalog['SELECTION_MEMBERSHIP'])
     number_per_cluster = total_number_corrected / number_of_clusters
-    cluster_objs_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'][catalog['CLUSTER_AGN'].astype(bool)]
-                                    * catalog['SELECTION_MEMBERSHIP'][catalog['CLUSTER_AGN'].astype(bool)])
-    background_objs_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'][~catalog['CLUSTER_AGN'].astype(bool)]
-                                       * catalog['SELECTION_MEMBERSHIP'][~catalog['CLUSTER_AGN'].astype(bool)])
+    cluster_objs_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'][catalog['CLUSTER_AGN'].astype(bool)])
+    background_objs_corrected = np.sum(catalog['COMPLETENESS_CORRECTION'][~catalog['CLUSTER_AGN'].astype(bool)])
     median_z = np.median(catalog['REDSHIFT'])
     median_m = np.median(catalog['M500'])
 
     print(f"""Parameters:\t{params_true + (c0_true,)}
-    Number of clusters:\t{number_of_clusters}
-    Objects Selected:\t{total_number}
-    Objects selected (completeness corrected):\t{total_number_comp_corrected:.2f}
-    Objects Selected (comp + membership corrected):\t{total_number_corrected:.2f}
-    Objects per cluster (comp + mem corrected):\t{number_per_cluster:.2f}
-    Cluster Objects (corrected):\t{cluster_objs_corrected:.2f}
-    Background Objects (corrected):\t{background_objs_corrected:.2f}
+    Number of clusters:\t{number_of_clusters:,}
+    Objects Selected:\t{total_number:,}
+    Objects selected (completeness corrected):\t{total_number_comp_corrected:,.2f}
+    Objects Selected (comp + membership corrected):\t{total_number_corrected:,.2f}
+    Objects per cluster (comp + mem corrected):\t{number_per_cluster:,.2f}
+    Cluster Objects (corrected):\t{cluster_objs_corrected:,.2f}
+    Background Objects (corrected):\t{background_objs_corrected:,.2f}
+    SNR (Cluster objects / Background objects):\t{cluster_objs_corrected/background_objs_corrected:,.2f}
     Median Redshift:\t{median_z:.2f}
     Median Mass:\t{median_m:.2e}""")
 
@@ -535,6 +537,10 @@ def agn_prior_surf_den_err(redshift: float) -> float:
     return agn_surf_den_err(agn_purity_color(redshift))
 
 
+# Read in the tuned SNR-theta table
+targeted_snr_theta = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/'
+                                'eta_zeta_slopes/targeted_snr/308cl/308cl_targeted_snr13_theta_values.fits')
+
 # <editor-fold desc="Parameter Set up">
 # parser = ArgumentParser(description='Creates mock catalogs with input parameter set')
 # parser.add_argument('theta', help='Amplitude of cluster term', type=float)
@@ -547,20 +553,20 @@ n_cl = 308
 cluster_amp = 1.
 
 # Set parameter values
-theta_true = 50.0  # Amplitude
-eta_true = 4.0  # Redshift slope
-zeta_true = -1.0  # Mass slope
+# theta_true = 50.0  # Amplitude
+# eta_true = 4.0  # Redshift slope
+# zeta_true = -1.0  # Mass slope
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
-theta_range = np.arange(0.1, 5., 0.5)
+theta_range = np.arange(0.1, 7., 0.5)
 eta_range = [-5., -3., 0., 3., 4., 5.]
 zeta_range = [-2., -1, 0., 1., 2.]
 
 # We will amplify our true parameters to increase the SNR
-theta_true *= cluster_amp
-c0_true *= cluster_amp
+# theta_true *= cluster_amp
+# c0_true *= cluster_amp
 
 # Set the maximum radius we will generate objects to as a factor of r500
 max_radius = 5.0
@@ -636,6 +642,9 @@ SPT_data.rename_columns(['SPT_ID', 'RA', 'DEC'], ['orig_SPT_ID', 'SZ_RA', 'SZ_DE
 SPT_data['SPT_ID'] = name_bank
 SPT_data['MASK_NAME'] = masks_bank
 
+# Remove the clusters with z < 0.2 as we have problems assigning photometric data from SDWFS in the redshift bin
+SPT_data = SPT_data[SPT_data['REDSHIFT'] >= 0.2]
+
 # Check that we have the correct mask and cluster data matched up.
 assert np.all([spt_id in mask_name for spt_id, mask_name in zip(SPT_data['orig_SPT_ID'], SPT_data['MASK_NAME'])])
 
@@ -653,11 +662,17 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
                                     wave_unit=u.Angstrom, flux_unit=units.FLAM)
 # </editor-fold>
 
-catalog_list = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/targeted_snr/*.fits')
+catalog_list = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/raw_grid/308cl_catalogs/*.fits')
+all_params = np.array([tez_pattern.findall(f) for f in catalog_list], dtype=float).tolist()
 catalog_start_time = time()
 # for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
-for theta_true, eta_true, zeta_true in np.array([tez_pattern.findall(name) for name in catalog_list], dtype=float):
+for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
+    # For our chosen redshift and mass slopes, use the amplitude value that produces a cluster-to-background SNR of 13.
+    theta_true = targeted_snr_theta['theta'][targeted_snr_theta['catalog'] == f'{(eta_true, zeta_true)}'][0]
+
+    # theta_true, eta_true, zeta_true = 6.6, -5.0, 1.0
     params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
+    # params_true = (6.6, -5.0, 1.0, 1.0, 0.1)
 
     # Find the appropriate color thresholds for our clusters
     color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
@@ -679,10 +694,11 @@ for theta_true, eta_true, zeta_true in np.array([tez_pattern.findall(name) for n
 
     # Stack the individual cluster catalogs into a single master catalog
     outAGN = vstack(AGN_cats)
-    filename = (f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-                f'full_sample_targeted_snr/'
-                f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-                f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
+    filename = (
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+        f'targeted_snr/308cl/snr_13/'
+        f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
+        f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
     print(filename)
 
