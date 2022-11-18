@@ -34,6 +34,7 @@ def calculate_area(mask_files: list) -> u.Quantity:
     total_area = u.Quantity(areas).sum()
     return total_area
 
+
 # Read in the catalogs
 sdwfs_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
 sptcl_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits')
@@ -94,7 +95,7 @@ for z, cluster_bin, field_bin in zip(z_bin_centers, sptcl_iragn_binned.groups, s
     cl_bkg_snr.append(cluster_surf_den / field_surf_den)
     cl_bkg_snr_zbin.append(cluster_surf_den_z_bin / field_surf_den_zbin)
 
-#%%
+# %%
 fig, (ax, bx) = plt.subplots(nrows=2, sharex='col', figsize=(6.4, 4.8 * 2))
 ax.bar(z_bin_centers, cl_bkg_snr, width=np.diff(z_bins))
 ax.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over all SDWFS')
@@ -103,7 +104,7 @@ bx.bar(z_bin_centers, cl_bkg_snr_zbin, width=np.diff(z_bins))
 bx.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over SDWFS @ z')
 plt.show()
 
-#%%
+# %%
 # # Narrow in on the wierd redshift bin
 # sdwfs_iragn_z07 = sdwfs_iragn[(sdwfs_iragn['REDSHIFT'] > z_bins[3]) & (sdwfs_iragn['REDSHIFT'] <= z_bins[4])]
 # sdwfs_iragn_z07_mu_cut = sdwfs_iragn_z07[

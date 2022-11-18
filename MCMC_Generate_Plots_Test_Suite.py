@@ -56,7 +56,7 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_chains_eta-zeta_grid_308cl_snr5.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_chains_eta-zeta_grid_308cl_snr13.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
@@ -114,7 +114,7 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/targeted_snr5_308cl/'
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/308cl_snr13/'
                 f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
@@ -174,7 +174,7 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/targeted_snr5_308cl/'
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/308cl_snr13/'
                 f'Corner_plot_mock_{chain_name}_expParams.pdf')
     plt.show()
 
