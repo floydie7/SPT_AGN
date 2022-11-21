@@ -275,8 +275,8 @@ def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
                                        merged_catalog[f'SSDF_I{channel}_MAG'],
                                        xerr=merged_catalog[f'TARGETED_I{channel}_MAGERR'],
                                        yerr=merged_catalog[f'SSDF_I{channel}_MAGERR'], fmt='.', color='k')
-    xebar.set_alpha(0.05)
-    yebar.set_alpha(0.05)
+    xebar.set_alpha(0.5)
+    yebar.set_alpha(0.5)
 
     # Draw the 1:1 line for reference
     ax.axline(xy1=[0, 0], slope=1, ls='--', c='k', alpha=0.4)
@@ -417,6 +417,18 @@ def flux_err_plot(ax, channel, targeted_cat, ssdf_cat):
         ax.set(xlabel=r'$S_{4.5\mu\rm m} [\mu\rm Jy]$', ylabel=r'$\delta S_{4.5\mu\rm m} [\mu\rm Jy]$')
 
 
+def mag_err_plot(ax, channel, targeted_cat, ssdf_cat):
+    ax.scatter(targeted_cat[f'I{channel}_MAG_APER4'], targeted_cat[f'I{channel}_MAGERR_APER4'], marker='s',
+               label='Targeted')
+    ax.scatter(ssdf_cat[f'I{channel}_MAG_APER4'], ssdf_cat[f'I{channel}_MAGERR_APER4'], marker='o', label='SSDF')
+    ax.legend()
+
+    if channel == 1:
+        ax.set(xlabel='[3.6] (Vega)', ylabel=r'$\delta[3.6]$ (Vega)')
+    else:
+        ax.set(xlabel='[4.5] (Vega)', ylabel=r'$\delta[4.5]$ (Vega)')
+
+
 def color_color_err_plot(ax, targeted_cat, ssdf_cat, targeted_agn_cat=None, ssdf_agn_cat=None,
                          color_threshold=None):
     # Separate the AGN from galaxies
@@ -478,7 +490,7 @@ def mag_diff_plot(ax, channel, targeted_cat, ssdf_cat):
     mean_log_flux_ratio = np.mean(mag_diff[np.abs(mag_diff) < 1.])
 
     # Make a plot of log-flux ratio vs log-flux
-    ax.scatter(np.log10(merged_catalog[f'TARGETED_I{channel}_MAG']), mag_diff,
+    ax.scatter(merged_catalog[f'TARGETED_I{channel}_MAG'], mag_diff,
                label=rf'mean = {mean_log_flux_ratio:.2e}  Vega Magnitude')
     ax.axhline(y=0., ls='--', c='k', alpha=0.6)
     ax.legend(loc='upper left', frameon=False)
@@ -490,10 +502,10 @@ def mag_diff_plot(ax, channel, targeted_cat, ssdf_cat):
     # Set the axes labels
     if channel == 1:
         ax.set(xlabel=r'Targeted $[3.6\mu\rm m]\/(Vega)$',
-               ylabel=r'$[3.6\mu\rm m]_{{\rm Targeted}} - [3.6\mu\rm m]_{{\rm SSDF}}')
+               ylabel=r'$[3.6\mu\rm m]_{{\rm Targeted}} - [3.6\mu\rm m]_{{\rm SSDF}}$')
     else:
         ax.set(xlabel=r'Targeted $[4.5\mu\rm m]\/(Vega)$',
-               ylabel=r'$[4.5\mu\rm m]_{{\rm Targeted}} - [4.5\mu\rm m]_{{\rm SSDF}}')
+               ylabel=r'$[4.5\mu\rm m]_{{\rm Targeted}} - [4.5\mu\rm m]_{{\rm SSDF}}$')
 
 
 # Read in the catalog of all clusters common to both the targeted and SSDF programs
@@ -515,7 +527,7 @@ with open('Data_Repository/Project_Data/SPT-IRAGN/Misc/SPT-SZ_observed_to_offici
     off_to_obs_ids = json.load(g)
 
 # Read in the purity and surface density files
-with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f,
+with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.46.json', 'r') as f,
       open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json',
            'r') as g):
     sdwfs_purity_data = json.load(f)
@@ -636,6 +648,14 @@ for cluster in common_cluster_cat:
     fig.suptitle(f'{cluster_id}')
     fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
                 f'flux_error/{cluster_id}_flux_error.pdf')
+
+    # Make the mag-mag err plot
+    fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
+    mag_err_plot(ax=ax_I1, channel=1, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    mag_err_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
+    fig.suptitle(f'{cluster_id}')
+    fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
+                f'mag_error/{cluster_id}_mag_error.pdf')
 
     # Make the color-mag plot
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
