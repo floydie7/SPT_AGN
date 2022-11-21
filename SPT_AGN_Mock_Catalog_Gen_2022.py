@@ -648,7 +648,7 @@ def preprocessing(cat: Table) -> tuple[str, dict]:
 sdwfs_agn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
 
 # Read in the purity and surface density files
-with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f,
+with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.46.json', 'r') as f,
       open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json',
            'r') as g):
     sdwfs_purity_data = json.load(f)

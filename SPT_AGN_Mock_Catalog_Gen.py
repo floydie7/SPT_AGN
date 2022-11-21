@@ -514,8 +514,8 @@ def print_catalog_stats(catalog):
 start_time = time()
 
 # Read in the purity and surface density files
-with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f,
-      open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions.json',
+with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.48.json', 'r') as f,
+      open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions_mu_cut_updated_cuts.json',
            'r') as g):
     sdwfs_purity_data = json.load(f)
     sdwfs_prior_data = json.load(g)
@@ -578,7 +578,7 @@ median_cluster_pos_uncert = 0.214 * u.arcmin
 SZ_theta_beam = 1.2 * u.arcmin
 
 # Set 4.5 um magnitude bounds to define luminosity range
-faint_end_45_apmag = 17.46  # Vega mag
+faint_end_45_apmag = 17.48  # Vega mag
 bright_end_45_apmag = 10.45  # Vega mag
 
 # Set cluster redshift error for color--redshift selection
