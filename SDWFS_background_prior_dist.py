@@ -35,7 +35,7 @@ sdwfs_agn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cuto
 mask_files = [cutout['MASK_NAME'][0] for cutout in sdwfs_agn.group_by('CUTOUT_ID').groups]
 
 # Get the color thresholds used in catalog creation
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.48.json', 'r') as f:
     color_threshold_data = json.load(f)
     color_thresholds = color_threshold_data['purity_90_colors']
 
@@ -84,5 +84,6 @@ agn_surf_den_data = {'agn_surf_den': agn_surf_den.to_value(u.arcmin ** -2),
                      'agn_surf_den_lerr': agn_surf_den_lerr.to_value(u.arcmin ** -2),
                      'agn_surf_den_err': agn_surf_den_symm_errs.to_value(u.arcmin ** -2),
                      'color_thresholds': color_thresholds}
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions_mu_cut.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+          'SDWFS_background_prior_distributions_mu_cut_updated_cuts.json', 'w') as f:
     json.dump(agn_surf_den_data, f, cls=NumpyArrayEncoder)
