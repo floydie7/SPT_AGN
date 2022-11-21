@@ -36,7 +36,7 @@ sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS
 
 # SDWFS 90% AGN purity color-redshift file (for color selection thresholds)
 sdwfs_purity_color_threshold = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
-                               f'SDWFS_purity_color.json'
+                               f'SDWFS_purity_color_4.5_17.48.json'
 
 # Polletta QSO2 SED used for computing the J-band absolute magnitudes
 polletta_qso2 = SourceSpectrum.from_file(f'{prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
@@ -70,7 +70,7 @@ sptpol_ch2_min_coverage = 3
 ch1_bright_mag = 10.0  # Bright-end 3.6 um magnitude
 ch1_faint_mag = 18.3   # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
-ch2_faint_mag = 17.46  # Faint-end 4.5 um magnitude
+ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 # ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 
 # Additional columns to include in catalog from SPT catalog

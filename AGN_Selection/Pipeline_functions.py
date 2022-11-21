@@ -600,14 +600,11 @@ class SelectIRAGN:
 
             # Compute the color and color errors for each object
             I1_I2_color = se_catalog['I1_MAG_APER4'] - se_catalog['I2_MAG_APER4']
-            I1_I2_color_err = np.sqrt((2.5 * se_catalog['I1_FLUXERR_APER4'] /
-                                       (se_catalog['I1_FLUX_APER4'] * np.log(10))) ** 2 +
-                                      (2.5 * se_catalog['I2_FLUXERR_APER4'] /
-                                       (se_catalog['I2_FLUX_APER4'] * np.log(10))) ** 2)
+            I1_I2_color_err = np.sqrt(se_catalog['I1_MAGERR_APER4']**2 + se_catalog['I2_MAGERR_APER4']**2)
 
             # Convolve the error distribution for each object with the overall number count distribution
             def object_integrand(x):
-                return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) * color_probability_distribution(x)
+                return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) #* color_probability_distribution(x)
 
             if color_threshold is None:
                 # Retrieve the cluster redshift from the SPT catalog
