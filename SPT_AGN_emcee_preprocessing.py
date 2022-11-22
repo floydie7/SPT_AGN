@@ -16,7 +16,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
-from schwimmbad import SerialPool, MPIPool
+from schwimmbad import MPIPool
 from scipy.spatial.distance import cdist
 from synphot import SourceSpectrum, SpectralElement, units
 
@@ -198,7 +198,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
 
     # For the luminosity integration mesh we will compute the equivalent J-band absolute magnitude from the apparent
     # 4.5 um magnitudes at the cluster redshift.
-    faint_end_45_apmag = 17.46  # Vega mag
+    faint_end_45_apmag = 17.48  # Vega mag
     bright_end_45_apmag = 10.45  # Vega mag
     irac_45_filter = SpectralElement.from_file(f'{hcc_prefix}Data_Repository/filter_curves/Spitzer_IRAC'
                                                f'/080924ch2trans_full.txt', wave_unit=u.um)
@@ -280,10 +280,6 @@ mask_dict = {cluster_id: fits.getdata(f'{hcc_prefix}{mask_file}', header=True) f
 print('Generating Good Pixel Fractions.')
 start_gpf_time = time()
 with MPIPool() as pool:
-# with SerialPool() as pool:
-    # if not pool.is_master():
-    #     pool.wait()
-    #     sys.exit(0)
     pool_results = pool.map(generate_catalog_dict, sptcl_catalog_grp.groups)
 
     if pool.is_master():

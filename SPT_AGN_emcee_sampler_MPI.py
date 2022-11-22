@@ -16,7 +16,6 @@ import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from schwimmbad import MPIPool
 from scipy.interpolate import lagrange, interp1d
-from tqdm.contrib import tenumerate
 
 from custom_math import trap_weight
 
@@ -131,7 +130,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     if args.cluster_only:
         cz = 0.
     else:
-        cz = (((c0 + delta_c(z) * cluster_amp) / u.arcmin ** 2)
+        cz = (((c0 + delta_c(z)) / u.arcmin ** 2)
               * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2)
 
     # Our amplitude is determined from the cluster data
@@ -162,7 +161,7 @@ def lnlike(param: tuple[float, ...]):
         #     agn_membership = catalog_dict[cluster_id]['agn_membership_maxr']
 
         # Get the J-band absolute magnitudes
-        j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
+        # j_band_abs_mag = catalog_dict[cluster_id]['j_abs_mag']
 
         # Get the radial mesh for integration
         rall = catalog_dict[cluster_id]['rall']
@@ -220,11 +219,11 @@ def lnprior(params: tuple[float, ...]):
     for cluster_id in catalog_dict:
         # Get the cluster redshift to set the background hyperparameters
         z = catalog_dict[cluster_id]['redshift']
-        h_c = agn_prior_surf_den(z) * cluster_amp
-        h_c_err = agn_prior_surf_den_err(z) * cluster_amp
+        h_c = agn_prior_surf_den(z)
+        h_c_err = agn_prior_surf_den_err(z)
 
         # Shift background parameter to redshift-dependent value.
-        cz = c0 + delta_c(z) * cluster_amp
+        cz = c0 + delta_c(z)
 
         # Define all priors
         if (0.0 <= theta <= np.inf and
@@ -302,9 +301,10 @@ with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
 # Read in the purity and surface density files
-with (open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f,
+with (open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+           f'SDWFS_purity_color_4.5_17.48.json', 'r') as f,
       open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
-           f'SDWFS_background_prior_distributions.json', 'r') as g):
+           f'SDWFS_background_prior_distributions_mu_cut_updated_cuts.json', 'r') as g):
     sdwfs_purity_data = json.load(f)
     sdwfs_prior_data = json.load(g)
 z_bins = sdwfs_purity_data['redshift_bins'][:-1]
@@ -343,12 +343,6 @@ beta_true = 1.0
 rc_true = 0.1
 c0_true = agn_prior_surf_den(0.)
 
-# We'll boost the number of objects in our sample by duplicating this cluster by a factor.
-cluster_amp = 1.
-
-theta_true *= cluster_amp
-c0_true *= cluster_amp
-
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
 ndim = 5 if args.cluster_only else (1 if args.background_only else 6)
@@ -357,25 +351,25 @@ ndim = 5 if args.cluster_only else (1 if args.background_only else 6)
 nwalkers = 50
 
 # Also, set the number of steps to run the sampler for.
-nsteps = 5000
+nsteps = int(1e6)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 if args.cluster_only:
     pos0 = np.array([
-        rng.normal(np.log(theta_true), 1e-4, size=nwalkers),
-        rng.normal(eta_true, 1e-4, size=nwalkers),
-        rng.normal(zeta_true, 1e-4, size=nwalkers),
-        rng.normal(beta_true, 1e-4, size=nwalkers),
-        rng.normal(np.log(rc_true), 1e-4, size=nwalkers)]).T
+        rng.uniform(low=0.,  high=15., size=nwalkers),
+        rng.uniform(low=-6., high=6., size=nwalkers),
+        rng.uniform(low=-3., high=3., size=nwalkers),
+        rng.uniform(low=-1., high=1., size=nwalkers),
+        rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 elif args.background_only:
     pos0 = np.array([rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 else:
     pos0 = np.array([
-        rng.normal(np.log(theta_true), 1e-4, size=nwalkers),
-        rng.normal(eta_true, 1e-4, size=nwalkers),
-        rng.normal(zeta_true, 1e-4, size=nwalkers),
-        rng.normal(beta_true, 1e-4, size=nwalkers),
-        rng.normal(np.log(rc_true), 1e-4, size=nwalkers),
+        rng.uniform(low=0.,  high=15., size=nwalkers),
+        rng.uniform(low=-6., high=6., size=nwalkers),
+        rng.uniform(low=-3., high=3., size=nwalkers),
+        rng.uniform(low=-1., high=1., size=nwalkers),
+        rng.uniform(low=0.,  high=0.5, size=nwalkers),
         rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
@@ -383,14 +377,10 @@ autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
 with MPIPool() as pool:
-# with MultiPool() as pool:
-    # if not pool.is_master():
-    #     pool.wait()
-    #     sys.exit(0)
-
     # Filename for hd5 backend
     # chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
     chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr13.h5'
+    # chain_file = f'{local_dir}emcee_SPTcl-IRAGN_empirical.h5'
     backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
                                                          f'{"_no-mu" if args.no_selection_membership else ""}'
@@ -410,7 +400,7 @@ with MPIPool() as pool:
     start_sampler_time = time()
 
     # Sample up to nsteps.
-    for index, sample in tenumerate(sampler.sample(pos0, iterations=nsteps)):
+    for index, sample in enumerate(sampler.sample(pos0, iterations=nsteps)):
         # Only check convergence every 100 steps
         if sampler.iteration % 100:
             continue
