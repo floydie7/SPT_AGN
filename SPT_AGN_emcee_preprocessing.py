@@ -231,6 +231,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
 parser = ArgumentParser(description='Generates a preprocessing file for use in MCMC sampling.')
 parser.add_argument('catalog', help='Catalog to process. Needs to be given as a fully qualified path name.')
 parser.add_argument('--output', help='Output filename', default='SPTcl_IRAGN_preprocessing.json', type=str)
+parser.add_argument('--empirical', help='For running on empirical datasets.', action='store_true')
 parser.add_argument('--rejection', action='store_true', help='Use the rejection sampling flag to filter the catalog.')
 parser.add_argument('--miscentering', help='Factor of miscentering to be used.', choices=[0.5, 0.75, 1.0], default=0.0,
                     type=float)
@@ -257,18 +258,19 @@ if args.rejection:
     sptcl_catalog = sptcl_catalog[sptcl_catalog['COMPLETENESS_REJECT'].astype(bool)]
 
 # Separate the cluster and background objects
-cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
-background_only = sptcl_catalog[~sptcl_catalog['CLUSTER_AGN'].astype(bool)]
+if not args.empirical:
+    cluster_only = sptcl_catalog[sptcl_catalog['CLUSTER_AGN'].astype(bool)]
+    background_only = sptcl_catalog[~sptcl_catalog['CLUSTER_AGN'].astype(bool)]
 
-if args.cluster_only:
-    # Run on only cluster objects
-    sptcl_catalog = cluster_only
-elif args.background_only:
-    # Run on only background objects
-    sptcl_catalog = background_only
-else:
-    # Run on full catalog
-    sptcl_catalog = sptcl_catalog
+    if args.cluster_only:
+        # Run on only cluster objects
+        sptcl_catalog = cluster_only
+    elif args.background_only:
+        # Run on only background objects
+        sptcl_catalog = background_only
+    else:
+        # Run on full catalog
+        sptcl_catalog = sptcl_catalog
 
 # Read in the mask files for each cluster
 sptcl_catalog_grp = sptcl_catalog.group_by('SPT_ID')
