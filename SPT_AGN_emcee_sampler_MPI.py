@@ -360,7 +360,7 @@ if args.cluster_only:
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
+        rng.uniform(low=0.05, high=0.5, size=nwalkers)]).T
 elif args.background_only:
     pos0 = np.array([rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 else:
@@ -369,7 +369,7 @@ else:
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=0.,  high=0.5, size=nwalkers),
+        rng.uniform(low=0.05,  high=0.5, size=nwalkers),
         rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
