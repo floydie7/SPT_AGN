@@ -506,7 +506,7 @@ def print_catalog_stats(catalog):
     Objects per cluster (comp + mem corrected):\t{number_per_cluster:,.2f}
     Cluster Objects (corrected):\t{cluster_objs_corrected:,.2f}
     Background Objects (corrected):\t{background_objs_corrected:,.2f}
-    SNR (Cluster objects / Background objects):\t{cluster_objs_corrected/background_objs_corrected:,.2f}
+    SNR (Cluster objects / Background objects):\t{cluster_objs_corrected / background_objs_corrected:,.2f}
     Median Redshift:\t{median_z:.2f}
     Median Mass:\t{median_m:.2e}""")
 
@@ -515,8 +515,8 @@ start_time = time()
 
 # Read in the purity and surface density files
 with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.48.json', 'r') as f,
-      open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_background_prior_distributions_mu_cut_updated_cuts.json',
-           'r') as g):
+      open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+           'SDWFS_background_prior_distributions_mu_cut_updated_cuts.json', 'r') as g):
     sdwfs_purity_data = json.load(f)
     sdwfs_prior_data = json.load(g)
 z_bins = sdwfs_purity_data['redshift_bins'][:-1]
@@ -537,9 +537,12 @@ def agn_prior_surf_den_err(redshift: float) -> float:
     return agn_surf_den_err(agn_purity_color(redshift))
 
 
-# Read in the tuned SNR-theta table
-targeted_snr_theta = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/'
-                                'eta_zeta_slopes/targeted_snr/308cl/308cl_targeted_snr13_theta_values.fits')
+# Read in the SNR-theta fit library
+with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+          'snr_to_theta_fits.json', 'r') as f:
+    snr_theta_fits = json.load(f)
+for name, fit_data in snr_theta_fits.items():
+    snr_theta_fits[name] = np.poly1d(fit_data)
 
 # <editor-fold desc="Parameter Set up">
 # parser = ArgumentParser(description='Creates mock catalogs with input parameter set')
@@ -563,6 +566,11 @@ c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2
 theta_range = np.arange(0.1, 7., 0.5)
 eta_range = [-5., -3., 0., 3., 4., 5.]
 zeta_range = [-2., -1, 0., 1., 2.]
+
+# Using our targeted SNR, determine the cluster amplitude parameter needed.
+target_snr = 0.23
+targeted_snr_theta = Table(rows=[[name, theta_snr(target_snr)] for name, theta_snr in snr_theta_fits.items()],
+                           names=['catalog', 'theta'])
 
 # We will amplify our true parameters to increase the SNR
 # theta_true *= cluster_amp
@@ -662,13 +670,11 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
                                     wave_unit=u.Angstrom, flux_unit=units.FLAM)
 # </editor-fold>
 
-catalog_list = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/raw_grid/308cl_catalogs/*.fits')
-all_params = np.array([tez_pattern.findall(f) for f in catalog_list], dtype=float).tolist()
 catalog_start_time = time()
 # for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
 for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
     # For our chosen redshift and mass slopes, use the amplitude value that produces a cluster-to-background SNR of 13.
-    theta_true = targeted_snr_theta['theta'][targeted_snr_theta['catalog'] == f'{(eta_true, zeta_true)}'][0]
+    theta_true = snr_theta_fits[f'{(eta_true, zeta_true)}'](target_snr)
 
     # theta_true, eta_true, zeta_true = 6.6, -5.0, 1.0
     params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
@@ -696,7 +702,7 @@ for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshap
     outAGN = vstack(AGN_cats)
     filename = (
         f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-        f'targeted_snr/308cl/snr_13/'
+        f'targeted_snr/308cl/snr_0.23/'
         f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
         f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
     outAGN.write(filename, overwrite=True)

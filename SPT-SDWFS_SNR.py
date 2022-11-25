@@ -44,7 +44,7 @@ sdwfs_mask_files = [cutout['MASK_NAME'][0] for cutout in sdwfs_iragn.group_by('C
 sdwfs_area = calculate_area(sdwfs_mask_files)
 
 # Read in the color threshold--redshift relations
-with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color.json', 'r') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.48.json', 'r') as f:
     sdwfs_purity_data = json.load(f)
 z_bins = sdwfs_purity_data['redshift_bins'][:-1]
 agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')

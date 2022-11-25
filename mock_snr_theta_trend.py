@@ -6,12 +6,27 @@ Makes a diagnostic plot to see SNR-theta trends
 """
 
 import glob
+import json
 import re
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from astropy.table import Table
 from matplotlib import colors, cm, pyplot as plt
+
+
+class NumpyArrayEncoder(json.JSONEncoder):
+    def default(self, o: Any) -> Any:
+        if isinstance(o, np.integer):
+            return int(o)
+        elif isinstance(o, np.floating):
+            return float(o)
+        elif isinstance(o, np.ndarray):
+            return o.tolist()
+        else:
+            return super().default(o)
+
 
 param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
 eta_zeta_snr_pattern = re.compile(r'(?:[ez]|snr)(-*\d+.\d+|\d+)')
@@ -47,9 +62,16 @@ tez_snr_df_grp = tez_snr_df.groupby(by=['eta', 'zeta'])
 
 # Create extrapolations of our curves
 funct_lib = {}
+fit_lib = {}
 for name, group in tez_snr_df_grp:
     fit = np.polyfit(group['snr'], group['theta'], 1)
+    fit_lib[str(name)] = fit
     funct_lib[name] = np.poly1d(fit)
+
+with open(
+        'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/snr_to_theta_fits.json',
+        'w') as f:
+    json.dump(fit_lib, f, cls=NumpyArrayEncoder)
 
 cNorm = colors.Normalize(vmin=0, vmax=len(tez_snr_df_grp) - 1)
 scalarMap = cm.ScalarMappable(norm=cNorm, cmap='jet')
@@ -69,15 +91,16 @@ plt.tight_layout()
 plt.show()
 
 # %%
-target_snr = 13
+target_snr = 0.23
 targeted_theta = Table(rows=[[str(name), theta_snr(target_snr)] for name, theta_snr in funct_lib.items()],
                        names=['catalog', 'theta'])
 
 # Save the table to file
 targeted_theta.write('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/'
-                     'eta_zeta_slopes/targeted_snr/308cl/308cl_targeted_snr13_theta_values.fits', overwrite=True)
+                     f'eta_zeta_slopes/targeted_snr/308cl/308cl_targeted_snr{target_snr:.2f}_theta_values.fits',
+                     overwrite=True)
 
-#%%
+# %%
 snr_range = np.linspace(0., 15., num=100)
 fig, ax = plt.subplots(figsize=(6.8, 1.5 * 4.8))
 ax.set_prop_cycle(color=[scalarMap.to_rgba(i) for i in range(len(funct_lib))])
