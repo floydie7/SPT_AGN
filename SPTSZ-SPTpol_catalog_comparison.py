@@ -37,18 +37,19 @@ def sanitize_fluxes(channel, targeted_cat, ssdf_cat):
     return targeted_cat, ssdf_cat
 
 
-def sanitize_fluxes_merged(channel, merged_catalog, targeted_flux_limit, ssdf_flux_limit, err=False):
+def sanitize_fluxes_merged(channel, merged_catalog, targeted_flux_limit, ssdf_flux_limit, err=False, flux=False):
     error_string = 'ERR' if err else ''
+    phot_type = 'FLUX' if flux else 'MAG'
 
-    merged_catalog[f'TARGETED_I{channel}_MAG{error_string}'] = np.where(
-        (merged_catalog[f'TARGETED_I{channel}_MAG{error_string}'] == -99.) |
-        (merged_catalog[f'TARGETED_I{channel}_MAG{error_string}'] == 0.),
+    merged_catalog[f'TARGETED_I{channel}_{phot_type}{error_string}'] = np.where(
+        (merged_catalog[f'TARGETED_I{channel}_{phot_type}{error_string}'] == -99.) |
+        (merged_catalog[f'TARGETED_I{channel}_{phot_type}{error_string}'] == 0.),
         targeted_flux_limit,
-        merged_catalog[f'TARGETED_I{channel}_MAG{error_string}'])
-    merged_catalog[f'SSDF_I{channel}_MAG{error_string}'] = np.where(
-        (merged_catalog[f'SSDF_I{channel}_MAG{error_string}'] == -99.) |
-        (merged_catalog[f'SSDF_I{channel}_MAG{error_string}'] == 0.),
-        ssdf_flux_limit, merged_catalog[f'SSDF_I{channel}_MAG{error_string}'])
+        merged_catalog[f'TARGETED_I{channel}_{phot_type}{error_string}'])
+    merged_catalog[f'SSDF_I{channel}_{phot_type}{error_string}'] = np.where(
+        (merged_catalog[f'SSDF_I{channel}_{phot_type}{error_string}'] == -99.) |
+        (merged_catalog[f'SSDF_I{channel}_{phot_type}{error_string}'] == 0.),
+        ssdf_flux_limit, merged_catalog[f'SSDF_I{channel}_{phot_type}{error_string}'])
 
     return merged_catalog
 
@@ -223,7 +224,9 @@ def flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     return cm
 
 
-def merge_catalogs(channel, targeted_cat, ssdf_cat, matches_nonmatches=False):
+def merge_catalogs(channel, targeted_cat, ssdf_cat, matches_nonmatches=False, flux=False):
+    # Set the photometry type
+    phot_type = 'FLUX' if flux else 'MAG'
     targeted_coord = SkyCoord(targeted_cat['ALPHA_J2000'], targeted_cat['DELTA_J2000'], unit=u.deg)
     ssdf_coord = SkyCoord(ssdf_cat['ALPHA_J2000'], ssdf_cat['DELTA_J2000'], unit=u.deg)
     # Match the catalogs
@@ -235,30 +238,32 @@ def merge_catalogs(channel, targeted_cat, ssdf_cat, matches_nonmatches=False):
     targeted_nonmatches = setdiff(targeted_cat, targeted_matches)
     ssdf_nonmatches = setdiff(ssdf_cat, ssdf_matches)
     # Concatenate the mag columns using the scheme: (common matches, targeted non-matches, ssdf non-matches)
-    targeted_mag = np.concatenate([targeted_matches[f'I{channel}_MAG_APER4'],
-                                    targeted_nonmatches[f'I{channel}_MAG_APER4'],
-                                    np.full_like(ssdf_nonmatches[f'I{channel}_MAG_APER4'], -99.)])
-    ssdf_mag = np.concatenate([ssdf_matches[f'I{channel}_MAG_APER4'],
-                                np.full_like(targeted_nonmatches[f'I{channel}_MAG_APER4'], -99.),
-                                ssdf_nonmatches[f'I{channel}_MAG_APER4']])
+    targeted_mag = np.concatenate([targeted_matches[f'I{channel}_{phot_type}_APER4'],
+                                    targeted_nonmatches[f'I{channel}_{phot_type}_APER4'],
+                                    np.full_like(ssdf_nonmatches[f'I{channel}_{phot_type}_APER4'], -99.)])
+    ssdf_mag = np.concatenate([ssdf_matches[f'I{channel}_{phot_type}_APER4'],
+                                np.full_like(targeted_nonmatches[f'I{channel}_{phot_type}_APER4'], -99.),
+                                ssdf_nonmatches[f'I{channel}_{phot_type}_APER4']])
     # Do the same for the mag errors
-    targeted_mag_err = np.concatenate([targeted_matches[f'I{channel}_MAGERR_APER4'],
-                                        targeted_nonmatches[f'I{channel}_MAGERR_APER4'],
-                                        np.full_like(ssdf_nonmatches[f'I{channel}_MAGERR_APER4'], -99.)])
-    ssdf_mag_err = np.concatenate([ssdf_matches[f'I{channel}_MAGERR_APER4'],
-                                    np.full_like(targeted_nonmatches[f'I{channel}_MAGERR_APER4'], -99.),
-                                    ssdf_nonmatches[f'I{channel}_MAGERR_APER4']])
+    targeted_mag_err = np.concatenate([targeted_matches[f'I{channel}_{phot_type}ERR_APER4'],
+                                        targeted_nonmatches[f'I{channel}_{phot_type}ERR_APER4'],
+                                        np.full_like(ssdf_nonmatches[f'I{channel}_{phot_type}ERR_APER4'], -99.)])
+    ssdf_mag_err = np.concatenate([ssdf_matches[f'I{channel}_{phot_type}ERR_APER4'],
+                                    np.full_like(targeted_nonmatches[f'I{channel}_{phot_type}ERR_APER4'], -99.),
+                                    ssdf_nonmatches[f'I{channel}_{phot_type}ERR_APER4']])
     # Finally, collect everything into a single table
     merged_catalog = Table([targeted_mag, targeted_mag_err, ssdf_mag, ssdf_mag_err],
-                           names=[f'TARGETED_I{channel}_MAG', f'TARGETED_I{channel}_MAGERR', f'SSDF_I{channel}_MAG',
-                                  f'SSDF_I{channel}_MAGERR'])
+                           names=[f'TARGETED_I{channel}_{phot_type}',
+                                  f'TARGETED_I{channel}_{phot_type}ERR',
+                                  f'SSDF_I{channel}_{phot_type}',
+                                  f'SSDF_I{channel}_{phot_type}ERR'])
     if matches_nonmatches:
         return merged_catalog, ssdf_nonmatches, targeted_matches, targeted_nonmatches
     else:
         return merged_catalog
 
 
-def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
+def stacked_mag_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
     # Merge the catalogs into a unified catalog
     merged_catalog = merge_catalogs(channel, targeted_cat, ssdf_cat)
 
@@ -310,6 +315,60 @@ def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
         ax.set(xlabel=r'Targeted $[4.5\mu\rm m]\/(Vega)$',
                ylabel=r'SSDF $[4.5\mu\rm m]\/(Vega)$')
     ax.set(xlim=[20.5, 9.5], ylim=[20.5, 9.5])
+
+
+def stacked_flux_comparison_plot(ax, channel, targeted_cat, ssdf_cat):
+    # Merge the catalogs into a unified catalog
+    merged_catalog = merge_catalogs(channel, targeted_cat, ssdf_cat, flux=True)
+
+    # To handle non-detections/non-matches, we will set all "-99.0" entries to a log-flux of 0
+    merged_catalog = sanitize_fluxes_merged(channel=channel, merged_catalog=merged_catalog,
+                                            targeted_flux_limit=1., ssdf_flux_limit=1., err=False, flux=True)
+
+    # We need a similar fix for the flux errors as well
+    merged_catalog = sanitize_fluxes_merged(channel=channel, merged_catalog=merged_catalog,
+                                            targeted_flux_limit=1., ssdf_flux_limit=1., err=True, flux=True)
+
+    # Plot the points with error bars
+    _, _, (xebar, yebar) = ax.errorbar(np.log10(merged_catalog[f'TARGETED_I{channel}_FLUX']),
+                                       np.log10(merged_catalog[f'SSDF_I{channel}_FLUX']),
+                                       xerr=np.log10(merged_catalog[f'TARGETED_I{channel}_FLUXERR']),
+                                       yerr=np.log10(merged_catalog[f'SSDF_I{channel}_FLUXERR']), fmt='.', color='k')
+    xebar.set_alpha(0.05)
+    yebar.set_alpha(0.05)
+
+    # Draw the 1:1 line for reference
+    ax.axline(xy1=[0, 0], slope=1, ls='--', c='k', alpha=0.4)
+
+    ax.yaxis.set_major_locator(MultipleLocator(1))
+    ax.yaxis.set_minor_locator(MultipleLocator(0.25))
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_minor_locator(MultipleLocator(0.25))
+
+    # # Add a magnitude scale at the top
+    # ax_mag_top = add_vega_axes(ax=ax, channel=channel, xaxis=True)
+    #
+    # # And the same on the right
+    # ax_mag_right = add_vega_axes(ax=ax, channel=channel, xaxis=False)
+
+    # Plot the mag limits using the magnitude axes and set the axes labels for the main axes
+    if channel == 1:
+        # ax.axvline(x=10., ls='--', color='k', alpha=0.4)
+        # ax.axhline(y=10., ls='--', color='k', alpha=0.4)
+        # ax.axvline(x=18.3, ls='--', color='k', alpha=0.4)
+        # ax.axhline(y=18.3, ls='--', color='k', alpha=0.4)
+
+        ax.set(xlabel=r'Targeted $log(S_{{3.6\mu\rm m}})\/ [\mu\rm Jy]$',
+               ylabel=r'SSDF $log(S_{{3.6\mu\rm m}})\/ [\mu\rm Jy]$')
+    else:
+        # ax.axvline(x=10.45, ls='--', color='k', alpha=0.4)
+        # ax.axhline(y=10.45, ls='--', color='k', alpha=0.4)
+        # ax.axvline(x=17.46, ls='--', color='k', alpha=0.4)
+        # ax.axhline(y=17.46, ls='--', color='k', alpha=0.4)
+
+        ax.set(xlabel=r'Targeted $log(S_{{4.5\mu\rm m}})\/ [\mu\rm Jy]$',
+               ylabel=r'SSDF $log(S_{{4.5\mu\rm m}})\/ [\mu\rm Jy]$')
+    # ax.set(xlim=[20.5, 9.5], ylim=[20.5, 9.5])
 
 
 def color_mag_plot(ax, channel, targeted_cat, ssdf_cat, targeted_agn_cat=None, ssdf_agn_cat=None, color_threshold=None,
@@ -702,6 +761,15 @@ plt.tight_layout()
 fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
             f'common_clusters_stacked_noncum_hist.pdf')
 
+# Create the stacked mag comparison plot
+fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
+stacked_mag_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+stacked_mag_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+fig.suptitle('All Common Clusters')
+plt.tight_layout()
+fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
+            f'common_clusters_stacked_phot_comparison_mag.pdf')
+
 # Create the stacked flux comparison plot
 fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
 stacked_flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
@@ -709,6 +777,6 @@ stacked_flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked,
 fig.suptitle('All Common Clusters')
 plt.tight_layout()
 fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-            f'common_clusters_stacked_phot_comparison.pdf')
+            f'common_clusters_stacked_phot_comparison_logflux.pdf')
 
 plt.close('all')
