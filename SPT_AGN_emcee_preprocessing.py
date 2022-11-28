@@ -253,6 +253,9 @@ sptcl_catalog = Table.read(args.catalog)
 # sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
 #                            'mock_AGN_catalog_t10.000_e4.00_z-1.00_b1.00_rc0.100_C0.316_maxr5.00_seed3775_6x2_fullMasks_forGPF_withLF.fits')
 
+# Before we do anything further, make the selection membership cut
+sptcl_catalog = sptcl_catalog[sptcl_catalog['SELECTION_MEMBERSHIP'] >= 0.5]
+
 # Filter the catalog using the rejection flag
 if args.rejection:
     sptcl_catalog = sptcl_catalog[sptcl_catalog['COMPLETENESS_REJECT'].astype(bool)]
