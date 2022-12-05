@@ -371,49 +371,49 @@ def generate_mock_cluster(cluster: Table, color_threshold: float, c_true: float)
                                   / r500_cl)
 
     # <editor-fold desc="Miscentering">
-    # # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
-    # cluster_pos_uncert = np.sqrt(SZ_theta_beam ** 2 + SZ_theta_core ** 2) / SZ_xi
-    # los_cat['CENTER_POS_UNC_ARCMIN_1sigma'] = cluster_pos_uncert
-    # offset_SZ_center = rng.multivariate_normal((SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-    #                                            np.eye(2) * cluster_pos_uncert.to_value(u.deg) ** 2)
-    # offset_SZ_center_skycoord = SkyCoord(offset_SZ_center[0], offset_SZ_center[1], unit='deg')
-    # los_cat['OFFSET_RA'] = offset_SZ_center_skycoord.ra
-    # los_cat['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
-    #
-    # # Also calculate the radial distances based on the offset center.
-    # los_cat['RADIAL_SEP_ARCMIN_OFFSET'] = (offset_SZ_center_skycoord.separation(agn_coords_skycoord).to(u.arcmin))
-    # los_cat['RADIAL_SEP_R500_OFFSET'] = (los_cat['RADIAL_SEP_ARCMIN_OFFSET'] * cosmo.kpc_proper_per_arcmin(z_cl)
-    #                                      .to(u.Mpc / u.arcmin) / r500_cl)
-    #
-    # # Decrease the positional uncertainty to 75% of the true value
-    # cluster_pos_uncert_075 = cluster_pos_uncert * 0.75
-    # threequarters_offset_SZ_center = rng.multivariate_normal(
-    #     (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-    #     np.eye(2) * cluster_pos_uncert_075.to_value(u.deg) ** 2)
-    # threequarters_offset_SZ_center_skycoord = SkyCoord(threequarters_offset_SZ_center[0],
-    #                                                    threequarters_offset_SZ_center[1], unit='deg')
-    # los_cat['075_OFFSET_RA'] = threequarters_offset_SZ_center_skycoord.ra
-    # los_cat['075_OFFSET_DEC'] = threequarters_offset_SZ_center_skycoord.dec
-    #
-    # # Calculate the radial distances based on the 3/4-offset center
-    # los_cat['RADIAL_SEP_ARCMIN_075_OFFSET'] = (threequarters_offset_SZ_center_skycoord.separation(agn_coords_skycoord)
-    #                                            .to(u.arcmin))
-    # los_cat['RADIAL_SEP_R500_075_OFFSET'] = (los_cat['RADIAL_SEP_ARCMIN_075_OFFSET'] * cosmo.kpc_proper_per_arcmin(z_cl)
-    #                                          .to(u.Mpc / u.arcmin) / r500_cl)
-    #
-    # # Decrease the positional uncertainty to half of the true value
-    # cluster_pos_uncert_half = cluster_pos_uncert / 2
-    # half_offset_SZ_center = rng.multivariate_normal((SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
-    #                                                 np.eye(2) * cluster_pos_uncert_half.to_value(u.deg) ** 2)
-    # half_offset_SZ_center_skycoord = SkyCoord(half_offset_SZ_center[0], half_offset_SZ_center[1], unit='deg')
-    # los_cat['HALF_OFFSET_RA'] = half_offset_SZ_center_skycoord.ra
-    # los_cat['HALF_OFFSET_DEC'] = half_offset_SZ_center_skycoord.dec
-    #
-    # # Also, calculate the radial distances based on the half-offset center
-    # los_cat['RADIAL_SEP_ARCMIN_HALF_OFFSET'] = (half_offset_SZ_center_skycoord.separation(agn_coords_skycoord)
-    #                                             .to(u.arcmin))
-    # los_cat['RADIAL_SEP_R500_HALF_OFFSET'] = (los_cat['RADIAL_SEP_ARCMIN_HALF_OFFSET']
-    #                                           * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl)
+    # Shift the cluster center away from the true center within the 1-sigma SZ positional uncertainty
+    cluster_pos_uncert = np.sqrt(SZ_theta_beam ** 2 + SZ_theta_core ** 2) / SZ_xi
+    los_cat['CENTER_POS_UNC_ARCMIN_1sigma'] = cluster_pos_uncert
+    offset_SZ_center = rng.multivariate_normal((SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+                                               np.eye(2) * cluster_pos_uncert.to_value(u.deg) ** 2)
+    offset_SZ_center_skycoord = SkyCoord(offset_SZ_center[0], offset_SZ_center[1], unit='deg')
+    los_cat['OFFSET_RA'] = offset_SZ_center_skycoord.ra
+    los_cat['OFFSET_DEC'] = offset_SZ_center_skycoord.dec
+
+    # Also calculate the radial distances based on the offset center.
+    los_cat['RADIAL_SEP_ARCMIN_OFFSET'] = (offset_SZ_center_skycoord.separation(los_coords_skycoord).to(u.arcmin))
+    los_cat['RADIAL_SEP_R500_OFFSET'] = (los_cat['RADIAL_SEP_ARCMIN_OFFSET'] * cosmo.kpc_proper_per_arcmin(z_cl)
+                                         .to(u.Mpc / u.arcmin) / r500_cl)
+
+    # Decrease the positional uncertainty to 75% of the true value
+    cluster_pos_uncert_075 = cluster_pos_uncert * 0.75
+    threequarters_offset_SZ_center = rng.multivariate_normal(
+        (SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+        np.eye(2) * cluster_pos_uncert_075.to_value(u.deg) ** 2)
+    threequarters_offset_SZ_center_skycoord = SkyCoord(threequarters_offset_SZ_center[0],
+                                                       threequarters_offset_SZ_center[1], unit='deg')
+    los_cat['075_OFFSET_RA'] = threequarters_offset_SZ_center_skycoord.ra
+    los_cat['075_OFFSET_DEC'] = threequarters_offset_SZ_center_skycoord.dec
+
+    # Calculate the radial distances based on the 3/4-offset center
+    los_cat['RADIAL_SEP_ARCMIN_075_OFFSET'] = (threequarters_offset_SZ_center_skycoord.separation(los_coords_skycoord)
+                                               .to(u.arcmin))
+    los_cat['RADIAL_SEP_R500_075_OFFSET'] = (los_cat['RADIAL_SEP_ARCMIN_075_OFFSET'] * cosmo.kpc_proper_per_arcmin(z_cl)
+                                             .to(u.Mpc / u.arcmin) / r500_cl)
+
+    # Decrease the positional uncertainty to half of the true value
+    cluster_pos_uncert_half = cluster_pos_uncert / 2
+    half_offset_SZ_center = rng.multivariate_normal((SZ_center_skycoord.ra.value, SZ_center_skycoord.dec.value),
+                                                    np.eye(2) * cluster_pos_uncert_half.to_value(u.deg) ** 2)
+    half_offset_SZ_center_skycoord = SkyCoord(half_offset_SZ_center[0], half_offset_SZ_center[1], unit='deg')
+    los_cat['HALF_OFFSET_RA'] = half_offset_SZ_center_skycoord.ra
+    los_cat['HALF_OFFSET_DEC'] = half_offset_SZ_center_skycoord.dec
+
+    # Also, calculate the radial distances based on the half-offset center
+    los_cat['RADIAL_SEP_ARCMIN_HALF_OFFSET'] = (half_offset_SZ_center_skycoord.separation(los_coords_skycoord)
+                                                .to(u.arcmin))
+    los_cat['RADIAL_SEP_R500_HALF_OFFSET'] = (los_cat['RADIAL_SEP_ARCMIN_HALF_OFFSET']
+                                              * cosmo.kpc_proper_per_arcmin(z_cl).to(u.Mpc / u.arcmin) / r500_cl)
     # </editor-fold>
 
     # Select only objects within the max_radius
@@ -568,7 +568,7 @@ eta_range = [-5., -3., 0., 3., 4., 5.]
 zeta_range = [-2., -1, 0., 1., 2.]
 
 # Using our targeted SNR, determine the cluster amplitude parameter needed.
-target_snr = 0.23
+target_snr = 0.23 / 2
 targeted_snr_theta = Table(rows=[[name, theta_snr(target_snr)] for name, theta_snr in snr_theta_fits.items()],
                            names=['catalog', 'theta'])
 
@@ -702,7 +702,7 @@ for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshap
     outAGN = vstack(AGN_cats)
     filename = (
         f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-        f'targeted_snr/308cl/snr_0.23/'
+        f'targeted_snr/308cl/snr_0.115/'
         f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
         f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
