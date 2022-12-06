@@ -351,25 +351,25 @@ ndim = 5 if args.cluster_only else (1 if args.background_only else 6)
 nwalkers = 50
 
 # Also, set the number of steps to run the sampler for.
-nsteps = int(1e6)
+nsteps = int(100_000)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
 if args.cluster_only:
     pos0 = np.array([
-        rng.uniform(low=0.,  high=15., size=nwalkers),
+        rng.uniform(low=np.log(0.01), high=np.log(15.), size=nwalkers),
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=0.05, high=0.5, size=nwalkers)]).T
+        rng.uniform(low=np.log(0.05), high=np.log(0.5), size=nwalkers)]).T
 elif args.background_only:
     pos0 = np.array([rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 else:
     pos0 = np.array([
-        rng.uniform(low=0.,  high=15., size=nwalkers),
+        rng.uniform(low=np.log(0.01),  high=np.log(15.), size=nwalkers),
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=0.05,  high=0.5, size=nwalkers),
+        rng.uniform(low=np.log(0.05),  high=np.log(0.5), size=nwalkers),
         rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
@@ -379,7 +379,7 @@ old_tau = np.inf  # For convergence
 with MPIPool() as pool:
     # Filename for hd5 backend
     # chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
-    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr13.h5'
+    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr0.23.h5'
     # chain_file = f'{local_dir}emcee_SPTcl-IRAGN_empirical.h5'
     backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
