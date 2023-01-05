@@ -68,9 +68,8 @@ for name, group in tez_snr_df_grp:
     fit_lib[str(name)] = fit
     funct_lib[name] = np.poly1d(fit)
 
-with open(
-        'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/snr_to_theta_fits.json',
-        'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+          'snr_to_theta_fits.json', 'w') as f:
     json.dump(fit_lib, f, cls=NumpyArrayEncoder)
 
 cNorm = colors.Normalize(vmin=0, vmax=len(tez_snr_df_grp) - 1)
@@ -88,6 +87,8 @@ ax.axhline(y=13, ls='--', c='k')
 ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.5), ncol=4)
 ax.set(xlabel='theta', ylabel='SNR', yscale='linear', xlim=[0, 1000], ylim=[0, 15])
 plt.tight_layout()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+            '308cl_snr_theta_trend.pdf')
 plt.show()
 
 # %%
