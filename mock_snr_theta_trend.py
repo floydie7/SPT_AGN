@@ -82,13 +82,13 @@ for name, group in tez_snr_df_grp:
     sorted_grp = group.sort_values('theta')
     ax.plot(sorted_grp['theta'], sorted_grp['snr'], label=name)
 # ax.axhline(y=4.0217, ls='--', c='k', alpha=0.8)
-ax.axhline(y=13, ls='--', c='k')
+ax.axhline(y=0.23, ls='--', c='k')
 # ax.fill_between(x=np.linspace(0, 149.6), y1=0.5998, y2=7.0474, color='lightgrey')
 ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.5), ncol=4)
-ax.set(xlabel='theta', ylabel='SNR', yscale='linear', xlim=[0, 1000], ylim=[0, 15])
+ax.set(xlabel='theta', ylabel='SNR', yscale='linear', xlim=[0, 20], ylim=[0, 1])
 plt.tight_layout()
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
-            '308cl_snr_theta_trend.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+#             '308cl_snr_theta_trend.pdf')
 plt.show()
 
 # %%

@@ -98,14 +98,14 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         # Unpack our parameters
         c0, = params
         # Set all other parameters to neutral values
-        theta, eta, zeta = [0.]*3
-        beta, rc = 1/3., 1.
+        theta, eta, zeta = [0.] * 3
+        beta, rc = 1 / 3., 1.
     else:
         # Unpack our parameters
         ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
-    # eta, zeta, beta, ln_rc, ln_c0 = params
+        # eta, zeta, beta, ln_rc, ln_c0 = params
 
-    # Exponentiate all the log-sampled parameters
+        # Exponentiate all the log-sampled parameters
         theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
     # rc, c0 = np.exp([ln_rc, ln_c0])
     # theta = 50.
@@ -183,7 +183,8 @@ def lnlike(param: tuple[float, ...]):
         n_mesh = model_rate_opted(param, cluster_id, rall, jall, integral=True)
 
         # Use a spatial poisson point-process log-likelihood
-        cluster_lnlike = (np.sum(np.log(ni * ri)) - completeness_ratio * trap_weight(n_mesh * 2 * np.pi * rall, rall, weight=gpf_all))
+        cluster_lnlike = (np.sum(np.log(ni * ri)) - completeness_ratio * trap_weight(n_mesh * 2 * np.pi * rall, rall,
+                                                                                     weight=gpf_all))
 
         lnlike_list.append(cluster_lnlike)
 
@@ -204,16 +205,13 @@ def lnprior(params: tuple[float, ...]):
         ln_c0, = params
         c0 = np.exp(ln_c0)
         # Set other parameters to values that will pass the priors.
-        theta, eta, zeta, beta = [0.]*4
+        theta, eta, zeta, beta = [0.] * 4
         rc = 0.1  # Cannot be 0., min rc = 0.05
     else:
         ln_theta, eta, zeta, beta, ln_rc, ln_c0 = params
-    # eta, zeta, beta, ln_rc, ln_c0 = params
 
-    # Exponentiate all the log-sampled parameters
+        # Exponentiate all the log-sampled parameters
         theta, rc, c0 = np.exp([ln_theta, ln_rc, ln_c0])
-    # rc, c0 = np.exp([ln_rc, ln_c0])
-    # theta = 50.
 
     cluster_lnprior = []
     for cluster_id in catalog_dict:
@@ -226,7 +224,7 @@ def lnprior(params: tuple[float, ...]):
         cz = c0 + delta_c(z)
 
         # Define all priors
-        if (0.0 <= theta <= np.inf and
+        if (0.0 <= theta <= 20. and
                 -6. <= eta <= 6. and
                 -3. <= zeta <= 3. and
                 -3. <= beta <= 3. and
@@ -241,7 +239,6 @@ def lnprior(params: tuple[float, ...]):
                 c_lnprior = 0.
             else:
                 c_lnprior = -0.5 * np.sum((cz - h_c) ** 2 / h_c_err ** 2)
-            # C_lnprior = 0.0
         else:
             theta_lnprior = -np.inf
             eta_lnprior = -np.inf
@@ -277,7 +274,8 @@ parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
 parser.add_argument('name', help='Chain name', type=str)
-parser.add_argument('--preprocessing', help='Preprocessing file name', default='SPTcl_IRAGN_preprocessing.json', type=str)
+parser.add_argument('--preprocessing', help='Preprocessing file name', default='SPTcl_IRAGN_preprocessing.json',
+                    type=str)
 parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
 parser.add_argument('--no-selection-membership', action='store_true',
                     help='Deactivate fuzzy degree of membership for AGN selection in likelihood function.')
@@ -365,11 +363,11 @@ elif args.background_only:
     pos0 = np.array([rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 else:
     pos0 = np.array([
-        rng.uniform(low=np.log(0.01),  high=np.log(15.), size=nwalkers),
+        rng.uniform(low=np.log(0.01), high=np.log(15.), size=nwalkers),
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=np.log(0.05),  high=np.log(0.5), size=nwalkers),
+        rng.uniform(low=np.log(0.05), high=np.log(0.5), size=nwalkers),
         rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
