@@ -90,8 +90,8 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
 
     if args.cluster_only:
         # Unpack our parameters
-        theta, eta, zeta, beta, ln_rc = params
-        rc = np.exp(ln_rc)
+        theta, eta, zeta, beta, rc = params
+        # rc = np.exp(ln_rc)
         # Set background parameter to 0
         c0 = 0
     elif args.background_only:
@@ -102,11 +102,11 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
         beta, rc = 1 / 3., 1.
     else:
         # Unpack our parameters
-        theta, eta, zeta, beta, ln_rc, ln_c0 = params
+        theta, eta, zeta, beta, rc, c0 = params
         # eta, zeta, beta, ln_rc, ln_c0 = params
 
         # Exponentiate all the log-sampled parameters
-        rc, c0 = np.exp([ln_rc, ln_c0])
+        # rc, c0 = np.exp([ln_rc, ln_c0])
     # rc, c0 = np.exp([ln_rc, ln_c0])
     # theta = 50.
 
@@ -198,20 +198,20 @@ def lnlike(param: tuple[float, ...]):
 def lnprior(params: tuple[float, ...]):
     # Extract our parameters
     if args.cluster_only:
-        theta, eta, zeta, beta, ln_rc = params
-        rc = np.exp(ln_rc)
+        theta, eta, zeta, beta, rc = params
+        # rc = np.exp(ln_rc)
         c0 = c0_true
     elif args.background_only:
-        ln_c0, = params
-        c0 = np.exp(ln_c0)
+        c0, = params
+        # c0 = np.exp(ln_c0)
         # Set other parameters to values that will pass the priors.
         theta, eta, zeta, beta = [0.] * 4
         rc = 0.1  # Cannot be 0., min rc = 0.05
     else:
-        theta, eta, zeta, beta, ln_rc, ln_c0 = params
+        theta, eta, zeta, beta, rc, c0 = params
 
         # Exponentiate all the log-sampled parameters
-        rc, c0 = np.exp([ln_rc, ln_c0])
+        # rc, c0 = np.exp([ln_rc, ln_c0])
 
     cluster_lnprior = []
     for cluster_id in catalog_dict:
@@ -358,17 +358,17 @@ if args.cluster_only:
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=np.log(0.05), high=np.log(0.5), size=nwalkers)]).T
+        rng.uniform(0.05, high=0.5, size=nwalkers)]).T
 elif args.background_only:
-    pos0 = np.array([rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
+    pos0 = np.array([rng.normal(c0_true, 1e-4, size=nwalkers)]).T
 else:
     pos0 = np.array([
         rng.uniform(low=0.01, high=15., size=nwalkers),
         rng.uniform(low=-6., high=6., size=nwalkers),
         rng.uniform(low=-3., high=3., size=nwalkers),
         rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=np.log(0.05), high=np.log(0.5), size=nwalkers),
-        rng.normal(np.log(c0_true), 1e-4, size=nwalkers)]).T
+        rng.uniform(low=0.05, high=0.5, size=nwalkers),
+        rng.normal(c0_true, 1e-4, size=nwalkers)]).T
 
 # Set up the autocorrelation and convergence variables
 autocorr = np.empty(nsteps)
