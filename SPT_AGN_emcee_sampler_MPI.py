@@ -393,6 +393,19 @@ with MPIPool() as pool:
     # Initialize the sampler
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, pool=pool)
 
+    if not args.restart:
+        # Run the sampler for a short time to establish the likely maximum posterior location.
+        burnin_state = sampler.run_mcmc(pos0, nsteps=500)
+
+        # Find the likely maximum posterior location and update
+        max_posterior_means = np.mean(burnin_state, axis=0)
+
+        # Reinitialize the walkers in a tight ball around the means found in the burn-in phase
+        pos0 = rng.normal(loc=max_posterior_means, scale=1e-6, size=pos0.shape)
+
+        # Reset the sampler to drop the pre-burn in data
+        # sampler.reset()
+
     # Run the sampler.
     print('Starting sampler.')
     start_sampler_time = time()
