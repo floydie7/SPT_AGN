@@ -398,7 +398,7 @@ with MPIPool() as pool:
         burnin_state = sampler.run_mcmc(pos0, nsteps=500)
 
         # Find the likely maximum posterior location and update
-        max_posterior_means = np.mean(burnin_state, axis=0)
+        max_posterior_means = np.mean(burnin_state.coords, axis=0)
 
         # Reinitialize the walkers in a tight ball around the means found in the burn-in phase
         pos0 = rng.normal(loc=max_posterior_means, scale=1e-6, size=pos0.shape)
