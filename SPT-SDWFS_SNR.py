@@ -103,6 +103,7 @@ ax.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]'
 bx.bar(z_bin_centers, cl_bkg_snr_zbin, width=np.diff(z_bins))
 bx.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over SDWFS @ z')
 plt.show()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/SPT-SDWFS_SNR.pdf')
 
 # %%
 # # Narrow in on the wierd redshift bin

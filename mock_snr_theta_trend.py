@@ -103,12 +103,15 @@ targeted_theta.write('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/C
 
 # %%
 snr_range = np.linspace(0., 15., num=100)
-fig, ax = plt.subplots(figsize=(6.8, 1.5 * 4.8))
+fig, ax = plt.subplots(figsize=(6.8, 4.8))
 ax.set_prop_cycle(color=[scalarMap.to_rgba(i) for i in range(len(funct_lib))])
 for name, theta_snr in funct_lib.items():
     ax.plot(theta_snr(snr_range), snr_range, label=name)
-ax.axhline(y=13, ls='--', c='k')
-ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.5), ncol=4)
-ax.set(xlabel='theta', ylabel='SNR', ylim=[0, 15], xlim=[0, 1000])
+ax.axhline(y=0.23, ls='--', c='k')
+ax.legend(loc='lower center', bbox_to_anchor=(0, 1.02, 1, 0.2), borderaxespad=0.5, ncol=6)
+ax.set(xlabel=r'$\theta$', ylabel='SNR', ylim=[0, 1], xlim=[0, 20])
 plt.tight_layout()
 plt.show()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+            '308cl_snr_theta_trend_snr0.23.pdf', bbox_inches='tight')
+

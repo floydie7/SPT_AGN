@@ -62,7 +62,7 @@ filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'linearTheta' in chain_name]
+chain_names = [chain_name for chain_name in chain_names if 'walkerBurnin' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -81,15 +81,15 @@ for chain_name, sampler in sampler_dict.items():
     nsteps, nwalkers, ndim = samples.shape
 
     # Exponentiate the chains of the log-sampled parameters
-    if ndim == 1:
-        samples[:, :, 0] = np.exp(samples[:, :, 0])
-    elif ndim == 5:
-        samples[:, :, 0] = np.exp(samples[:, :, 0])
-        samples[:, :, 4] = np.exp(samples[:, :, 4])
-    else:
-        samples[:, :, 0] = np.exp(samples[:, :, 0])
-        samples[:, :, 4] = np.exp(samples[:, :, 4])
-        samples[:, :, 5] = np.exp(samples[:, :, 5])
+    # if ndim == 1:
+    #     samples[:, :, 0] = np.exp(samples[:, :, 0])
+    # elif ndim == 5:
+    #     samples[:, :, 0] = np.exp(samples[:, :, 0])
+    #     samples[:, :, 4] = np.exp(samples[:, :, 4])
+    # else:
+    #     samples[:, :, 0] = np.exp(samples[:, :, 0])
+    #     samples[:, :, 4] = np.exp(samples[:, :, 4])
+    #     samples[:, :, 5] = np.exp(samples[:, :, 5])
 
     # Plot the chains
     fig, axes = plt.subplots(nrows=ndim, ncols=1, sharex='col')
@@ -114,7 +114,7 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_0.23/run_3/'
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_0.23/run_5/'
                 f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
@@ -146,15 +146,15 @@ for chain_name, sampler in sampler_dict.items():
         thinning = 1
 
     flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
-    if ndim == 1:
-        flat_samples[:, 0] = np.exp(flat_samples[:, 0])
-    elif ndim == 5:
-        flat_samples[:, 0] = np.exp(flat_samples[:, 0])
-        flat_samples[:, 4] = np.exp(flat_samples[:, 4])
-    else:
-        flat_samples[:, 0] = np.exp(flat_samples[:, 0])
-        flat_samples[:, 4] = np.exp(flat_samples[:, 4])
-        flat_samples[:, 5] = np.exp(flat_samples[:, 5])
+    # if ndim == 1:
+    #     flat_samples[:, 0] = np.exp(flat_samples[:, 0])
+    # elif ndim == 5:
+    #     flat_samples[:, 0] = np.exp(flat_samples[:, 0])
+    #     flat_samples[:, 4] = np.exp(flat_samples[:, 4])
+    # else:
+    #     flat_samples[:, 0] = np.exp(flat_samples[:, 0])
+    #     flat_samples[:, 4] = np.exp(flat_samples[:, 4])
+    #     flat_samples[:, 5] = np.exp(flat_samples[:, 5])
     # flat_log_prob_samples = sampler.get_log_prob(discard=burnin, thin=thinning, flat=True)
     # all_samples = np.concatenate((flat_samples, flat_log_prob_samples[:, None]), axis=1)
     # labels[-1] = r'$\ln(Post)$'
@@ -174,7 +174,7 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_0.23/run_3/'
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_0.23/run_5/'
                 f'Corner_plot_mock_{chain_name}_expParams.pdf')
     plt.show()
 
