@@ -52,7 +52,7 @@ for catalog_file in catalog_list:
     num_cl_agn = cluster_agn['COMPLETENESS_CORRECTION'].sum()
     num_bkg_agn = background_agn['COMPLETENESS_CORRECTION'].sum()
     # Signal-to-Noise ratio is defined as the numbers of cluster / background AGN
-    snr = num_cl_agn / num_bkg_agn
+    snr = num_cl_agn / np.sqrt(num_bkg_agn)
 
     theta, eta, zeta = params[:3]
     tez_snr_data.append([theta, eta, zeta, snr])
@@ -68,8 +68,9 @@ for name, group in tez_snr_df_grp:
     fit_lib[str(name)] = fit
     funct_lib[name] = np.poly1d(fit)
 
-with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-          'snr_to_theta_fits.json', 'w') as f:
+with open(
+        'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+        'snr_to_theta_fits.json', 'w') as f:
     json.dump(fit_lib, f, cls=NumpyArrayEncoder)
 
 cNorm = colors.Normalize(vmin=0, vmax=len(tez_snr_df_grp) - 1)
@@ -112,6 +113,6 @@ ax.legend(loc='lower center', bbox_to_anchor=(0, 1.02, 1, 0.2), borderaxespad=0.
 ax.set(xlabel=r'$\theta$', ylabel='SNR', ylim=[0, 1], xlim=[0, 20])
 plt.tight_layout()
 plt.show()
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
-            '308cl_snr_theta_trend_snr0.23.pdf', bbox_inches='tight')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+#             '308cl_snr_theta_trend_snr0.23.pdf', bbox_inches='tight')
 

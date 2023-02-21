@@ -89,11 +89,11 @@ for z, cluster_bin, field_bin in zip(z_bin_centers, sptcl_iragn_binned.groups, s
     cluster_surf_den_z_bin = (no_los_agn / cluster_bin_area - no_field_agn_zbin / field_bin_area)
 
     # Field Surface Densities
-    field_surf_den = no_field_agn / sdwfs_area
-    field_surf_den_zbin = no_field_agn_zbin / field_bin_area
+    field_surf_den_err = np.sqrt(no_field_agn) / sdwfs_area
+    field_surf_den_zbin_err = np.sqrt(no_field_agn_zbin) / field_bin_area
 
-    cl_bkg_snr.append(cluster_surf_den / field_surf_den)
-    cl_bkg_snr_zbin.append(cluster_surf_den_z_bin / field_surf_den_zbin)
+    cl_bkg_snr.append(cluster_surf_den / field_surf_den_err)
+    cl_bkg_snr_zbin.append(cluster_surf_den_z_bin / field_surf_den_zbin_err)
 
 # %%
 fig, (ax, bx) = plt.subplots(nrows=2, sharex='col', figsize=(6.4, 4.8 * 2))
@@ -101,9 +101,9 @@ ax.bar(z_bin_centers, cl_bkg_snr, width=np.diff(z_bins))
 ax.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over all SDWFS')
 
 bx.bar(z_bin_centers, cl_bkg_snr_zbin, width=np.diff(z_bins))
-bx.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over SDWFS @ z')
+bx.set(xlabel='redshift', ylabel=r'SNR [$\Sigma_{AGN,cl}$ / $\Sigma_{AGN,bkg}$]', title='Over SDWFS @ z', xlim=[0, 1.8])
 plt.show()
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/SPT-SDWFS_SNR.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/SPT-SDWFS_SNR.pdf')
 
 # %%
 # # Narrow in on the wierd redshift bin
