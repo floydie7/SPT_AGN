@@ -6,6 +6,7 @@ Using our Bayesian model, generates a mock catalog to use in testing the limitat
 """
 import glob
 import json
+import logging
 import re
 from time import time
 
@@ -17,11 +18,17 @@ from astropy.io import fits
 from astropy.table import Table, join, unique, vstack
 from astropy.wcs import WCS
 from matplotlib import pyplot as plt
+from numpy.polynomial import Polynomial
 from scipy import stats
 from scipy.interpolate import lagrange, interp1d
 from synphot import SpectralElement, SourceSpectrum, units
 
 from k_correction import k_corr_abs_mag
+
+# Set up logger
+logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/'
+                             'eta_zeta_slopes/targeted_snr/308cl/snr_5.83/mock_catalog_generation.log',
+                    level=logging.INFO)
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 hcc_prefix = ''
@@ -32,7 +39,7 @@ cosmo = FlatLambdaCDM(H0=70., Om0=0.3)
 # Set up rng
 seed = 3775
 rng = np.random.default_rng(seed)
-print(f'Using RNG seed: {seed}')
+logging.info(f'Using RNG seed: {seed}')
 
 tez_pattern = re.compile(r'[tez](-*\d+.\d+|\d+)')
 
@@ -498,7 +505,7 @@ def print_catalog_stats(catalog):
     median_z = np.median(catalog['REDSHIFT'])
     median_m = np.median(catalog['M500'])
 
-    print(f"""Parameters:\t{params_true + (c0_true,)}
+    logging.info(f"""Parameters:\t{params_true + (c0_true,)}
     Number of clusters:\t{number_of_clusters:,}
     Objects Selected:\t{total_number:,}
     Objects selected (completeness corrected):\t{total_number_comp_corrected:,.2f}
@@ -542,7 +549,7 @@ with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Por
           'snr_to_theta_fits.json', 'r') as f:
     snr_theta_fits = json.load(f)
 for name, fit_data in snr_theta_fits.items():
-    snr_theta_fits[name] = np.poly1d(fit_data)
+    snr_theta_fits[name] = Polynomial(fit_data)
 
 # <editor-fold desc="Parameter Set up">
 # parser = ArgumentParser(description='Creates mock catalogs with input parameter set')
@@ -563,12 +570,12 @@ beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
-theta_range = np.arange(0.1, 7., 0.5)
+theta_range = np.arange(0., 0.1, 0.01)
 eta_range = [-5., -3., 0., 3., 4., 5.]
 zeta_range = [-2., -1, 0., 1., 2.]
 
 # Using our targeted SNR, determine the cluster amplitude parameter needed.
-target_snr = 0.23 / 2
+target_snr = 5.83
 targeted_snr_theta = Table(rows=[[name, theta_snr(target_snr)] for name, theta_snr in snr_theta_fits.items()],
                            names=['catalog', 'theta'])
 
@@ -702,15 +709,15 @@ for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshap
     outAGN = vstack(AGN_cats)
     filename = (
         f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-        f'targeted_snr/308cl/snr_0.115/'
-        f'mock_AGN_catalog_t{theta_true:.3f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
+        f'targeted_snr/308cl/snr_5.83/'
+        f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
         f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
-    print(filename)
+    logging.info(filename)
 
     # Print out statistics
-    print(f'RNG Seed: {seed}')
-    print('Mock Catalog (no rejection sampling)')
+    logging.info(f'RNG Seed: {seed}')
+    logging.info('Mock Catalog (no rejection sampling)')
     print_catalog_stats(outAGN)
 
 # print('-----\n')
@@ -718,4 +725,4 @@ for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshap
 # print('Mock Catalog (with rejection sampling)')
 # print_catalog_stats(outAGN_rejection)
 
-print(f'Total run time: {time() - start_time:.2f}s')
+logging.info(f'Total run time: {time() - start_time:.2f}s')
