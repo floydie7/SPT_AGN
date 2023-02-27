@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 from matplotlib import colors, cm, pyplot as plt
+from numpy.polynomial import Polynomial
 
 
 class NumpyArrayEncoder(json.JSONEncoder):
@@ -64,36 +65,19 @@ tez_snr_df_grp = tez_snr_df.groupby(by=['eta', 'zeta'])
 funct_lib = {}
 fit_lib = {}
 for name, group in tez_snr_df_grp:
-    fit = np.polyfit(group['snr'], group['theta'], 1)
-    fit_lib[str(name)] = fit
-    funct_lib[name] = np.poly1d(fit)
+    poly: Polynomial = Polynomial.fit(group['snr'], group['theta'], 1)
+    fit_lib[str(name)] = poly.convert().coef
+    funct_lib[name] = poly
 
-with open(
-        'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-        'snr_to_theta_fits.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+          'snr_to_theta_fits.json', 'w') as f:
     json.dump(fit_lib, f, cls=NumpyArrayEncoder)
 
 cNorm = colors.Normalize(vmin=0, vmax=len(tez_snr_df_grp) - 1)
 scalarMap = cm.ScalarMappable(norm=cNorm, cmap='jet')
 
 # %%
-fig, ax = plt.subplots(figsize=(6.8, 1.5 * 4.8))
-ax.set_prop_cycle(color=[scalarMap.to_rgba(i) for i in range(len(tez_snr_df_grp))])
-for name, group in tez_snr_df_grp:
-    sorted_grp = group.sort_values('theta')
-    ax.plot(sorted_grp['theta'], sorted_grp['snr'], label=name)
-# ax.axhline(y=4.0217, ls='--', c='k', alpha=0.8)
-ax.axhline(y=0.23, ls='--', c='k')
-# ax.fill_between(x=np.linspace(0, 149.6), y1=0.5998, y2=7.0474, color='lightgrey')
-ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.5), ncol=4)
-ax.set(xlabel='theta', ylabel='SNR', yscale='linear', xlim=[0, 20], ylim=[0, 1])
-plt.tight_layout()
-# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
-#             '308cl_snr_theta_trend.pdf')
-plt.show()
-
-# %%
-target_snr = 0.23
+target_snr = 5.83
 targeted_theta = Table(rows=[[str(name), theta_snr(target_snr)] for name, theta_snr in funct_lib.items()],
                        names=['catalog', 'theta'])
 
@@ -102,17 +86,25 @@ targeted_theta.write('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/C
                      f'eta_zeta_slopes/targeted_snr/308cl/308cl_targeted_snr{target_snr:.2f}_theta_values.fits',
                      overwrite=True)
 
+#%%
+theta_range = np.arange(0., 6.1, 0.01)
+fig, ax = plt.subplots()
+ax.hist(targeted_theta['theta'], bins=theta_range)
+ax.set(xlabel=r'$\theta$', ylabel='Number of Catalogs', xlim=[0., 0.1])
+plt.show()
+
 # %%
 snr_range = np.linspace(0., 15., num=100)
-fig, ax = plt.subplots(figsize=(6.8, 4.8))
+fig, ax = plt.subplots(figsize=(1.25*6.8, 1.25*4.8))
 ax.set_prop_cycle(color=[scalarMap.to_rgba(i) for i in range(len(funct_lib))])
-for name, theta_snr in funct_lib.items():
+for (name, theta_snr), (_, group) in zip(funct_lib.items(), tez_snr_df_grp):
+    sorted_grp = group.sort_values('theta')
+    ax.scatter(sorted_grp['theta'], sorted_grp['snr'], marker='.')
     ax.plot(theta_snr(snr_range), snr_range, label=name)
-ax.axhline(y=0.23, ls='--', c='k')
+ax.axhline(y=5.83, ls='--', c='k')
 ax.legend(loc='lower center', bbox_to_anchor=(0, 1.02, 1, 0.2), borderaxespad=0.5, ncol=6)
-ax.set(xlabel=r'$\theta$', ylabel='SNR', ylim=[0, 1], xlim=[0, 20])
+ax.set(xlabel=r'$\theta$', ylabel='SNR', ylim=[0, 10], xlim=[0, 6])
 plt.tight_layout()
 plt.show()
-# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
-#             '308cl_snr_theta_trend_snr0.23.pdf', bbox_inches='tight')
-
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/'
+            f'308cl_snr_theta_trend_snr{target_snr:.2f}.pdf', bbox_inches='tight')
