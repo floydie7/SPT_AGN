@@ -225,8 +225,8 @@ def lnprior(params: tuple[float, ...]):
 
         # Define all priors
         if (0.0 <= theta <= 20. and
-                -6. <= eta <= 6. and
-                -3. <= zeta <= 3. and
+                -8. <= eta <= 8. and
+                -5. <= zeta <= 5. and
                 -3. <= beta <= 3. and
                 0.05 <= rc <= 0.5 and
                 0.0 <= cz < np.inf):
