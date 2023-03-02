@@ -5,6 +5,7 @@ Author: Benjamin Floyd
 Generates the chain walker and corner plots for a previously generated emcee chain file.
 """
 import json
+import logging
 import re
 
 import corner
@@ -14,6 +15,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import interp1d
+
+# Set up logger
+logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/'
+                             'eta-zeta_grid/snr_5.83/mock_catalog_chain_results.log',
+                    level=logging.INFO)
 
 # Read in the purity and surface density files
 with (open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.48.json', 'r') as f,
@@ -56,20 +62,20 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid_snr0.23.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid_308cl_snr5.83.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'walkerBurnin' in chain_name]
+# chain_names = [chain_name for chain_name in chain_names if 'walkerBurnin' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
 
 # Process each chain
 for chain_name, sampler in sampler_dict.items():
-    print(f'-----\n{chain_name}')
+    logging.info(f'-----\n{chain_name}')
 
     param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
     truths = np.array(param_pattern.findall(chain_name), dtype=float)
@@ -114,13 +120,14 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_0.23/run_5/'
-                f'Param_chains_mock_{chain_name}_expParams.pdf')
+    fig.savefig(
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_5.83/'
+        f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
     try:
-        # Calculate the autocorrelation time
-        tau_est = sampler.get_autocorr_time()
+        # Calculate the autocorrelation time (discarding the initial burn-in time)
+        tau_est = sampler.get_autocorr_time(discard=500)
         assert np.isfinite(tau_est).all()
 
         tau = np.mean(tau_est)
@@ -132,20 +139,20 @@ for chain_name, sampler in sampler_dict.items():
         thinning = 1
 
     except emcee.autocorr.AutocorrError:
-        tau_est = sampler.get_autocorr_time(quiet=True)
+        tau_est = sampler.get_autocorr_time(discard=500, quiet=True)
         tau = np.mean(tau_est)
 
-        burnin = int(nsteps // 3)
+        burnin = int((nsteps - 500) // 3)
         thinning = 1
 
     except AssertionError:
-        tau_est = sampler.get_autocorr_time(quiet=True)
+        tau_est = sampler.get_autocorr_time(discard=500, quiet=True)
         tau = np.nanmean(tau_est)
 
-        burnin = int(nsteps // 3)
+        burnin = int((nsteps - 500) // 3)
         thinning = 1
 
-    flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
+    flat_samples = sampler.get_chain(discard=burnin + 500, thin=thinning, flat=True)
     # if ndim == 1:
     #     flat_samples[:, 0] = np.exp(flat_samples[:, 0])
     # elif ndim == 5:
@@ -174,11 +181,12 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_0.23/run_5/'
-                f'Corner_plot_mock_{chain_name}_expParams.pdf')
+    fig.savefig(
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_5.83/'
+        f'Corner_plot_mock_{chain_name}_expParams.pdf')
     plt.show()
 
-    print(f'Iterations ran: {sampler.iteration}')
+    logging.info(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
         if ndim == 1:
             label_list = [labels[-1]]
@@ -191,13 +199,13 @@ for chain_name, sampler in sampler_dict.items():
             truth_list = truths
         mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
         q = np.diff(mcmc)
-        print('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true:.2f})'
-              .format(labels=label_list[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0],
-                      true=truth_list[i]))
+        logging.info('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true:.2f})'
+                     .format(labels=label_list[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0],
+                             true=truth_list[i]))
 
-    print(f'Mean acceptance fraction: {np.mean(sampler.accepted / sampler.iteration):.2f}')
+    logging.info(f'Mean acceptance fraction: {np.mean(sampler.accepted / sampler.iteration):.2f}')
 
     # Get estimate of autocorrelation time
-    print(f'Autocorrelation time: {tau:.1f}')
+    logging.info(f'Autocorrelation time: {tau:.1f}')
     plt.close('all')
 # plt.show()
