@@ -352,23 +352,18 @@ nwalkers = 50
 nsteps = int(100_000)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
+theta_pos0 = rng.uniform(low=0.01, high=15., size=nwalkers)
+eta_pos0 = rng.uniform(low=-6., high=6., size=nwalkers)
+zeta_pos0 = rng.uniform(low=-3., high=3., size=nwalkers)
+beta_pos0 = rng.uniform(low=-1., high=1., size=nwalkers)
+rc_pos0 = rng.uniform(0.05, high=0.5, size=nwalkers)
+c0_pos0 = rng.normal(c0_true, 1e-4, size=nwalkers)
 if args.cluster_only:
-    pos0 = np.array([
-        rng.uniform(low=0.01, high=15., size=nwalkers),
-        rng.uniform(low=-6., high=6., size=nwalkers),
-        rng.uniform(low=-3., high=3., size=nwalkers),
-        rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(0.05, high=0.5, size=nwalkers)]).T
+    pos0 = np.array([theta_pos0, eta_pos0, zeta_pos0, beta_pos0, rc_pos0]).T
 elif args.background_only:
-    pos0 = np.array([rng.normal(c0_true, 1e-4, size=nwalkers)]).T
+    pos0 = np.array([c0_pos0]).T
 else:
-    pos0 = np.array([
-        rng.uniform(low=0.01, high=15., size=nwalkers),
-        rng.uniform(low=-6., high=6., size=nwalkers),
-        rng.uniform(low=-3., high=3., size=nwalkers),
-        rng.uniform(low=-1., high=1., size=nwalkers),
-        rng.uniform(low=0.05, high=0.5, size=nwalkers),
-        rng.normal(c0_true, 1e-4, size=nwalkers)]).T
+    pos0 = np.array([theta_pos0, eta_pos0, zeta_pos0, beta_pos0, rc_pos0, c0_pos0]).T
 
 # Set up the autocorrelation and convergence variables
 autocorr = np.empty(nsteps)
