@@ -7,6 +7,7 @@ for all fitting parameters.
 """
 import json
 import os
+import re
 from argparse import ArgumentParser
 from time import time
 
@@ -334,12 +335,14 @@ for cluster_id, cluster_info in catalog_dict.items():
     for data_name, data in filter(lambda x: isinstance(x[1], list), cluster_info.items()):
         catalog_dict[cluster_id][data_name] = np.array(data)
 
-theta_true = 5.0
-eta_true = 4.0
-zeta_true = -1.0
-beta_true = 1.0
-rc_true = 0.1
-c0_true = agn_prior_surf_den(0.)
+# theta_true = 5.0
+# eta_true = 4.0
+# zeta_true = -1.0
+# beta_true = 1.0
+# rc_true = 0.1
+# c0_true = agn_prior_surf_den(0.)
+param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
+theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.name), dtype=float)
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -352,11 +355,16 @@ nwalkers = 50
 nsteps = int(100_000)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-theta_pos0 = rng.uniform(low=0.01, high=15., size=nwalkers)
-eta_pos0 = rng.uniform(low=-6., high=6., size=nwalkers)
-zeta_pos0 = rng.uniform(low=-3., high=3., size=nwalkers)
-beta_pos0 = rng.uniform(low=-1., high=1., size=nwalkers)
-rc_pos0 = rng.uniform(0.05, high=0.5, size=nwalkers)
+# theta_pos0 = rng.uniform(low=0.01, high=15., size=nwalkers)
+theta_pos0 = rng.normal(theta_true, 1e-4, size=nwalkers)
+# eta_pos0 = rng.uniform(low=-6., high=6., size=nwalkers)
+eta_pos0 = rng.normal(eta_true, 1e-4, size=nwalkers)
+# zeta_pos0 = rng.uniform(low=-3., high=3., size=nwalkers)
+zeta_pos0 = rng.normal(zeta_true, 1e-4, size=nwalkers)
+# beta_pos0 = rng.uniform(low=-1., high=1., size=nwalkers)
+beta_pos0 = rng.normal(beta_true, 1e-4, size=nwalkers)
+# rc_pos0 = rng.uniform(0.05, high=0.5, size=nwalkers)
+rc_pos0 = rng.normal(rc_true, 1e-4, size=nwalkers)
 c0_pos0 = rng.normal(c0_true, 1e-4, size=nwalkers)
 if args.cluster_only:
     pos0 = np.array([theta_pos0, eta_pos0, zeta_pos0, beta_pos0, rc_pos0]).T
@@ -388,18 +396,18 @@ with MPIPool() as pool:
     # Initialize the sampler
     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnpost, backend=backend, pool=pool)
 
-    if not args.restart:
-        # Run the sampler for a short time to establish the likely maximum posterior location.
-        burnin_state = sampler.run_mcmc(pos0, nsteps=500)
-
-        # Find the likely maximum posterior location and update
-        max_posterior_means = np.mean(burnin_state.coords, axis=0)
-
-        # Reinitialize the walkers in a tight ball around the means found in the burn-in phase
-        pos0 = rng.normal(loc=max_posterior_means, scale=1e-6, size=pos0.shape)
-
-        # Reset the sampler to drop the pre-burn in data
-        # sampler.reset()
+    # if not args.restart:
+    #     # Run the sampler for a short time to establish the likely maximum posterior location.
+    #     burnin_state = sampler.run_mcmc(pos0, nsteps=500)
+    #
+    #     # Find the likely maximum posterior location and update
+    #     max_posterior_means = np.mean(burnin_state.coords, axis=0)
+    #
+    #     # Reinitialize the walkers in a tight ball around the means found in the burn-in phase
+    #     pos0 = rng.normal(loc=max_posterior_means, scale=1e-6, size=pos0.shape)
+    #
+    #     # Reset the sampler to drop the pre-burn in data
+    #     # sampler.reset()
 
     # Run the sampler.
     print('Starting sampler.')
