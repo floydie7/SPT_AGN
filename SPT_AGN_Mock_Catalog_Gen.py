@@ -27,7 +27,7 @@ from k_correction import k_corr_abs_mag
 
 # Set up logger
 logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/'
-                             'eta_zeta_slopes/targeted_snr/308cl/snr_5.83/mock_catalog_generation.log',
+                             'eta_zeta_slopes/targeted_snr/308cl/snr_20/mock_catalog_generation.log',
                     level=logging.INFO)
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -513,7 +513,7 @@ def print_catalog_stats(catalog):
     Objects per cluster (comp + mem corrected):\t{number_per_cluster:,.2f}
     Cluster Objects (corrected):\t{cluster_objs_corrected:,.2f}
     Background Objects (corrected):\t{background_objs_corrected:,.2f}
-    SNR (Cluster objects / Background objects):\t{cluster_objs_corrected / background_objs_corrected:,.2f}
+    SNR (Cluster objects / √Background objects):\t{cluster_objs_corrected / np.sqrt(background_objs_corrected):,.2f}
     Median Redshift:\t{median_z:.2f}
     Median Mass:\t{median_m:.2e}""")
 
@@ -575,7 +575,7 @@ eta_range = [-5., -3., 0., 3., 4., 5.]
 zeta_range = [-2., -1, 0., 1., 2.]
 
 # Using our targeted SNR, determine the cluster amplitude parameter needed.
-target_snr = 5.83
+target_snr = 20.
 targeted_snr_theta = Table(rows=[[name, theta_snr(target_snr)] for name, theta_snr in snr_theta_fits.items()],
                            names=['catalog', 'theta'])
 
@@ -709,7 +709,7 @@ for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshap
     outAGN = vstack(AGN_cats)
     filename = (
         f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
-        f'targeted_snr/308cl/snr_5.83/'
+        f'targeted_snr/308cl/snr_20/'
         f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
         f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_photComp_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
