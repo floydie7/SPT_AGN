@@ -380,7 +380,7 @@ old_tau = np.inf  # For convergence
 with MPIPool() as pool:
     # Filename for hd5 backend
     # chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
-    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr5.83.h5'
+    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr20.h5'
     # chain_file = f'{local_dir}emcee_SPTcl-IRAGN_empirical.h5'
     backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
