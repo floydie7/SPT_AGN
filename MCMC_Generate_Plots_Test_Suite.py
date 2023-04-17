@@ -17,8 +17,8 @@ from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import interp1d
 
 # Set up logger
-logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/'
-                             'eta-zeta_grid/snr_5.83/run_3/mock_catalog_chain_results_apriori_no-pinch.log',
+logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_20/run_1/'
+                             'mock_catalog_chain_results_snr20_apriori_no-pinch.log',
                     level=logging.INFO)
 
 # Read in the purity and surface density files
@@ -62,13 +62,13 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
 # filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid_308cl_snr5.83.h5'
+filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid_308cl_snr20.h5'
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
     chain_names = list(f.keys())
 
-chain_names = [chain_name for chain_name in chain_names if 'apriori_no-pinch' in chain_name]
+# chain_names = [chain_name for chain_name in chain_names if 'apriori_no-pinch' in chain_name]
 
 # Load in all samplers from the file
 sampler_dict = {chain_name: emcee.backends.HDFBackend(filename, name=chain_name) for chain_name in chain_names}
@@ -121,7 +121,7 @@ for chain_name, sampler in sampler_dict.items():
         axes[-1].set(xlabel='Steps')
 
     fig.savefig(
-        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_5.83/run_3/'
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_20/run_1/'
         f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
@@ -182,7 +182,7 @@ for chain_name, sampler in sampler_dict.items():
     plt.tight_layout()
 
     fig.savefig(
-        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_5.83/run_3/'
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_20/run_1/'
         f'Corner_plot_mock_{chain_name}_expParams.pdf')
     plt.show()
 
