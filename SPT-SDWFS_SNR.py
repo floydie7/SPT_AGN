@@ -100,9 +100,11 @@ for cluster_bin, field_mean, field_std in zip(sptcl_iragn_binned.groups, sdwfs_s
     # Convert the field surface density error to a number error using the cluster area
     field_to_field_err = (field_std * cluster_bin_area).value
     poisson_err = np.sqrt(field_mean * cluster_bin_area).value
+    print(f'{field_to_field_err = :.3f}, {poisson_err = :.3f}')
 
     # Combine errors in quadrature
-    field_err = np.sqrt(field_to_field_err**2 + poisson_err**2)
+    field_err = np.sqrt(field_to_field_err**2)
+    print(f'{field_err = :.3f}')
 
     # Reduce the field error by the number of clusters present in the redshift bin
     field_err /= np.sqrt(len(los_agn_grp.groups))
