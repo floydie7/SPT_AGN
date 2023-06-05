@@ -15,7 +15,7 @@ from synphot import SourceSpectrum, units
 from AGN_Selection.Pipeline_functions import SelectIRAGN
 
 # Define directories
-# prefix = '/Users/btfkwd/Documents/SPT_AGN/'
+# prefix = '/Users/btfkwd/PycharmProjects/SPT_AGN/'
 prefix = '/home/ben-work/PycharmProjects/SPT_AGN/'
 
 # SPT-SZ Directories

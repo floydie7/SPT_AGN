@@ -417,7 +417,7 @@ class SelectIRAGN:
 
             # Combine all the shape masks into a final object mask, inverting the boolean values so we can multiply
             # our mask with our existing good pixel mask
-            total_obj_mask = ~np.logical_or.reduce(shape_masks)
+            total_obj_mask = ~np.logical_or.reduce(shape_masks).T
 
             # Apply the object mask to the existing good pixel mask
             good_pix_mask *= total_obj_mask.astype(int)
