@@ -75,7 +75,7 @@ for catalog_file in catalog_list:
         field_err = background_agn_std
 
         # Reduce the field error by the number of clusters present in the redshift bin
-        field_err /= np.sqrt(len(redshift_bin.group_by('SPT_ID').groups))
+        # field_err /= np.sqrt(len(redshift_bin.group_by('SPT_ID').groups))
 
         # Compute the SNR for the redshift bin and variance
         redshift_bin_snr.append(num_cl_agn / field_err)
@@ -84,17 +84,17 @@ for catalog_file in catalog_list:
     redshift_bin_var = np.asarray(redshift_bin_var)
 
     # Combine the SNRs for the redshift bins into a single catalog value by inverse variance weighting
-    catalog_snr = np.sum(redshift_bin_snr / redshift_bin_var) / np.sum(1 / redshift_bin_var)
-    catalog_snr_err = np.sum(1 / redshift_bin_var) ** -0.5
+    catalog_snr = np.nansum(redshift_bin_snr / redshift_bin_var) / np.sum(1 / redshift_bin_var)
+    catalog_snr_err = np.nansum(1 / redshift_bin_var) ** -0.5
 
     theta, eta, zeta = params[:3]
     tez_snr_data.append([theta, eta, zeta, catalog_snr, catalog_snr_err])
 
     # Make diagnostic plot showing the distributions of the backgrounds
-    fig, ax = plt.subplots()
-    ax.errorbar(z_bins, bkg_means, yerr=bkg_errs, marker='.')
-    ax.set(xlabel='redshift', ylabel=r'$N_{bkg}$', title=fr'$(\theta, \eta, \zeta) = ({theta}, {eta}, {zeta})')
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.errorbar(z_bins, bkg_means, yerr=bkg_errs, marker='.')
+    # ax.set(xlabel='redshift', ylabel=r'$N_{bkg}$', title=fr'$(\theta, \eta, \zeta) = ({theta}, {eta}, {zeta})')
+    # plt.show()
 
 tez_snr_df = pd.DataFrame(tez_snr_data, columns=['theta', 'eta', 'zeta', 'snr', 'snr_err'])
 tez_snr_df_grp = tez_snr_df.groupby(by=['eta', 'zeta'])
