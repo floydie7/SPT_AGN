@@ -32,8 +32,9 @@ def calculate_area(mask_files: list) -> u.Quantity:
 
 
 # Read in the catalogs
-sdwfs_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits')
+sdwfs_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_no_structure.fits')
 sptcl_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits')
+
 # List all mask files
 sdwfs_mask_files = [cutout['MASK_NAME'][0] for cutout in sdwfs_iragn.group_by('CUTOUT_ID').groups]
 sdwfs_area = calculate_area(sdwfs_mask_files)
@@ -47,9 +48,11 @@ agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind=
 # Bin the cluster catalog by redshift
 cluster_bins = np.digitize(sptcl_iragn['REDSHIFT'], z_bins)
 sptcl_iragn_binned = sptcl_iragn.group_by(cluster_bins)
+
 # Bin the field by redshift as well
 field_bins = np.digitize(sdwfs_iragn['REDSHIFT'], z_bins)
 sdwfs_iragn_binned = sdwfs_iragn.group_by(field_bins)
+
 # Get the bin centers
 z_bin_centers = np.diff(z_bins) / 2 + z_bins[:-1]
 
@@ -68,17 +71,20 @@ for z in z_bin_centers:
 sdwfs_surf_den_means = u.Quantity([surf_den.mean() for surf_den in sdwfs_surf_den])
 sdwfs_surf_den_std = u.Quantity([surf_den.std() for surf_den in sdwfs_surf_den])
 
+print('SDWFS:')
 sdwfs_surf_den_binned = []
 for z in z_bin_centers:
     color_threshold = agn_purity_color(z)
     field_agn = sdwfs_iragn[sdwfs_iragn[f'SELECTION_MEMBERSHIP_{color_threshold:.2f}'] >= 0.5]
     no_field_agn = field_agn['COMPLETENESS_CORRECTION'].sum()
+    print(f'{z = :.2f}: {no_field_agn = :.2f}, {sdwfs_area = :.2f}')
 
     sdwfs_surf_den_binned.append(no_field_agn / sdwfs_area)
 sdwfs_surf_den_binned = u.Quantity(sdwfs_surf_den_binned)
 
+print('SPT LoS')
 los_surf_den_binned = []
-for cluster_bin in sptcl_iragn_binned.groups:
+for cluster_bin, z in zip(sptcl_iragn_binned.groups, z_bin_centers):
     los_agn = cluster_bin[cluster_bin['SELECTION_MEMBERSHIP'] >= 0.5]
     # Group the clusters within the redshift bin
     los_agn_grp = los_agn.group_by('SPT_ID')
@@ -87,6 +93,7 @@ for cluster_bin in sptcl_iragn_binned.groups:
     cluster_bin_area = calculate_area(spt_mask_files)
     # AGN number counts
     no_los_agn = los_agn_grp['COMPLETENESS_CORRECTION'].sum()
+    print(f'{z = :.2f}: {no_los_agn = :.2f}, {cluster_bin_area = :.2f}, Num of FoVs: {len(los_agn_grp.groups.keys["SPT_ID"])}')
 
     los_surf_den_binned.append(no_los_agn / cluster_bin_area)
 
@@ -103,7 +110,7 @@ ax1.set(xlabel=r'$z$', ylabel=r'$\Sigma_{AGN}$ [arcmin$^{-2}$]', xlim=[0., 1.8])
 ax2 = ax1.twinx()
 min_y, max_y = ax1.get_ylim()
 ax2.set(ylabel=r'$\Sigma_{AGN}$ [per FoV ($\sim 25$ arcmin$^2$)]', ylim=[min_y * 25, max_y * 25])
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SPT-SDWFS_surf_overdens.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SPT-SDWFS-no_struct_surf_overdens.pdf')
 plt.show()
 
 
@@ -116,5 +123,5 @@ fig, ax = plt.subplots()
 ax.hist(sdwfs_problem_bin['REDSHIFT'], bins=np.arange(0., 3.5, 0.1))
 ax.set(title=fr'SDWFS Galaxies with $[3.5] - [4.5] \geq {color_threshold:.2f}$',
        xlabel='Photometric Redshift', ylabel='Number of Galaxies')
-fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SDWFS-IRAGN_Photo-z_hist_ColorThresh{color_threshold:.2f}.pdf')
+# fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SDWFS-IRAGN_Photo-z_hist_ColorThresh{color_threshold:.2f}.pdf')
 plt.show()
