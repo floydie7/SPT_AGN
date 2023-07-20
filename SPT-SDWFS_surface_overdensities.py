@@ -34,7 +34,7 @@ def calculate_area(mask_files: list) -> u.Quantity:
 # Read in the catalogs
 sdwfs_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_no_structure.fits')
 sptcl_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits')
-cosmos_cutouts = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Misc/COSMOS15_catalog_cutouts.fits')
+cosmos_cutouts = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Misc/COSMOS20_catalog_cutouts.fits')
 
 
 # List all mask files
@@ -77,7 +77,7 @@ sdwfs_surf_den_std = u.Quantity([surf_den.std() for surf_den in sdwfs_surf_den])
 cosmos_surf_den = []
 for z in z_bin_centers:
     color_threshold = agn_purity_color(z)
-    field_agn = cosmos_cutouts[cosmos_cutouts['SPLASH_1_MAG'] - cosmos_cutouts['SPLASH_2_MAG'] >= color_threshold]
+    field_agn = cosmos_cutouts[cosmos_cutouts['IRAC_CH1_MAG'] - cosmos_cutouts['IRAC_CH2_MAG'] >= color_threshold]
     field_agn_grp = field_agn.group_by('CUTOUT_ID')
 
     cutout_surf_den = []
@@ -106,12 +106,17 @@ los_surf_den_means = u.Quantity([surf_den.mean() for surf_den in los_surf_den])
 los_surf_den_std = u.Quantity([surf_den.std() for surf_den in los_surf_den])
 
 #%%
+# sdwfs_surf_den_medians = u.Quantity([np.median(surf_den) for surf_den in sdwfs_surf_den])
+# cosmos_surf_den_medians = u.Quantity([np.median(surf_den) for surf_den in cosmos_surf_den])
+# los_surf_den_medians = u.Quantity([np.median(surf_den) for surf_den in los_surf_den])
+
+#%%
 fig, ax1 = plt.subplots()
 ax1.bar(z_bin_centers, los_surf_den_means.to_value(u.arcmin ** -2), width=np.diff(z_bins), label='SPT LoS',
         alpha=0.65)
 ax1.bar(z_bin_centers, sdwfs_surf_den_means.to_value(u.arcmin ** -2), width=np.diff(z_bins), label='SDWFS (no struct)',
         alpha=0.45)
-ax1.bar(z_bin_centers, cosmos_surf_den_means.to_value(u.arcmin ** -2), width=np.diff(z_bins), label='COSMOS',
+ax1.bar(z_bin_centers, cosmos_surf_den_means.to_value(u.arcmin ** -2), width=np.diff(z_bins), label='COSMOS2020',
         alpha=0.45)
 ax1.errorbar(z_bin_centers, los_surf_den_means.to_value(u.arcmin ** -2), yerr=los_surf_den_std.to_value(u.arcmin ** -2),
              fmt='none', ecolor='tab:blue', capsize=5)
@@ -124,7 +129,7 @@ ax1.set(xlabel=r'$z$', ylabel=r'$\Sigma_{AGN}$ [arcmin$^{-2}$]', xlim=[0., 1.8])
 ax2 = ax1.twinx()
 min_y, max_y = ax1.get_ylim()
 ax2.set(ylabel=r'$\Sigma_{AGN}$ [per FoV ($\sim 25$ arcmin$^2$)]', ylim=[min_y * 25, max_y * 25])
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SPT-SDWFS-no_struct-COSMOS_surf_overdens_errorbars.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SPT-SDWFS-no_struct-COSMOS20_surf_overdens_errorbars.pdf')
 plt.show()
 
 

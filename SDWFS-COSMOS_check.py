@@ -4,34 +4,33 @@ Author: Benjamin Floyd
 
 Makes cutouts in the COSMOS field in order to perform a check on the SDWFS IRAGN surface densities.
 """
+import json
+import warnings
 
-from astropy.table import Table, vstack
-from astropy.coordinates import SkyCoord
 import astropy.units as u
 import numpy as np
+from astropy.coordinates import SkyCoord
+from astropy.table import Table, vstack
 from scipy.interpolate import interp1d
 
 rng = np.random.default_rng(1234)
 
 # Read in the COSMOS catalog
-cosmos = Table.read('Data_Repository/Catalogs/COSMOS/COSMOS2015_Laigle+_v1.1.fits.gz')
-cosmos = cosmos['ALPHA_J2000', 'DELTA_J2000',
-                'SPLASH_1_FLUX', 'SPLASH_1_FLUX_ERR', 'SPLASH_1_MAG', 'SPLASH_1_MAGERR',
-                'SPLASH_2_FLUX', 'SPLASH_2_FLUX_ERR', 'SPLASH_2_MAG', 'SPLASH_2_MAGERR',
-                'SPLASH_3_FLUX', 'SPLASH_3_FLUX_ERR', 'SPLASH_3_MAG', 'SPLASH_3_MAGERR',
-                'SPLASH_4_FLUX', 'SPLASH_4_FLUX_ERR', 'SPLASH_4_MAG', 'SPLASH_4_MAGERR']
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore', u.UnitsWarning)
+    cosmos = Table.read('Data_Repository/Catalogs/COSMOS/COSMOS2020_CLASSIC_R1_v2.1_p3.fits.gz')
+
+cosmos = cosmos['ID', 'ALPHA_J2000', 'DELTA_J2000',
+                'IRAC_CH1_FLUX', 'IRAC_CH1_FLUXERR', 'IRAC_CH1_MAG', 'IRAC_CH1_MAGERR',
+                'IRAC_CH2_FLUX', 'IRAC_CH2_FLUXERR', 'IRAC_CH2_MAG', 'IRAC_CH2_MAGERR']
 
 # Convert the IRAC magnitudes from AB to Vega (because I don't want to have to convert the selections to AB).
-cosmos['SPLASH_1_MAG'] += -2.788
-cosmos['SPLASH_2_MAG'] += -3.255
-cosmos['SPLASH_3_MAG'] += -3.743
-cosmos['SPLASH_4_MAG'] += -4.372
+cosmos['IRAC_CH1_MAG'] += -2.788
+cosmos['IRAC_CH2_MAG'] += -3.255
 
 # Filter the catalog to only include sources with galaxies meeting our magnitude requirements
-cosmos = cosmos[(10.00 < cosmos['SPLASH_1_MAG']) & (cosmos['SPLASH_1_MAG'] <= 18.3) &
-                (10.45 < cosmos['SPLASH_2_MAG']) & (cosmos['SPLASH_2_MAG'] <= 17.48) &
-                (cosmos['SPLASH_3_FLUX'] / cosmos['SPLASH_3_FLUX_ERR'] >= 5.) &
-                (cosmos['SPLASH_4_FLUX'] / cosmos['SPLASH_4_FLUX_ERR'] >= 5.)]
+cosmos = cosmos[(10.00 < cosmos['IRAC_CH1_MAG']) & (cosmos['IRAC_CH1_MAG'] <= 18.3) &
+                (10.45 < cosmos['IRAC_CH2_MAG']) & (cosmos['IRAC_CH2_MAG'] <= 17.48)]
 
 # Get the footprint boundaries
 min_ra, max_ra = cosmos['ALPHA_J2000'].min(), cosmos['ALPHA_J2000'].max()
@@ -50,9 +49,9 @@ dec_coords = rng.uniform(low=trimmed_min_corner.dec.value, high=trimmed_max_corn
 center_coords = SkyCoord(ra_coords, dec_coords, unit=u.deg)
 
 # For now, we will assume that the photometric completeness curve for COSMOS is the same as in SDWFS
-sdwfs_completeness = np.load('Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SDWFS/Results/'
-                             'I2_results_gaussian_fwhm172_corr005_mag02_final.npy',
-                             encoding='latin1', allow_pickle=True).item()
+with open('Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SDWFS/Results/'
+          'I2_results_gaussian_fwhm172_corr005_mag02_final.json') as f:
+    sdwfs_completeness = json.load(f)
 completeness_mag_bins = sdwfs_completeness.pop('magnitude_bins', None)[:-1]
 sdwfs_mean_completeness = np.mean(list(list(curve) for curve in sdwfs_completeness.values()), axis=0)
 sdwfs_mean_comp_curve = interp1d(completeness_mag_bins, sdwfs_mean_completeness)
@@ -75,9 +74,10 @@ for i, center_coord in enumerate(center_coords):
 
 # Restack the catalog
 cosmos_cutout_catalog = vstack(cutout_catalogs)
+cosmos_cutout_catalog = cosmos_cutout_catalog.filled()
 
 # Assuming that the photometric completeness of COSMOS is similar to the mean completeness in SDWFS
 # compute the completeness corrections needed for the objects.
-cosmos_cutout_catalog['COMPLETENESS_CORRECTION'] = 1 / sdwfs_mean_comp_curve(cosmos_cutout_catalog['SPLASH_2_MAG'])
+cosmos_cutout_catalog['COMPLETENESS_CORRECTION'] = 1 / sdwfs_mean_comp_curve(cosmos_cutout_catalog['IRAC_CH2_MAG'])
 
-cosmos_cutout_catalog.write('Data_Repository/Project_Data/SPT-IRAGN/Misc/COSMOS15_catalog_cutouts.fits', overwrite=True)
+cosmos_cutout_catalog.write('Data_Repository/Project_Data/SPT-IRAGN/Misc/COSMOS20_catalog_cutouts.fits', overwrite=True)
