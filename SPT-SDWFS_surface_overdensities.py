@@ -130,7 +130,7 @@ ax2 = ax1.twinx()
 min_y, max_y = ax1.get_ylim()
 ax2.set(ylabel=r'$\Sigma_{AGN}$ [per FoV ($\sim 25$ arcmin$^2$)]', ylim=[min_y * 25, max_y * 25])
 # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SPT-SDWFS-no_struct-COSMOS20_surf_overdens_errorbars.pdf')
-plt.show()
+# plt.show()
 
 
 #%% Looking closer at the 0.8 < z < 1.0 bin for SDWFS
@@ -144,3 +144,17 @@ plt.show()
 #        xlabel='Photometric Redshift', ylabel='Number of Galaxies')
 # # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SDWFS-IRAGN_Photo-z_hist_ColorThresh{color_threshold:.2f}.pdf')
 # plt.show()
+
+#%%
+sdwfs_surf_den_z08_1 = sdwfs_surf_den[4]
+cosmos_surf_den_z08_1 = cosmos_surf_den[4]
+los_surf_den_z08_1 = los_surf_den[4]
+bins = np.arange(0, 2, 0.1)
+
+fig, ax = plt.subplots()
+ax.hist(los_surf_den_z08_1, bins=bins, alpha=0.65, label='SPTcl')
+ax.hist(sdwfs_surf_den_z08_1, bins=bins, alpha=0.45, label='SDWFS')
+ax.hist(cosmos_surf_den_z08_1, bins=bins, alpha=0.45, label='COSMOS2020')
+ax.legend()
+ax.set(xlabel=r'$\Sigma_{\rm AGN}$ [arcmin$^{-2}$]', ylabel='N')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SPT-SDWFS-no_struct-COSMOS20_surf_den_z0.8_1_bin.pdf')
