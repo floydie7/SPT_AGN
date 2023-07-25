@@ -144,3 +144,16 @@ plt.show()
 #        xlabel='Photometric Redshift', ylabel='Number of Galaxies')
 # # fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/Misc_Plots/SDWFS-IRAGN_Photo-z_hist_ColorThresh{color_threshold:.2f}.pdf')
 # plt.show()
+
+#%%
+sdwfs_surf_den_z08_1 = sdwfs_surf_den[4]
+cosmos_surf_den_z08_1 = cosmos_surf_den[4]
+los_surf_den_z08_1 = los_surf_den[4]
+bins = np.arange(0, 2, 0.1)
+
+fig, ax = plt.subplots()
+ax.hist(los_surf_den_z08_1, bins=bins, label='SPTcl')
+ax.hist(sdwfs_surf_den_z08_1, bins=bins, label='SDWFS')
+ax.hist(cosmos_surf_den_z08_1, bins=bins, label='COSMOS2020')
+ax.set(xlabel=r'$\Sigma_{\rm AGN}$ [arcmin$^{-2}$]', ylabel='N')
+plt.show()
