@@ -35,6 +35,7 @@ def calculate_area(mask_files: list) -> u.Quantity:
 sdwfs_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_no_structure.fits')
 sptcl_iragn = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits')
 cosmos_cutouts = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Misc/COSMOS20_catalog_cutouts.fits')
+edfs_cutouts = Table.read('Data_Repository/Project_Data/SPT-IRAGN/Misc/EDFS_catalog_cutouts.fits')
 
 
 # List all mask files
@@ -58,6 +59,7 @@ sdwfs_iragn_binned = sdwfs_iragn.group_by(field_bins)
 # Get the bin centers
 z_bin_centers = np.diff(z_bins) / 2 + z_bins[:-1]
 
+#%% SDWFS Surface Densities
 sdwfs_surf_den = []
 for z in z_bin_centers:
     color_threshold = agn_purity_color(z)
@@ -74,6 +76,7 @@ for z in z_bin_centers:
 sdwfs_surf_den_means = u.Quantity([surf_den.mean() for surf_den in sdwfs_surf_den])
 sdwfs_surf_den_std = u.Quantity([surf_den.std() for surf_den in sdwfs_surf_den])
 
+#%% COSMOS Surface Densities
 cosmos_surf_den = []
 for z in z_bin_centers:
     color_threshold = agn_purity_color(z)
@@ -89,7 +92,23 @@ for z in z_bin_centers:
 cosmos_surf_den_means = u.Quantity([surf_den.mean() for surf_den in cosmos_surf_den])
 cosmos_surf_den_std = u.Quantity([surf_den.std() for surf_den in cosmos_surf_den])
 
-print('SPT LoS')
+#%% EDF-S Surface Densities
+edfs_surf_den = []
+for z in z_bin_centers:
+    color_threshold = agn_purity_color(z)
+    field_agn = edfs_cutouts[edfs_cutouts['MAG_AUTO_CH1'] - edfs_cutouts['MAG_AUTO_CH2'] >= color_threshold]
+    field_agn_grp = field_agn.group_by('CUTOUT_ID')
+
+    cutout_surf_den = []
+    for cutout in field_agn_grp.groups:
+        cutout_area = 25 * u.arcmin ** 2  # Assume all area within cutout bounds is good.
+        no_cutout_agn = cutout['COMPLETENESS_CORRECTION'].sum()
+        cutout_surf_den.append(no_cutout_agn / cutout_area)
+    edfs_surf_den.append(u.Quantity(cutout_surf_den))
+edfs_surf_den_means = u.Quantity([surf_den.mean() for surf_den in edfs_surf_den])
+edfs_surf_den_std = u.Quantity([surf_den.std() for surf_den in edfs_surf_den])
+
+#%% SPTcl Line-of-Sight Surface Densities
 los_surf_den = []
 for cluster_bin, z in zip(sptcl_iragn_binned.groups, z_bin_centers):
     los_agn = cluster_bin[cluster_bin['SELECTION_MEMBERSHIP'] >= 0.5]
@@ -118,12 +137,15 @@ ax1.bar(z_bin_centers, sdwfs_surf_den_means.to_value(u.arcmin ** -2), width=np.d
         alpha=0.45)
 ax1.bar(z_bin_centers, cosmos_surf_den_means.to_value(u.arcmin ** -2), width=np.diff(z_bins), label='COSMOS2020',
         alpha=0.45)
+ax1.bar(z_bin_centers, edfs_surf_den_means.to_value(u.arcmin ** -2), width=np.diff(z_bins), label='EDF-S', alpha=0.45)
 ax1.errorbar(z_bin_centers, los_surf_den_means.to_value(u.arcmin ** -2), yerr=los_surf_den_std.to_value(u.arcmin ** -2),
              fmt='none', ecolor='tab:blue', capsize=5)
 ax1.errorbar(z_bin_centers, sdwfs_surf_den_means.to_value(u.arcmin ** -2), yerr=sdwfs_surf_den_std.to_value(u.arcmin ** -2),
              fmt='none', ecolor='tab:orange', capsize=5)
 ax1.errorbar(z_bin_centers, cosmos_surf_den_means.to_value(u.arcmin ** -2), yerr=cosmos_surf_den_std.to_value(u.arcmin ** -2),
              fmt='none', ecolor='tab:green', capsize=5)
+ax1.errorbar(z_bin_centers, edfs_surf_den_means.to_value(u.arcmin ** -2), yerr=edfs_surf_den_std.to_value(u.arcmin ** -2),
+             fmt='none', ecolor='tab:purple', capsize=5)
 ax1.legend()
 ax1.set(xlabel=r'$z$', ylabel=r'$\Sigma_{AGN}$ [arcmin$^{-2}$]', xlim=[0., 1.8])
 ax2 = ax1.twinx()
