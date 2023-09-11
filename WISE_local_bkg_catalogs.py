@@ -45,8 +45,12 @@ sptcl_clusters['M200'] = u.Quantity(m200_data, u.Msun / cu.littleh).to(u.Msun, c
 sptcl_clusters['R200'] = u.Quantity(r200_data, u.kpc / cu.littleh).to(u.Mpc, cu.with_H0(cosmo.H0))
 sptcl_clusters['C200'] = c200_data
 
+# Increase the number of objects returned in the query
+Irsa.ROW_LIMIT = 1e6
+
 # Download the WISE Catalog in a radius of 2r200
 for cluster in sptcl_clusters:
+    print(f'Starting query for {cluster["SPT_ID"]}')
     max_radius = 3 * cluster['R200'] * u.Mpc * cosmo.arcsec_per_kpc_proper(cluster['REDSHIFT']).to(u.arcmin / u.Mpc)
     cluster_coord = SkyCoord(cluster['SZ_RA'], cluster['SZ_DEC'], unit=u.deg)
     wise_catalog = Irsa.query_region(cluster_coord, catalog='catWISE_2020', spatial='Cone', radius=max_radius,
