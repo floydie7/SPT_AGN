@@ -10,12 +10,14 @@ import json
 import re
 import warnings
 from collections import ChainMap
+from dataclasses import dataclass
 from itertools import groupby, product, chain
+from pathlib import Path as pl_Path
 
 import numpy as np
 from astro_compendium.utils.k_correction import k_corr_abs_mag
 from astropy import units as u
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, Angle
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import Table, unique, vstack
@@ -23,7 +25,7 @@ from astropy.units import Quantity
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
 from matplotlib.patches import Ellipse
-from matplotlib.path import Path
+from matplotlib.path import Path as mpl_Path
 from matplotlib.transforms import Affine2D
 from scipy.integrate import quad_vec
 from scipy.interpolate import interp1d
@@ -32,6 +34,20 @@ from synphot import SourceSpectrum, SpectralElement
 
 # Suppress Astropy warnings
 warnings.simplefilter('ignore', category=AstropyWarning)
+
+
+@dataclass(slots=True, kw_only=True)
+class _ClusterInformation:
+    """Dataclass storing the information about each cluster."""
+    se_catalog_path: str | pl_Path
+    ch1_science_path: str | pl_Path
+    ch1_coverage_path: str | pl_Path
+    ch2_science_path: str | pl_Path
+    ch2_coverage_path: str | pl_Path
+    spt_catalog_idx: int = None
+    center_separation: Angle = None
+    mask_path: str | pl_Path = None
+    catalog: Table = None
 
 
 class SelectIRAGN:
@@ -142,48 +158,34 @@ class SelectIRAGN:
         cat_image_files = sorted(cat_files + image_files, key=self._keyfunct)
 
         # Group the file names together
-        self._catalog_dictionary = {cluster_id: list(files)
-                                    for cluster_id, files in groupby(cat_image_files, key=self._keyfunct)}
+        catalog_file_dict = {cluster_id: [pl_Path(f) for f in files]
+                             for cluster_id, files in groupby(cat_image_files, key=self._keyfunct)}
 
         # If we want to only run on a set of clusters we can filter for them now
         if include is not None:
-            self._catalog_dictionary = {cluster_id: files for cluster_id, files in self._catalog_dictionary.items()
-                                        if cluster_id in include}
+            catalog_file_dict = {cluster_id: files for cluster_id, files in self._catalog_dictionary.items()
+                                 if cluster_id in include}
 
         # If we want to exclude some clusters manually we can remove them now
         if exclude is not None:
             for cluster_id in exclude:
-                self._catalog_dictionary.pop(cluster_id, None)
+                catalog_file_dict.pop(cluster_id, None)
 
-        # Sort the files into a dictionary according to the type of file
-        for cluster_id, files in self._catalog_dictionary.items():
-            self._catalog_dictionary[cluster_id] = {}
-            for f in files:
-                if f.endswith('.cat'):
-                    self._catalog_dictionary[cluster_id]['se_cat_path'] = f
-                elif 'I1' in f and '_cov' not in f:
-                    self._catalog_dictionary[cluster_id]['ch1_sci_path'] = f
-                elif 'I1' in f and '_cov' in f:
-                    self._catalog_dictionary[cluster_id]['ch1_cov_path'] = f
-                elif 'I2' in f and '_cov' not in f:
-                    self._catalog_dictionary[cluster_id]['ch2_sci_path'] = f
-                elif 'I2' in f and '_cov' in f:
-                    self._catalog_dictionary[cluster_id]['ch2_cov_path'] = f
-
-        # Verify that all the clusters in our sample have all the necessary files
-        problem_clusters = []
-        for cluster_id, cluster_files in self._catalog_dictionary.items():
-            file_keys = {'ch1_sci_path', 'ch1_cov_path', 'ch2_sci_path', 'ch2_cov_path', 'se_cat_path'}
+        expected_files = {'ch1_science_path', 'ch1_coverage_path', 'ch2_science_path', 'ch2_coverage_path',
+                          'se_catalog_path'}
+        # Sort the files into a dictionary according to the type of file.
+        for cluster_id, files in catalog_file_dict.items():
+            file_names = ({f'ch{s.group(1)}_science_path': s.group(0)
+                           for name in files if (s := self._sci_path_pattern(name.name))}
+                          | {f'ch{s.group(1)}_coverage_path': s.group(0)
+                             for name in files if (s := self._cov_path_pattern(name.name))}
+                          | {'se_catalog_path': name for name in files if self._se_cat_path_pattern(name.name)})
+            # If we are missing a file, warn the user about it and don't create the ClusterInformation object
             try:
-                assert file_keys == cluster_files.keys()
-            except AssertionError:
-                message = f'Cluster {cluster_id} is missing files {file_keys - cluster_files.keys()}'
+                self._catalog_dictionary[cluster_id] = _ClusterInformation(**file_names)
+            except TypeError:
+                message = f'Cluster {cluster_id} is missing files {expected_files - file_names.keys()}'
                 warnings.warn(message)
-                problem_clusters.append(cluster_id)
-
-        # For now, remove the clusters missing files
-        for cluster_id in problem_clusters:
-            self._catalog_dictionary.pop(cluster_id, None)
 
     def image_to_catalog_match(self, max_image_catalog_sep):
         """
@@ -207,9 +209,9 @@ class SelectIRAGN:
         # Create astropy skycoord object of the SZ centers.
         sz_centers = SkyCoord(catalog['RA'], catalog['DEC'], unit=u.degree)
 
-        for cluster in self._catalog_dictionary.values():
+        for cluster_info in self._catalog_dictionary.values():
             # Get the RA and Dec of the center pixel in the image.
-            w = WCS(cluster['ch1_sci_path'])
+            w = WCS(cluster_info.ch1_science_path)
             center_pixel = np.array(w.array_shape) // 2
 
             # Create astropy skycoord object for the reference pixel of the image.
@@ -219,18 +221,19 @@ class SelectIRAGN:
             idx, sep, _ = img_coord.match_to_catalog_sky(sz_centers)
 
             # Add the (nearest) catalog id and separation (in arcsec) to the output array.
-            cluster.update({'SPT_cat_idx': idx, 'center_sep': sep})
+            cluster_info.spt_catalog_idx = idx
+            cluster_info.center_separation = sep
 
         # Reject any match with a separation larger than 1 arcminute.
         large_sep_clusters = [cluster_id for cluster_id, cluster_info in self._catalog_dictionary.items()
-                              if cluster_info['center_sep'].to(u.arcmin) > max_image_catalog_sep]
+                              if cluster_info.center_separation.to(u.arcmin) > max_image_catalog_sep]
         for cluster_id in large_sep_clusters:
             self._catalog_dictionary.pop(cluster_id, None)
 
         # If there are any duplicate matches in the sample remaining we need to remove the match that is the poorer
         # match. We will only keep the closest matches.
-        match_info = Table(rows=[[cluster['SPT_cat_idx'], cluster['center_sep'], cluster_id]
-                                 for cluster_id, cluster in self._catalog_dictionary.items()],
+        match_info = Table(rows=[[cluster_info.spt_catalog_idx, cluster_info.center_separation, cluster_id]
+                                 for cluster_id, cluster_info in self._catalog_dictionary.items()],
                            names=['SPT_cat_idx', 'center_sep', 'cluster_id'])
 
         # Sort the table by the catalog index.
@@ -267,8 +270,8 @@ class SelectIRAGN:
 
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Array element names
-            irac_ch1_cov_path = cluster_info['ch1_cov_path']
-            irac_ch2_cov_path = cluster_info['ch2_cov_path']
+            irac_ch1_cov_path = cluster_info.ch1_coverage_path
+            irac_ch2_cov_path = cluster_info.ch2_coverage_path
 
             # Read in the two coverage maps, also grabbing the header from the Ch1 map.
             irac_ch1_cover, header = fits.getdata(irac_ch1_cov_path, header=True, ignore_missing_end=True)
@@ -279,7 +282,7 @@ class SelectIRAGN:
             combined_cov = np.logical_and((irac_ch1_cover >= ch1_min_cov), (irac_ch2_cover >= ch2_min_cov)).astype(int)
 
             # For naming, we will use the official SPT ID name for the cluster
-            spt_id = self._spt_catalog['SPT_ID'][cluster_info['SPT_cat_idx']]
+            spt_id = self._spt_catalog['SPT_ID'][cluster_info.spt_catalog_idx]
 
             # Write out the coverage mask.
             mask_pathname = f'{self._mask_dir}/{spt_id}_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits'
@@ -288,7 +291,7 @@ class SelectIRAGN:
 
             # Append the new coverage mask path name and both the catalog and the masking flag from cluster_info
             # to the new output list.
-            cluster_info['cov_mask_path'] = mask_pathname
+            cluster_info.mask_path = mask_pathname
 
     def object_mask(self):
         """
@@ -323,7 +326,7 @@ class SelectIRAGN:
             cluster_info = self._catalog_dictionary.get(cluster_id, None)
             region_file = reg_files.get(cluster_id, None)
 
-            pixel_map_path = cluster_info['cov_mask_path']
+            pixel_map_path = cluster_info.mask_path
 
             # Read in the coverage mask data and header.
             good_pix_mask, header = fits.getdata(pixel_map_path, header=True, ignore_missing_end=True, memmap=False)
@@ -356,7 +359,7 @@ class SelectIRAGN:
                     cent_xy = w.wcs_world2pix(params[0], params[1], 0)
 
                     # Generate the mask shape.
-                    shape = Path.circle(center=cent_xy, radius=params[2] / pix_scale)
+                    shape = mpl_Path.circle(center=cent_xy, radius=params[2] / pix_scale)
 
                 # For the box we'll need...
                 elif mask.startswith('box'):
@@ -381,7 +384,7 @@ class SelectIRAGN:
                     rot = Affine2D().rotate_deg_around(cent_x, cent_y, degrees=params[4])
 
                     # Generate the mask shape.
-                    shape = Path(verts).transformed(rot)
+                    shape = mpl_Path(verts).transformed(rot)
 
                 elif mask.startswith('ellipse'):
                     # Parameters for ellipse shape are as follows
@@ -426,46 +429,13 @@ class SelectIRAGN:
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
             new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
-    def j_band_abs_mag(self):
-        """
-        Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function.
-
-        To compute the J-band absolute magnitudes, we will use the observed apparent 3.6 um magnitude and assume a
-        Polleta  QSO2 SED for all objects to K-correct to the absolute FLAMINGOS J-band magnitude.
-        """
-
-        # Load in the IRAC 3.6 um filter as the observed filter
-        irac_36 = SpectralElement.from_file(self._irac_filter, wave_unit=u.um)
-        flamingos_j = SpectralElement.from_file(self._j_band_filter, wave_unit=u.nm)
-
-        # We will use the official IRAC 3.6 um zero-point flux
-        irac_36_zp = 280.9 * u.Jy
-
-        for cluster_id, cluster_info in self._catalog_dictionary.items():
-            # Retrieve the cluster redshift from the SPT catalog
-            catalog_idx = cluster_info['SPT_cat_idx']
-            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
-
-            # Get the 3.6 um apparent magnitudes from the catalog
-            se_catalog = cluster_info['catalog']
-            irac_36_mag = se_catalog['I1_MAG_APER4']
-
-            # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
-            j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=cluster_z, f_lambda_sed=self._sed,
-                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=irac_36,
-                                       em_filter=flamingos_j, cosmo=self._cosmo)
-
-            # Store the J-band absolute magnitude in the catalog and update the data structure
-            se_catalog['J_ABS_MAG'] = j_abs_mag
-            cluster_info['catalog'] = se_catalog
-
     def object_selection(self, ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag,
                          selection_band='I2_MAG_APER4'):
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
         Reads in the SExtractor catalogs and performs all necessary cuts to select the AGN in the cluster.
-         - First, a cut is made on the SExtractor flag requiring an extraction flag of `< 4`.
+         - First, a cut is made on the Source Extractor flag requiring an extraction flag of `< 4`.
          - A magnitude cut is applied on the faint-end of the selection band. This is determined such that the
            completeness limit in the selection band is kept above 80%.
          - A magnitude cut is applied to the bright-end of both bands to remain under the saturation limit.
@@ -484,18 +454,18 @@ class SelectIRAGN:
         selection_band_faint_mag : float
             Faint-end magnitude threshold for the specified selection band.
         selection_band : str, optional
-            Column name in SExtractor catalog specifying the selection band to use. Defaults to the 4.5 um, 4" aperture
-            magnitude photometry.
+            Column name in Source Extractor catalog specifying the selection band to use. Defaults to the 4.5 um, 4"
+            aperture magnitude photometry.
 
         """
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Read in the catalog
-            se_catalog = Table.read(cluster_info['se_cat_path'], format='ascii')
+            se_catalog = Table.read(cluster_info.se_catalog_path, format='ascii')
 
             # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
-            se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', cluster_info['cov_mask_path']).group(0)
+            se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', cluster_info.mask_path).group(0)
 
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
             se_catalog = se_catalog[se_catalog['FLAGS'] < 4]
@@ -503,15 +473,15 @@ class SelectIRAGN:
             # Preform bright-end cuts
             # Limits from Eisenhardt+04 for ch1 = 10.0 and ch2 = 9.8
             se_catalog = se_catalog[(se_catalog['I1_MAG_APER4'] > ch1_bright_mag) &  # [3.6] saturation limit
-                                    (se_catalog['I2_MAG_APER4'] > ch2_bright_mag)]   # [4.5] saturation limit
+                                    (se_catalog['I2_MAG_APER4'] > ch2_bright_mag)]  # [4.5] saturation limit
 
             # Preform a faint-end magnitude cuts.
-            se_catalog = se_catalog[(se_catalog['I1_MAG_APER4'] <= ch1_faint_mag) &            # [3.6] limiting SNR > 10
+            se_catalog = se_catalog[(se_catalog['I1_MAG_APER4'] <= ch1_faint_mag) &  # [3.6] limiting SNR > 10
                                     (se_catalog[selection_band] <= selection_band_faint_mag)]  # [4.5] median 80% comp.
 
             # For the mask cut we need to check the pixel value for each object's centroid.
             # Read in the mask file
-            mask, header = fits.getdata(cluster_info['cov_mask_path'], header=True)
+            mask, header = fits.getdata(cluster_info.mask_path, header=True)
 
             # Recast the mask image as a boolean array so we can use it as a check on the catalog entries
             mask = mask.astype(bool)
@@ -531,7 +501,7 @@ class SelectIRAGN:
             # If we have completely exhausted the cluster of any object, we should mark it for removal otherwise add it
             # to the data structure
             if se_catalog:
-                cluster_info['catalog'] = se_catalog
+                cluster_info.catalog = se_catalog
             else:
                 clusters_to_remove.append(cluster_id)
 
@@ -596,19 +566,19 @@ class SelectIRAGN:
         for cluster_id, cluster_info in self._catalog_dictionary.items():
 
             # Get the photometric catalog for the cluster
-            se_catalog = cluster_info['catalog']
+            se_catalog = cluster_info.catalog
 
             # Compute the color and color errors for each object
             I1_I2_color = se_catalog['I1_MAG_APER4'] - se_catalog['I2_MAG_APER4']
-            I1_I2_color_err = np.sqrt(se_catalog['I1_MAGERR_APER4']**2 + se_catalog['I2_MAGERR_APER4']**2)
+            I1_I2_color_err = np.sqrt(se_catalog['I1_MAGERR_APER4'] ** 2 + se_catalog['I2_MAGERR_APER4'] ** 2)
 
             # Convolve the error distribution for each object with the overall number count distribution
             def object_integrand(x):
-                return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x) #* color_probability_distribution(x)
+                return norm(loc=I1_I2_color, scale=I1_I2_color_err).pdf(x)  # * color_probability_distribution(x)
 
             if color_threshold is None:
                 # Retrieve the cluster redshift from the SPT catalog
-                catalog_idx = cluster_info['SPT_cat_idx']
+                catalog_idx = cluster_info.spt_catalog_idx
                 cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
 
                 # Set the color threshold according to the cluster's redshift
@@ -635,7 +605,7 @@ class SelectIRAGN:
             # If we have exhausted all objects from the catalog mark the cluster for removal otherwise update the
             # photometric catalog in our database
             if se_catalog:
-                cluster_info['catalog'] = se_catalog
+                cluster_info.catalog = se_catalog
             else:
                 clusters_to_remove.append(cluster_id)
 
@@ -643,9 +613,42 @@ class SelectIRAGN:
         for cluster_id in clusters_to_remove:
             self._catalog_dictionary.pop(cluster_id, None)
 
+    def j_band_abs_mag(self):
+        """
+        Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function.
+
+        To compute the J-band absolute magnitudes, we will use the observed apparent 3.6 um magnitude and assume a
+        Polleta  QSO2 SED for all objects to K-correct to the absolute FLAMINGOS J-band magnitude.
+        """
+
+        # Load in the IRAC 3.6 um filter as the observed filter
+        irac_36 = SpectralElement.from_file(self._irac_filter, wave_unit=u.um)
+        flamingos_j = SpectralElement.from_file(self._j_band_filter, wave_unit=u.nm)
+
+        # We will use the official IRAC 3.6 um zero-point flux
+        irac_36_zp = 280.9 * u.Jy
+
+        for cluster_id, cluster_info in self._catalog_dictionary.items():
+            # Retrieve the cluster redshift from the SPT catalog
+            catalog_idx = cluster_info.spt_catalog_idx
+            cluster_z = self._spt_catalog['REDSHIFT'][catalog_idx]
+
+            # Get the 3.6 um apparent magnitudes from the catalog
+            se_catalog = cluster_info.catalog
+            irac_36_mag = se_catalog['I1_MAG_APER4']
+
+            # Given the observed IRAC 3.6 um photometry, compute the rest-frame J-band absolute (Vega) magnitude.
+            j_abs_mag = k_corr_abs_mag(apparent_mag=irac_36_mag, z=cluster_z, f_lambda_sed=self._sed,
+                                       zero_pt_obs_band=irac_36_zp, zero_pt_em_band='vega', obs_filter=irac_36,
+                                       em_filter=flamingos_j, cosmo=self._cosmo)
+
+            # Store the J-band absolute magnitude in the catalog and update the data structure
+            se_catalog['J_ABS_MAG'] = j_abs_mag
+            cluster_info.catalog = se_catalog
+
     def catalog_merge(self, catalog_cols=None):
         """
-        Merges the SExtractor photometry catalog with information about the cluster in the official SPT catalog.
+        Merges the Source Extractor photometry catalog with information about the cluster in the official SPT catalog.
 
 
         Parameters
@@ -658,8 +661,8 @@ class SelectIRAGN:
 
         for cluster_info in self._catalog_dictionary.values():
             # Array element names
-            catalog_idx = cluster_info['SPT_cat_idx']
-            se_catalog = cluster_info['catalog']
+            catalog_idx = cluster_info.spt_catalog_idx
+            se_catalog = cluster_info.catalog
 
             # Replace the existing SPT_ID in the SExtractor catalog with the official cluster ID.
             # se_catalog.columns[0].name = 'SPT_ID'
@@ -677,7 +680,7 @@ class SelectIRAGN:
                 for col_name in catalog_cols:
                     se_catalog[col_name] = self._spt_catalog[col_name][catalog_idx]
 
-            cluster_info['catalog'] = se_catalog
+            cluster_info.catalog = se_catalog
 
     def object_separations(self):
         """
@@ -688,7 +691,7 @@ class SelectIRAGN:
         """
 
         for cluster_info in self._catalog_dictionary.values():
-            catalog = cluster_info['catalog']
+            catalog = cluster_info.catalog
 
             # Create SkyCoord objects for all objects in the catalog as well as the SZ center
             object_coords = SkyCoord(catalog['ALPHA_J2000'], catalog['DELTA_J2000'], unit=u.degree)
@@ -712,21 +715,21 @@ class SelectIRAGN:
             catalog['RADIAL_SEP_ARCMIN'] = separations_arcmin
 
             # Update the catalog in the data structure
-            cluster_info['catalog'] = catalog
+            cluster_info.catalog = catalog
 
     def completeness_value(self, selection_band='I2_MAG_APER4'):
         """
         Adds completeness simulation data to the catalog.
 
         Takes the completeness curve values for the cluster, interpolates a function between the discrete values, then
-        queries the specified magnitude of the selected objects in the SExtractor catalog and adds two columns: The
-        completeness value of that object at its magnitude and the completeness correction value
+        queries the specified magnitude of the selected objects in the Source Extractor catalog and adds two columns:
+        The completeness value of that object at its magnitude and the completeness correction value
         `(1/[completeness value])`.
 
         Parameters
         ----------
         selection_band : str, optional
-            Column name in SExtractor catalog specifying the selection band to use. Must be the same band used in
+            Column name in Source Extractor catalog specifying the selection band to use. Must be the same band used in
             :method:`object_selection`. Defaults to the 4.5 um, 4" aperture magnitude photometry.
 
         """
@@ -744,7 +747,7 @@ class SelectIRAGN:
 
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Array element names
-            se_catalog = cluster_info['catalog']
+            se_catalog = cluster_info.catalog
 
             # Select the correct entry in the dictionary corresponding to our cluster.
             completeness_data = completeness_dict[cluster_id]
@@ -767,7 +770,7 @@ class SelectIRAGN:
             se_catalog['COMPLETENESS_VALUE'] = completeness_values
             se_catalog['COMPLETENESS_CORRECTION'] = completeness_corrections
 
-            cluster_info['catalog'] = se_catalog
+            cluster_info.catalog = se_catalog
 
     def final_catalogs(self, filename=None, catalog_cols=None):
         """
@@ -789,7 +792,7 @@ class SelectIRAGN:
             instead of returning.
         """
 
-        final_catalog = vstack([cluster_info['catalog'] for cluster_info in self._catalog_dictionary.values()])
+        final_catalog = vstack([cluster_info.catalog for cluster_info in self._catalog_dictionary.values()])
 
         # If we request to keep only certain columns in our output
         if catalog_cols is not None:
@@ -866,6 +869,21 @@ class SelectIRAGN:
         """Generate a key function that isolates the cluster ID for sorting and grouping"""
         return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
 
+    @classmethod
+    def _sci_path_pattern(cls, name: str) -> re.Match:
+        """Regex pattern for the science image path names."""
+        return re.search(r'^(?!.*_cov)I(\d).+', name)
+
+    @classmethod
+    def _cov_path_pattern(cls, name:str) -> re.Match:
+        """Regex pattern for the coverage image path names."""
+        return re.search(r'^(?=.*_cov)I(\d).+', name)
+
+    @classmethod
+    def _se_cat_path_pattern(cls, name: str) -> bool:
+        """A boolean checking for the SE catalog path name extension."""
+        return name.endswith('.cat')
+
 
 class SelectSDWFS(SelectIRAGN):
     def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, sdwfs_master_catalog,
@@ -885,7 +903,7 @@ class SelectSDWFS(SelectIRAGN):
     def object_separations(self):
 
         for cutout_info in self._catalog_dictionary.values():
-            catalog = cutout_info['catalog']
+            catalog = cutout_info.catalog
 
             # Create SkyCoord objects for all objects in the catalog as well as the image center
             object_coords = SkyCoord(catalog['ALPHA_J2000'], catalog['DELTA_J2000'], unit=u.deg)
@@ -898,7 +916,7 @@ class SelectSDWFS(SelectIRAGN):
             catalog['RADIAL_SEP_ARCMIN'] = separations_arcmin
 
             # Update the catalog in the data structure
-            cutout_info['catalog'] = catalog
+            cutout_info.catalog = catalog
 
     def j_band_abs_mag(self):
 
@@ -911,7 +929,7 @@ class SelectSDWFS(SelectIRAGN):
 
         for cutout_id, cutout_info in self._catalog_dictionary.items():
             # Get the 3.6 um apparent magnitudes and photometric redshifts from the catalog
-            se_catalog = cutout_info['catalog']
+            se_catalog = cutout_info.catalog
             irac_36_mag = se_catalog['I1_MAG_APER4']
             galaxy_z = se_catalog['REDSHIFT']
 
@@ -922,7 +940,7 @@ class SelectSDWFS(SelectIRAGN):
 
             # Store the J-band absolute magnitude in the catalog and update the data structure
             se_catalog['J_ABS_MAG'] = j_abs_mag
-            cutout_info['catalog'] = se_catalog
+            cutout_info.catalog = se_catalog
 
     @classmethod
     def _keyfunct(cls, f):
