@@ -5,7 +5,6 @@
 This script is designed to automate the process of selecting the AGN in the SPT clusters and generating the proper
 masks needed for determining the feasible area for calculating a surface density.
 """
-import glob
 import json
 import re
 import warnings
@@ -13,6 +12,7 @@ from collections import ChainMap
 from dataclasses import dataclass
 from itertools import groupby, product, chain
 from pathlib import Path as pl_Path
+from typing import Iterable, Self
 
 import numpy as np
 from astro_compendium.utils.k_correction import k_corr_abs_mag
@@ -20,7 +20,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord, Angle
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
-from astropy.table import Table, unique, vstack
+from astropy.table import Table, unique, vstack, join
 from astropy.units import Quantity
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
@@ -39,14 +39,14 @@ warnings.simplefilter('ignore', category=AstropyWarning)
 @dataclass(slots=True, kw_only=True)
 class _ClusterInformation:
     """Dataclass storing the information about each cluster."""
-    se_catalog_path: str | pl_Path
-    ch1_science_path: str | pl_Path
-    ch1_coverage_path: str | pl_Path
-    ch2_science_path: str | pl_Path
-    ch2_coverage_path: str | pl_Path
+    se_catalog_path: pl_Path
+    ch1_science_path: pl_Path
+    ch1_coverage_path: pl_Path
+    ch2_science_path: pl_Path
+    ch2_coverage_path: pl_Path
     spt_catalog_idx: int = None
     center_separation: Angle = None
-    mask_path: str | pl_Path = None
+    mask_path: pl_Path = None
     catalog: Table = None
 
 
@@ -83,8 +83,18 @@ class SelectIRAGN:
 
     """
 
-    def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, spt_catalog, completeness_file,
-                 field_number_dist_file, purity_color_threshold_file, sed, irac_filter, j_band_filter):
+    def __init__(self,
+                 sextractor_cat_dir: str | pl_Path | list[str | pl_Path] | None,
+                 irac_image_dir: str | pl_Path | list[str | pl_Path] | None,
+                 region_file_dir: str | pl_Path | None,
+                 mask_dir: str | pl_Path,
+                 spt_catalog: Table,
+                 completeness_file: str | pl_Path | list[str | pl_Path],
+                 field_number_dist_file: str | pl_Path | None,
+                 purity_color_threshold_file: str | pl_Path | None,
+                 sed: SourceSpectrum,
+                 irac_filter: str | pl_Path,
+                 j_band_filter: str | pl_Path):
 
         # Directory paths to files
         self._sextractor_cat_dir = sextractor_cat_dir
@@ -115,7 +125,7 @@ class SelectIRAGN:
         # Purity-based color threshold function. This is used in place of a flat color cut in `purify_selection`.
         self._purity_color_funct = purity_color_threshold_file
 
-    def file_pairing(self, include=None, exclude=None):
+    def file_pairing(self, include: Iterable[str] = None, exclude: Iterable[str] = None) -> Self:
         """
         Collates the different files for each cluster into a dictionary.
 
@@ -145,20 +155,20 @@ class SelectIRAGN:
 
         # List the file names for both the images and the catalogs
         if isinstance(self._irac_image_dir, list):
-            image_files = list(chain.from_iterable(glob.glob(f'{img_dir}/*.fits') for img_dir in self._irac_image_dir))
+            image_files = list(chain.from_iterable(pl_Path(img_dir).glob('*.fits') for img_dir in self._irac_image_dir))
         else:
-            image_files = glob.glob(f'{self._irac_image_dir}/*.fits')
+            image_files = list(pl_Path(self._irac_image_dir).glob('*.fits'))
         if isinstance(self._sextractor_cat_dir, list):
-            cat_files = list(
-                chain.from_iterable(glob.glob(f'{cat_dir}/*.cat') for cat_dir in self._sextractor_cat_dir))
+            cat_files = list(chain.from_iterable(pl_Path(cat_dir).glob('*.cat')
+                                                 for cat_dir in self._sextractor_cat_dir))
         else:
-            cat_files = glob.glob(f'{self._sextractor_cat_dir}/*.cat')
+            cat_files = list(pl_Path(self._sextractor_cat_dir).glob('*.cat'))
 
         # Combine and sort both file lists
         cat_image_files = sorted(cat_files + image_files, key=self._keyfunct)
 
         # Group the file names together
-        catalog_file_dict = {cluster_id: [pl_Path(f) for f in files]
+        catalog_file_dict = {cluster_id: list(files)
                              for cluster_id, files in groupby(cat_image_files, key=self._keyfunct)}
 
         # If we want to only run on a set of clusters we can filter for them now
@@ -175,11 +185,11 @@ class SelectIRAGN:
                           'se_catalog_path'}
         # Sort the files into a dictionary according to the type of file.
         for cluster_id, files in catalog_file_dict.items():
-            file_names = ({f'ch{s.group(1)}_science_path': s.group(0)
-                           for name in files if (s := self._sci_path_pattern(name.name))}
-                          | {f'ch{s.group(1)}_coverage_path': s.group(0)
-                             for name in files if (s := self._cov_path_pattern(name.name))}
-                          | {'se_catalog_path': name for name in files if self._se_cat_path_pattern(name.name)})
+            file_names = ({f'ch{s.group(1)}_science_path': name
+                           for name in files if (s := self._sci_path_pattern(name))}
+                          | {f'ch{s.group(1)}_coverage_path': name
+                             for name in files if (s := self._cov_path_pattern(name))}
+                          | {'se_catalog_path': name for name in files if self._se_cat_path_pattern(name)})
             # If we are missing a file, warn the user about it and don't create the ClusterInformation object
             try:
                 self._catalog_dictionary[cluster_id] = _ClusterInformation(**file_names)
@@ -187,7 +197,9 @@ class SelectIRAGN:
                 message = f'Cluster {cluster_id} is missing files {expected_files - file_names.keys()}'
                 warnings.warn(message)
 
-    def image_to_catalog_match(self, max_image_catalog_sep):
+        return self
+
+    def image_to_catalog_match(self, max_image_catalog_sep: Quantity) -> Self:
         """
         Matches the science images to the official SPT catalog.
 
@@ -211,7 +223,7 @@ class SelectIRAGN:
 
         for cluster_info in self._catalog_dictionary.values():
             # Get the RA and Dec of the center pixel in the image.
-            w = WCS(cluster_info.ch1_science_path)
+            w = WCS(str(cluster_info.ch1_science_path))
             center_pixel = np.array(w.array_shape) // 2
 
             # Create astropy skycoord object for the reference pixel of the image.
@@ -248,7 +260,9 @@ class SelectIRAGN:
         for cluster_id in duplicate_clusters:
             self._catalog_dictionary.pop(cluster_id, None)
 
-    def coverage_mask(self, ch1_min_cov, ch2_min_cov):
+        return self
+
+    def coverage_mask(self, ch1_min_cov: int | float, ch2_min_cov: int | float) -> Self:
         """
         Generates a binary good pixel map using the coverage maps.
 
@@ -285,7 +299,7 @@ class SelectIRAGN:
             spt_id = self._spt_catalog['SPT_ID'][cluster_info.spt_catalog_idx]
 
             # Write out the coverage mask.
-            mask_pathname = f'{self._mask_dir}/{spt_id}_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits'
+            mask_pathname = pl_Path(f'{self._mask_dir}/{spt_id}_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits')
             combined_cov_hdu = fits.PrimaryHDU(combined_cov, header=header)
             combined_cov_hdu.writeto(mask_pathname, overwrite=True)
 
@@ -293,7 +307,9 @@ class SelectIRAGN:
             # to the new output list.
             cluster_info.mask_path = mask_pathname
 
-    def object_mask(self):
+        return self
+
+    def object_mask(self) -> Self:
         """
         Performs additional masking on the good pixel maps for requested clusters.
 
@@ -314,10 +330,10 @@ class SelectIRAGN:
 
         # Region file directory files
         if isinstance(self._region_file_dir, list):
-            reg_files = {self._keyfunct(f): f for f in chain.from_iterable(glob.glob(f'{reg_dir}/*.reg')
+            reg_files = {self._keyfunct(f): f for f in chain.from_iterable(pl_Path(reg_dir).glob('*.reg')
                                                                            for reg_dir in self._region_file_dir)}
         else:
-            reg_files = {self._keyfunct(f): f for f in glob.glob(f'{self._region_file_dir}/*.reg')}
+            reg_files = {self._keyfunct(f): f for f in pl_Path(self._region_file_dir).glob('*.reg')}
 
         # Select out the IDs of the clusters needing additional masking
         clusters_to_mask = set(reg_files).intersection(self._catalog_dictionary)
@@ -429,8 +445,10 @@ class SelectIRAGN:
             new_mask_hdu = fits.PrimaryHDU(good_pix_mask, header=header)
             new_mask_hdu.writeto(pixel_map_path, overwrite=True)
 
-    def object_selection(self, ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag,
-                         selection_band='I2_MAG_APER4'):
+        return self
+
+    def object_selection(self, ch1_bright_mag: float, ch1_faint_mag: float, ch2_bright_mag: float,
+                         selection_band_faint_mag: float, selection_band: str = 'I2_MAG_APER4') -> Self:
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
@@ -465,7 +483,7 @@ class SelectIRAGN:
             se_catalog = Table.read(cluster_info.se_catalog_path, format='ascii')
 
             # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
-            se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', cluster_info.mask_path).group(0)
+            se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', str(cluster_info.mask_path)).group(0)
 
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
             se_catalog = se_catalog[se_catalog['FLAGS'] < 4]
@@ -509,8 +527,10 @@ class SelectIRAGN:
         for cluster_id in clusters_to_remove:
             self._catalog_dictionary.pop(cluster_id, None)
 
-    def selection_membership(self, color_threshold=None):
-        """
+        return self
+
+    def selection_membership(self, color_threshold: Iterable = None) -> Self:
+        r"""
         Calculates fuzzy degree of membership of each object to be an AGN.
 
         Computes the AGN selection membership for each object in the sample by first incorporating the color error to
@@ -530,14 +550,12 @@ class SelectIRAGN:
         AGN. It is computed as an alpha-cut on a fuzzy set membership function given by,
 
         .. math::
-            \\mu_{\\mathrm{AGN}} = \\frac{\\int_{\\alpha}^{\\infty} \\mathcal{N}(\\mathcal{C}_{12},
-            \\delta\\mathcal{C}_{12}) \\frac{dN}{d(\\mathcal{C}_{12})} d\\mathcal{C}_{12}}{\\int_{-\infty}^{\infty}
-            \\mathcal{N}(\\mathcal{C}_{12}, \\delta\\mathcal{C}_{12}) \\frac{dN}{d(\\mathcal{C}_{12})}
-            d\\mathcal{C}_{12}
+            \mu_{\mathrm{AGN}} =
+                \frac{\int_{\alpha}^{\infty} \mathcal{N}(\mathcal{C}_{12},\delta\mathcal{C}_{12}) d\mathcal{C}_{12}}
+                {\int_{-\infty}^{\infty} \mathcal{N}(\mathcal{C}_{12}, \delta\mathcal{C}_{12}) d\mathcal{C}_{12}}
 
-        where :math:`\\mathcal{C}_{12}` and :math:`\\delta\\mathcal{C}_{12}` are the [3.6] - [4.5] color and color
-        errors respectively of each object, :math:`\\frac{dN}{d\\mathcal{C}_{12}}` is the standard field (SDWFS)
-        number--color distribution, and :math:`\\alpha` is either a redshift-dependent sample purity-based color
+        where :math:`\mathcal{C}_{12}` and :math:`\delta\mathcal{C}_{12}` are the [3.6] - [4.5] color and color
+        errors respectively of each object, and :math:`\\alpha` is either a redshift-dependent sample purity-based color
         threshold or a flat color threshold depending on the user input.
         """
 
@@ -613,7 +631,9 @@ class SelectIRAGN:
         for cluster_id in clusters_to_remove:
             self._catalog_dictionary.pop(cluster_id, None)
 
-    def j_band_abs_mag(self):
+        return self
+
+    def j_band_abs_mag(self) -> Self:
         """
         Computes the J-band absolute magnitudes for use in the Assef et al. (2011) luminosity function.
 
@@ -646,7 +666,9 @@ class SelectIRAGN:
             se_catalog['J_ABS_MAG'] = j_abs_mag
             cluster_info.catalog = se_catalog
 
-    def catalog_merge(self, catalog_cols=None):
+        return self
+
+    def catalog_merge(self, catalog_cols: Iterable = None) -> Self:
         """
         Merges the Source Extractor photometry catalog with information about the cluster in the official SPT catalog.
 
@@ -682,7 +704,9 @@ class SelectIRAGN:
 
             cluster_info.catalog = se_catalog
 
-    def object_separations(self):
+        return self
+
+    def object_separations(self) -> Self:
         """
         Calculates the separations of each object relative to the SZ center.
 
@@ -717,7 +741,9 @@ class SelectIRAGN:
             # Update the catalog in the data structure
             cluster_info.catalog = catalog
 
-    def completeness_value(self, selection_band='I2_MAG_APER4'):
+        return self
+
+    def completeness_value(self, selection_band: str = 'I2_MAG_APER4') -> Self:
         """
         Adds completeness simulation data to the catalog.
 
@@ -772,7 +798,9 @@ class SelectIRAGN:
 
             cluster_info.catalog = se_catalog
 
-    def final_catalogs(self, filename=None, catalog_cols=None):
+        return self
+
+    def final_catalogs(self, filename: str | pl_Path = None, catalog_cols: Iterable[str] = None) -> Table | None:
         """
         Collates all catalogs into one table then writes the catalog to disk.
 
@@ -806,9 +834,20 @@ class SelectIRAGN:
             else:
                 final_catalog.write(filename, overwrite=True)
 
-    def run_selection(self, included_clusters, excluded_clusters, max_image_catalog_sep, ch1_min_cov, ch2_min_cov,
-                      ch1_bright_mag, ch2_bright_mag, ch1_faint_mag, selection_band_faint_mag, spt_colnames,
-                      output_name, output_colnames, ch1_ch2_color=None):
+    def run_selection(self,
+                      included_clusters: Iterable[str] | None,
+                      excluded_clusters: Iterable[str] | None,
+                      max_image_catalog_sep: Quantity,
+                      ch1_min_cov: int | float,
+                      ch2_min_cov: int | float,
+                      ch1_bright_mag: float,
+                      ch2_bright_mag: float,
+                      ch1_faint_mag: float,
+                      selection_band_faint_mag: float,
+                      spt_colnames: Iterable[str] | None,
+                      output_name: str | pl_Path | None,
+                      output_colnames: Iterable[str] | None,
+                      ch1_ch2_color: float = None) -> Table | None:
         """
         Executes full selection pipeline using default values.
 
@@ -818,7 +857,7 @@ class SelectIRAGN:
             List of clusters to
         excluded_clusters : list_like
             Excluded clusters for  :method:`file_pairing`.
-        max_image_catalog_sep : astropy.quantity
+        max_image_catalog_sep : Quantity
             Maximum separation for :method:`image_to_catalog_match`.
         ch1_min_cov : int or float
             Minimum 3.6 um coverage for :method:`coverage_mask`.
@@ -849,45 +888,54 @@ class SelectIRAGN:
             write the final catalog to disk automatically.
 
         """
-        self.file_pairing(include=included_clusters, exclude=excluded_clusters)
-        self.image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
-        self.coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
-        self.object_mask()
-        self.object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
-                              ch1_faint_mag=ch1_faint_mag, selection_band_faint_mag=selection_band_faint_mag)
-        self.selection_membership(color_threshold=ch1_ch2_color)
-        self.j_band_abs_mag()
-        self.catalog_merge(catalog_cols=spt_colnames)
-        self.object_separations()
-        self.completeness_value()
-        final_catalog = self.final_catalogs(filename=output_name, catalog_cols=output_colnames)
+        final_catalog = (self.file_pairing(include=included_clusters, exclude=excluded_clusters)
+                         .image_to_catalog_match(max_image_catalog_sep=max_image_catalog_sep)
+                         .coverage_mask(ch1_min_cov=ch1_min_cov, ch2_min_cov=ch2_min_cov)
+                         .object_mask()
+                         .object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
+                                           ch1_faint_mag=ch1_faint_mag,
+                                           selection_band_faint_mag=selection_band_faint_mag)
+                         .selection_membership(color_threshold=ch1_ch2_color)
+                         .j_band_abs_mag()
+                         .catalog_merge(catalog_cols=spt_colnames)
+                         .object_separations()
+                         .completeness_value()
+                         .final_catalogs(filename=output_name, catalog_cols=output_colnames))
         if final_catalog is not None:
             return final_catalog
 
     @classmethod
-    def _keyfunct(cls, f):
+    def _keyfunct(cls, f: pl_Path) -> str:
         """Generate a key function that isolates the cluster ID for sorting and grouping"""
-        return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f).group(0)
+        return re.search(r'SPT-CLJ\d+[+-]?\d+[-\d+]?', f.name).group(0)
 
     @classmethod
-    def _sci_path_pattern(cls, name: str) -> re.Match:
+    def _sci_path_pattern(cls, name: pl_Path) -> re.Match:
         """Regex pattern for the science image path names."""
-        return re.search(r'^(?!.*_cov)I(\d).+', name)
+        return re.search(r'^(?!.*_cov)I(\d).+', name.name)
 
     @classmethod
-    def _cov_path_pattern(cls, name:str) -> re.Match:
+    def _cov_path_pattern(cls, name: pl_Path) -> re.Match:
         """Regex pattern for the coverage image path names."""
-        return re.search(r'^(?=.*_cov)I(\d).+', name)
+        return re.search(r'^(?=.*_cov)I(\d).+', name.name)
 
     @classmethod
-    def _se_cat_path_pattern(cls, name: str) -> bool:
+    def _se_cat_path_pattern(cls, name: pl_Path) -> bool:
         """A boolean checking for the SE catalog path name extension."""
-        return name.endswith('.cat')
+        return name.name.endswith('.cat')
 
 
 class SelectSDWFS(SelectIRAGN):
-    def __init__(self, sextractor_cat_dir, irac_image_dir, region_file_dir, mask_dir, sdwfs_master_catalog,
-                 completeness_file, field_number_dist_file, sed, irac_filter, j_band_filter):
+    def __init__(self, sextractor_cat_dir: str | pl_Path | list[str | pl_Path] | None,
+                 irac_image_dir: str | pl_Path | list[str | pl_Path] | None,
+                 region_file_dir: str | pl_Path | list[str | pl_Path] | None,
+                 mask_dir: str | pl_Path,
+                 sdwfs_master_catalog: Table,
+                 completeness_file: str | pl_Path | list[str | pl_Path],
+                 field_number_dist_file: str | pl_Path | None,
+                 sed: SourceSpectrum,
+                 irac_filter: str | pl_Path,
+                 j_band_filter: str | pl_Path):
         super().__init__(sextractor_cat_dir=sextractor_cat_dir,
                          irac_image_dir=irac_image_dir,
                          region_file_dir=region_file_dir,
@@ -900,7 +948,7 @@ class SelectSDWFS(SelectIRAGN):
                          irac_filter=irac_filter,
                          j_band_filter=j_band_filter)
 
-    def object_separations(self):
+    def object_separations(self) -> Self:
 
         for cutout_info in self._catalog_dictionary.values():
             catalog = cutout_info.catalog
@@ -918,7 +966,9 @@ class SelectSDWFS(SelectIRAGN):
             # Update the catalog in the data structure
             cutout_info.catalog = catalog
 
-    def j_band_abs_mag(self):
+        return self
+
+    def j_band_abs_mag(self) -> Self:
 
         # Load in the IRAC 3.6 um filter as the observed filter
         irac_36 = SpectralElement.from_file(self._irac_filter, wave_unit=u.um)
@@ -942,6 +992,124 @@ class SelectSDWFS(SelectIRAGN):
             se_catalog['J_ABS_MAG'] = j_abs_mag
             cutout_info.catalog = se_catalog
 
+        return self
+
     @classmethod
-    def _keyfunct(cls, f):
-        return re.search(r'SDWFS_cutout_\d+', f).group(0)
+    def _keyfunct(cls, f: pl_Path) -> str:
+        return re.search(r'SDWFS_cutout_\d+', f.name).group(0)
+
+
+class SelectFullFieldSDWFS(SelectSDWFS):
+    def __init__(self, sextractor_cat: str | pl_Path,
+                 irac_images: str | pl_Path,
+                 object_mask: str | pl_Path,
+                 mask_dir: str | pl_Path,
+                 photoz_catalog: Table,
+                 completeness_file: str | pl_Path | list[str | pl_Path],
+                 field_number_dist_file: str | pl_Path | None,
+                 sed: SourceSpectrum,
+                 irac_filter: str | pl_Path,
+                 j_band_filter: str | pl_Path):
+        super().__init__(sextractor_cat_dir=None,
+                         irac_image_dir=None,
+                         region_file_dir=None,
+                         mask_dir=mask_dir,
+                         sdwfs_master_catalog=photoz_catalog,
+                         completeness_file=completeness_file,
+                         field_number_dist_file=field_number_dist_file,
+                         sed=sed,
+                         irac_filter=irac_filter,
+                         j_band_filter=j_band_filter)
+
+        self._photo_catalog = sextractor_cat
+        self._irac_images = irac_images
+        self._object_mask = object_mask
+
+    def file_pairing(self, include: Iterable[str] = None, exclude: Iterable[str] = None) -> Self:
+        # List the file names for both the images and the catalogs
+        image_files = list(self._irac_images)
+        catalog_file = list(self._photo_catalog)
+
+        # Combine both file lists
+        cat_image_files = catalog_file + image_files
+
+        expected_files = {'ch1_science_path', 'ch1_coverage_path', 'ch2_science_path', 'ch2_coverage_path',
+                          'se_catalog_path'}
+        # Sort the files into a dictionary according to the type of file.
+        file_names = ({f'ch{s.group(1)}_science_path': name
+                       for name in cat_image_files if (s := self._sci_path_pattern(name))}
+                      | {f'ch{s.group(1)}_coverage_path': name
+                         for name in cat_image_files if (s := self._cov_path_pattern(name))}
+                      | {'se_catalog_path': name for name in cat_image_files if self._se_cat_path_pattern(name)})
+        # If we are missing a file, warn the user about it and don't create the ClusterInformation object
+        try:
+            self._catalog_dictionary['full_field_SDWFS'] = _ClusterInformation(**file_names)
+        except TypeError:
+            message = f'Missing files {expected_files - file_names.keys()}'
+            warnings.warn(message)
+
+        return self
+
+    def good_pixel_mask(self, ch1_min_cov: int | float, ch2_min_cov: int | float) -> Self:
+        # Array element names
+        cluster_info = self._catalog_dictionary['full_field_SDWFS']
+        irac_ch1_cov_path = cluster_info.ch1_coverage_path
+        irac_ch2_cov_path = cluster_info.ch2_coverage_path
+
+        # Read in the two coverage maps, also grabbing the header from the Ch1 map.
+        irac_ch1_cover, header = fits.getdata(irac_ch1_cov_path, header=True, ignore_missing_end=True)
+        irac_ch2_cover = fits.getdata(irac_ch2_cov_path, ignore_missing_end=True)
+
+        # Create the mask by setting pixel value to 1 if the pixel has coverage above the minimum coverage value in
+        # both IRAC bands.
+        combined_cov = np.logical_and((irac_ch1_cover >= ch1_min_cov), (irac_ch2_cover >= ch2_min_cov)).astype(int)
+
+        # Combine the coverage mask with the existing object mask to create the final good pixel mask.
+        object_mask_img = fits.getdata(self._object_mask)
+        good_pixel_mask = combined_cov * object_mask_img
+        # TODO Finish
+
+    def catalog_merge(self, catalog_cols: Iterable = None) -> Self:
+        # Get the field information
+        cluster_info = self._catalog_dictionary['full_field_SDWFS']
+        se_catalog = cluster_info.catalog
+
+        # Join the main photometric catalog with the photo-z catalog
+        cluster_info.catalog = join(se_catalog, self._spt_catalog, keys='ID')
+
+        return self
+
+    def run_selection(self,
+                      ch1_min_cov: int | float,
+                      ch2_min_cov: int | float,
+                      ch1_bright_mag: float,
+                      ch2_bright_mag: float,
+                      ch1_faint_mag: float,
+                      selection_band_faint_mag: float,
+                      output_name: str | pl_Path | None,
+                      output_colnames: Iterable[str] | None,
+                      *args,
+                      ch1_ch2_color: float = None,
+                      **kwargs) -> Table | None:
+        final_catalog = (self.file_pairing()
+                         .good_pixel_mask(ch1_min_cov, ch2_min_cov)
+                         .object_selection(ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag)
+                         .selection_membership(ch1_ch2_color)
+                         .catalog_merge()
+                         .j_band_abs_mag()
+                         .completeness_value()
+                         .final_catalogs(filename=output_name, catalog_cols=output_colnames))
+        if final_catalog is not None:
+            return final_catalog
+
+    @classmethod
+    def _sci_path_pattern(cls, name: str) -> re.Match:
+        return re.search(r'^(?!.*\.cov)I(\d).+', name)
+
+    @classmethod
+    def _cov_path_pattern(cls, name: str) -> re.Match:
+        return re.search(r'^(?=.*\.cov)I(\d).+', name)
+
+    @classmethod
+    def _se_cat_path_pattern(cls, name: str) -> bool:
+        return name.endswith('.cat.gz')
