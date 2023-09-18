@@ -1051,6 +1051,24 @@ class SelectFullFieldSDWFS(SelectSDWFS):
         return self
 
     def good_pixel_mask(self, ch1_min_cov: int | float, ch2_min_cov: int | float) -> Self:
+        """
+        This method is a modification of the parent methods :method:`coverage_mask` and :method:`object_mask`.
+
+        It generates a binary good pixel map using the coverage maps and the mask provided in
+        :classvariable:`object_mask`.
+
+        Parameters
+        ----------
+        ch1_min_cov: int | float
+            Minimum coverage value allowed in 3.6 um band.
+        ch2_min_cov: int | float
+            Minimum coverage value allowed in 4.5 um band.
+
+        Notes
+        -----
+        This method writes fits images into the directory specified as :classvariable:`mask_dir` in initialization.
+
+        """
         # Array element names
         cluster_info = self._catalog_dictionary['full_field_SDWFS']
         irac_ch1_cov_path = cluster_info.ch1_coverage_path
@@ -1067,7 +1085,12 @@ class SelectFullFieldSDWFS(SelectSDWFS):
         # Combine the coverage mask with the existing object mask to create the final good pixel mask.
         object_mask_img = fits.getdata(self._object_mask)
         good_pixel_mask = combined_cov * object_mask_img
-        # TODO Finish
+
+        # Write the full mask out to disk
+        fits.writeto(f'{self._mask_dir}/SDWFS_full-field_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits',
+                     data=good_pixel_mask, header=header)
+
+        return self
 
     def catalog_merge(self, catalog_cols: Iterable = None) -> Self:
         # Get the field information
