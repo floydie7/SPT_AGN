@@ -32,10 +32,6 @@ sdwfs_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAG
 sdfws_master_cutout_catalog = Table.read(f'{prefix}Data_Repository/Catalogs/Bootes/SDWFS/Cutouts/'
                                          f'SDWFS_Cutout_master.fits')
 
-# SDWFS number count distribution file (for purification)
-sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
-                          f'SDWFS_number_count_distribution_normed.json'
-
 # SDWFS 90% AGN purity color-redshift file (for color selection thresholds)
 sdwfs_purity_color_threshold = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
                                f'SDWFS_purity_color_4.5_17.48.json'
@@ -90,7 +86,6 @@ sdwfs_selector = SelectSDWFS(sextractor_cat_dir=sdwfs_catalog_directory, irac_im
                              region_file_dir=sdwfs_regions_directory, mask_dir=sdwfs_masks_directory,
                              sdwfs_master_catalog=sdfws_master_cutout_catalog,
                              completeness_file=sdwfs_completeness_sim_results,
-                             field_number_dist_file=sdwfs_number_count_dist,
                              sed=polletta_qso2,
                              irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
                              j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'

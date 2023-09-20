@@ -90,7 +90,6 @@ class SelectIRAGN:
                  mask_dir: str | pl_Path,
                  spt_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
-                 field_number_dist_file: str | pl_Path | None,
                  purity_color_threshold_file: str | pl_Path | None,
                  sed: SourceSpectrum,
                  irac_filter: str | pl_Path,
@@ -118,9 +117,6 @@ class SelectIRAGN:
         self._sed = sed
         self._irac_filter = irac_filter
         self._j_band_filter = j_band_filter
-
-        # Number count distribution from SDWFS used to remove Eddington bias
-        self._field_number_dist = field_number_dist_file
 
         # Purity-based color threshold function. This is used in place of a flat color cut in `purify_selection`.
         self._purity_color_funct = purity_color_threshold_file
@@ -448,7 +444,8 @@ class SelectIRAGN:
         return self
 
     def object_selection(self, ch1_bright_mag: float, ch1_faint_mag: float, ch2_bright_mag: float,
-                         selection_band_faint_mag: float, selection_band: str = 'I2_MAG_APER4') -> Self:
+                         selection_band_faint_mag: float, selection_band: str = 'I2_MAG_APER4',
+                         colnames: list[str] = None) -> Self:
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
@@ -474,19 +471,21 @@ class SelectIRAGN:
         selection_band : str, optional
             Column name in Source Extractor catalog specifying the selection band to use. Defaults to the 4.5 um, 4"
             aperture magnitude photometry.
-
+        colnames: list[str]
+            A list of column names for the photometric catalog if not present in the file itself.
         """
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Read in the catalog
-            se_catalog = Table.read(cluster_info.se_catalog_path, format='ascii')
+            se_catalog = Table.read(cluster_info.se_catalog_path, format='ascii', names=colnames)
 
             # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
             se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', str(cluster_info.mask_path)).group(0)
 
             # Preform SExtractor Flag cut. A value of under 4 should indicate the object was extracted well.
-            se_catalog = se_catalog[se_catalog['FLAGS'] < 4]
+            if 'FLAGS' in se_catalog.colnames:
+                se_catalog = se_catalog[se_catalog['FLAGS'] < 4]
 
             # Preform bright-end cuts
             # Limits from Eisenhardt+04 for ch1 = 10.0 and ch2 = 9.8
@@ -559,26 +558,16 @@ class SelectIRAGN:
         threshold or a flat color threshold depending on the user input.
         """
 
-        # Read in the number count distribution file
-        with open(self._field_number_dist, 'r') as f:
-            field_number_distribution = json.load(f)
-        field_number_counts = field_number_distribution['normalized_number_counts']
-        color_bins = field_number_distribution['color_bins']
+        # Read in the purity color-redshift threshold file
+        with open(self._purity_color_funct, 'r') as f:
+            color_threshold_data = json.load(f)
+        color_thresholds = color_threshold_data['purity_90_colors']
+        redshift_bins = color_threshold_data['redshift_bins']
+        color_bins = color_threshold_data['color_bins']
         color_bin_min, color_bin_max = np.min(color_bins), np.max(color_bins)
 
-        # Create an interpolation of our number count distribution
-        color_probability_distribution = interp1d(color_bins, field_number_counts)
-
-        color_redshift_threshold_function = None
-        if color_threshold is None:
-            # Read in the purity color-redshift threshold file
-            with open(self._purity_color_funct, 'r') as f:
-                color_threshold_data = json.load(f)
-            color_thresholds = color_threshold_data['purity_90_colors']
-            redshift_bins = color_threshold_data['redshift_bins']
-
-            # Create a step function interpolation of the color-redshift function
-            color_redshift_threshold_function = interp1d(redshift_bins[:-1], color_thresholds, kind='previous')
+        # Create a step function interpolation of the color-redshift function
+        color_redshift_threshold_function = interp1d(redshift_bins[:-1], color_thresholds, kind='previous')
 
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
@@ -932,7 +921,6 @@ class SelectSDWFS(SelectIRAGN):
                  mask_dir: str | pl_Path,
                  sdwfs_master_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
-                 field_number_dist_file: str | pl_Path | None,
                  sed: SourceSpectrum,
                  irac_filter: str | pl_Path,
                  j_band_filter: str | pl_Path):
@@ -942,7 +930,6 @@ class SelectSDWFS(SelectIRAGN):
                          mask_dir=mask_dir,
                          spt_catalog=sdwfs_master_catalog,
                          completeness_file=completeness_file,
-                         field_number_dist_file=field_number_dist_file,
                          purity_color_threshold_file=None,
                          sed=sed,
                          irac_filter=irac_filter,
@@ -1001,12 +988,12 @@ class SelectSDWFS(SelectIRAGN):
 
 class SelectFullFieldSDWFS(SelectSDWFS):
     def __init__(self, sextractor_cat: str | pl_Path,
-                 irac_images: str | pl_Path,
+                 irac_images: list[str | pl_Path],
                  object_mask: str | pl_Path,
                  mask_dir: str | pl_Path,
                  photoz_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
-                 field_number_dist_file: str | pl_Path | None,
+                 purity_color_threshold_file: str | pl_Path,
                  sed: SourceSpectrum,
                  irac_filter: str | pl_Path,
                  j_band_filter: str | pl_Path):
@@ -1016,7 +1003,6 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                          mask_dir=mask_dir,
                          sdwfs_master_catalog=photoz_catalog,
                          completeness_file=completeness_file,
-                         field_number_dist_file=field_number_dist_file,
                          sed=sed,
                          irac_filter=irac_filter,
                          j_band_filter=j_band_filter)
@@ -1025,10 +1011,13 @@ class SelectFullFieldSDWFS(SelectSDWFS):
         self._irac_images = irac_images
         self._object_mask = object_mask
 
+        # Purity-based color threshold function. This is used in place of a flat color cut in `purify_selection`.
+        self._purity_color_funct = purity_color_threshold_file
+
     def file_pairing(self, include: Iterable[str] = None, exclude: Iterable[str] = None) -> Self:
         # List the file names for both the images and the catalogs
-        image_files = list(self._irac_images)
-        catalog_file = list(self._photo_catalog)
+        image_files = [pl_Path(f) for f in self._irac_images]
+        catalog_file = [pl_Path(self._photo_catalog)]
 
         # Combine both file lists
         cat_image_files = catalog_file + image_files
@@ -1086,9 +1075,13 @@ class SelectFullFieldSDWFS(SelectSDWFS):
         object_mask_img = fits.getdata(self._object_mask)
         good_pixel_mask = combined_cov * object_mask_img
 
+        mask_filename = pl_Path(f'{self._mask_dir}/SDWFS_full-field_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits')
+
         # Write the full mask out to disk
-        fits.writeto(f'{self._mask_dir}/SDWFS_full-field_cov_mask{ch1_min_cov}_{ch2_min_cov}.fits',
-                     data=good_pixel_mask, header=header)
+        fits.writeto(mask_filename, data=good_pixel_mask, header=header, overwrite=True)
+
+        # Update the data structure
+        cluster_info.mask_path = mask_filename
 
         return self
 
@@ -1102,6 +1095,46 @@ class SelectFullFieldSDWFS(SelectSDWFS):
 
         return self
 
+    def completeness_value(self, selection_band: str = 'I2_MAG_APER4') -> Self:
+        # Load in the completeness simulation data from the file
+        if isinstance(self._completeness_results, list):
+            json_dicts = []
+            for comp_results in self._completeness_results:
+                with open(comp_results, 'r') as f:
+                    json_dicts.append(json.load(f))
+            completeness_dict = dict(ChainMap(*json_dicts))
+        else:
+            with open(self._completeness_results, 'r') as f:
+                completeness_dict = json.load(f)
+
+        # Array element names
+        cluster_info = self._catalog_dictionary['full_field_SDWFS']
+        se_catalog = cluster_info.catalog
+
+        # Grab the magnitude bins used to create the completeness data
+        mag_bins = completeness_dict.pop('magnitude_bins', None)[:-1]
+
+        # Compute the mean completeness curve from the original cutout completeness simulations.
+        mean_completeness = np.mean(list(list(curve) for curve in completeness_dict.values()), axis=0)
+
+        # Interpolate the completeness data into a functional form using linear interpolation
+        completeness_funct = interp1d(mag_bins, mean_completeness, kind='linear')
+
+        # For the objects' magnitude specified by `selection_band` query the completeness function to find the
+        # completeness value.
+        completeness_values = completeness_funct(se_catalog[selection_band])
+
+        # The completeness correction values are defined as 1/[completeness value]
+        completeness_corrections = 1 / completeness_values
+
+        # Add the completeness values and corrections to the SExtractor catalog.
+        se_catalog['COMPLETENESS_VALUE'] = completeness_values
+        se_catalog['COMPLETENESS_CORRECTION'] = completeness_corrections
+
+        cluster_info.catalog = se_catalog
+
+        return self
+
     def run_selection(self,
                       ch1_min_cov: int | float,
                       ch2_min_cov: int | float,
@@ -1109,6 +1142,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                       ch2_bright_mag: float,
                       ch1_faint_mag: float,
                       selection_band_faint_mag: float,
+                      photo_cat_colnames: list[str],
                       output_name: str | pl_Path | None,
                       output_colnames: Iterable[str] | None,
                       *args,
@@ -1116,7 +1150,8 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                       **kwargs) -> Table | None:
         final_catalog = (self.file_pairing()
                          .good_pixel_mask(ch1_min_cov, ch2_min_cov)
-                         .object_selection(ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag)
+                         .object_selection(ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag,
+                                           colnames=photo_cat_colnames)
                          .selection_membership(ch1_ch2_color)
                          .catalog_merge()
                          .j_band_abs_mag()
@@ -1126,13 +1161,13 @@ class SelectFullFieldSDWFS(SelectSDWFS):
             return final_catalog
 
     @classmethod
-    def _sci_path_pattern(cls, name: str) -> re.Match:
-        return re.search(r'^(?!.*\.cov)I(\d).+', name)
+    def _sci_path_pattern(cls, name: pl_Path) -> re.Match:
+        return re.search(r'^(?!.*\.cov)I(\d).+', name.name)
 
     @classmethod
-    def _cov_path_pattern(cls, name: str) -> re.Match:
-        return re.search(r'^(?=.*\.cov)I(\d).+', name)
+    def _cov_path_pattern(cls, name: pl_Path) -> re.Match:
+        return re.search(r'^(?=.*\.cov)I(\d).+', name.name)
 
     @classmethod
-    def _se_cat_path_pattern(cls, name: str) -> bool:
-        return name.endswith('.cat.gz')
+    def _se_cat_path_pattern(cls, name: pl_Path) -> bool:
+        return name.name.endswith('.cat.gz')

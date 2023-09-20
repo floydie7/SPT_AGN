@@ -30,10 +30,6 @@ sptpol_image_directory = f'{prefix}Data_Repository/Images/SPT/Spitzer_IRAC/SPTpo
 sptpol_regions_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Regions/SPTpol_100d'
 sptpol_masks_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d'
 
-# SDWFS number count distribution file (for purification)
-sdwfs_number_count_dist = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
-                          f'SDWFS_number_count_distribution_normed.json'
-
 # SDWFS 90% AGN purity color-redshift file (for color selection thresholds)
 sdwfs_purity_color_threshold = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
                                f'SDWFS_purity_color_4.5_17.48.json'
@@ -124,7 +120,6 @@ spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_
                               region_file_dir=spt_sz_regions_directory, mask_dir=spt_sz_masks_directory,
                               spt_catalog=SPTcl,
                               completeness_file=spt_sz_completeness_sim_results,
-                              field_number_dist_file=sdwfs_number_count_dist,
                               purity_color_threshold_file=sdwfs_purity_color_threshold,
                               sed=polletta_qso2,
                               irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
@@ -152,7 +147,6 @@ sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_
                               region_file_dir=sptpol_regions_directory, mask_dir=sptpol_masks_directory,
                               spt_catalog=SPTcl,
                               completeness_file=sptpol_completeness_sim_results,
-                              field_number_dist_file=sdwfs_number_count_dist,
                               purity_color_threshold_file=sdwfs_purity_color_threshold,
                               sed=polletta_qso2,
                               irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
