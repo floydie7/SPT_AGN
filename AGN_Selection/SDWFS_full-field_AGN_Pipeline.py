@@ -47,8 +47,8 @@ sdwfs_photometric_catalog_names = ['ID', 'ALPHA_J2000', 'DELTA_J2000',
                                    'STARS_COLOR', 'STARS_MORPH', 'CLASS_STAR', 'MBZ_FLAG_4_4_4']
 
 # Completeness simulation results files
-sdwfs_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SDWFS/Results/' \
-                                 f'I2_results_gaussian_fwhm172_corr005_mag02_final.json'
+sdwfs_completeness_sim_results = (f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SDWFS/Results/'
+                                  f'I2_full-field_SDWFS_Brodwin.json')
 
 # Read in the SDWFS Photo-z catalog
 sdwfs_photo_z_catalog = Table.read(f'{prefix}Data_Repository/Catalogs/Bootes/SDWFS/mbz_v0.06_prior_bri12_18p8.cat.gz',
@@ -81,7 +81,7 @@ ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 
 # Output catalog file name
-output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits'
+output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_full-field_IRAGN.fits'
 
 # Get the color thresholds from the file
 with open(sdwfs_purity_color_threshold, 'r') as f:
