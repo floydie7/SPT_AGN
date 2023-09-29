@@ -920,6 +920,7 @@ class SelectSDWFS(SelectIRAGN):
                  region_file_dir: str | pl_Path | list[str | pl_Path] | None,
                  mask_dir: str | pl_Path,
                  sdwfs_master_catalog: Table,
+                 purity_color_threshold_file: str | pl_Path,
                  completeness_file: str | pl_Path | list[str | pl_Path],
                  sed: SourceSpectrum,
                  irac_filter: str | pl_Path,
@@ -930,7 +931,7 @@ class SelectSDWFS(SelectIRAGN):
                          mask_dir=mask_dir,
                          spt_catalog=sdwfs_master_catalog,
                          completeness_file=completeness_file,
-                         purity_color_threshold_file=None,
+                         purity_color_threshold_file=purity_color_threshold_file,
                          sed=sed,
                          irac_filter=irac_filter,
                          j_band_filter=j_band_filter)
@@ -1002,6 +1003,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                          region_file_dir=None,
                          mask_dir=mask_dir,
                          sdwfs_master_catalog=photoz_catalog,
+                         purity_color_threshold_file=purity_color_threshold_file,
                          completeness_file=completeness_file,
                          sed=sed,
                          irac_filter=irac_filter,
@@ -1095,7 +1097,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
 
         return self
 
-    def completeness_value(self, selection_band: str = 'I2_MAG_APER4') -> Self:
+    def completeness_value(self, selection_band: str = 'I2_MAG_APER4', mean: bool = False) -> Self:
         # Load in the completeness simulation data from the file
         if isinstance(self._completeness_results, list):
             json_dicts = []
@@ -1111,14 +1113,18 @@ class SelectFullFieldSDWFS(SelectSDWFS):
         cluster_info = self._catalog_dictionary['full_field_SDWFS']
         se_catalog = cluster_info.catalog
 
-        # Grab the magnitude bins used to create the completeness data
-        mag_bins = completeness_dict.pop('magnitude_bins', None)[:-1]
+        if mean:
+            # Grab the magnitude bins used to create the completeness data
+            mag_bins = completeness_dict.pop('magnitude_bins', None)[:-1]
 
-        # Compute the mean completeness curve from the original cutout completeness simulations.
-        mean_completeness = np.mean(list(list(curve) for curve in completeness_dict.values()), axis=0)
+            # Compute the mean completeness curve from the original cutout completeness simulations.
+            recovery_rates = np.mean(list(list(curve) for curve in completeness_dict.values()), axis=0)
+        else:
+            mag_bins = completeness_dict['magnitude_bins']
+            recovery_rates = completeness_dict['full_field_SDWFS']
 
         # Interpolate the completeness data into a functional form using linear interpolation
-        completeness_funct = interp1d(mag_bins, mean_completeness, kind='linear')
+        completeness_funct = interp1d(mag_bins, recovery_rates, kind='linear')
 
         # For the objects' magnitude specified by `selection_band` query the completeness function to find the
         # completeness value.

@@ -85,6 +85,7 @@ pipeline_start_time = time()
 sdwfs_selector = SelectSDWFS(sextractor_cat_dir=sdwfs_catalog_directory, irac_image_dir=sdwfs_image_directory,
                              region_file_dir=sdwfs_regions_directory, mask_dir=sdwfs_masks_directory,
                              sdwfs_master_catalog=sdfws_master_cutout_catalog,
+                             purity_color_threshold_file=sdwfs_purity_color_threshold,
                              completeness_file=sdwfs_completeness_sim_results,
                              sed=polletta_qso2,
                              irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
