@@ -40,7 +40,18 @@ irac_catalog_snr = irac_catalog[(irac_catalog['I1_FLUX_APER4'] / irac_catalog['I
 wise_catalog_snr = wise_catalog[(wise_catalog['w1flux'] / wise_catalog['w1sigflux'] >= 5) &
                                 (wise_catalog['w2flux'] / wise_catalog['w2sigflux'] >= 5)]
 
-# Select objects within our magnitude ranges
+#%% Quick plot to check the relative magnitude turn overs
+turnover_mag_bins = np.arange(10., 20., 0.25)
+fig, ax = plt.subplots()
+ax.hist(irac_catalog_snr['I2_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
+ax.hist(wise_catalog_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
+ax.axvline(x=17.48, ls='--', c='k')
+ax.legend()
+ax.set(title='SDWFS Galaxies', xlabel='[4.5] (W2) (Vega)', ylabel='number', yscale='log')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover.pdf')
+plt.show()
+
+#%% Select objects within our magnitude ranges
 ch1_bright_mag = 10.0  # Bright-end 3.6 um magnitude
 ch1_faint_mag = 18.3  # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
