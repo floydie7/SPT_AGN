@@ -11,7 +11,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from astropy.coordinates import SkyCoord
+from astropy.io import fits
 from astropy.table import Table
+from astropy.visualization import imshow_norm, ZScaleInterval, LinearStretch
+from astropy.wcs import WCS
 
 # Read in the IRAC catalog
 irac_catalog = Table.read('Data_Repository/Catalogs/Bootes/SDWFS/'
@@ -48,7 +51,7 @@ ax.hist(wise_catalog_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=
 ax.axvline(x=17.48, ls='--', c='k')
 ax.legend()
 ax.set(title='SDWFS Galaxies', xlabel='[4.5] (W2) (Vega)', ylabel='number', yscale='log')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover.pdf')
 plt.show()
 
 #%% Select objects within our magnitude ranges
@@ -57,12 +60,12 @@ ch1_faint_mag = 18.3  # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 
-irac_catalog = irac_catalog[(ch1_bright_mag < irac_catalog['I1_MAG_APER4']) &
-                            (irac_catalog['I1_MAG_APER4'] <= ch1_faint_mag) &
-                            (ch2_bright_mag < irac_catalog['I2_MAG_APER4']) &
-                            (irac_catalog['I2_MAG_APER4'] <= ch2_faint_mag)]
-wise_catalog = wise_catalog[(ch1_bright_mag < wise_catalog['w1mpro']) & (wise_catalog['w1mpro'] <= ch1_faint_mag) &
-                            (ch2_bright_mag < wise_catalog['w2mpro']) & (wise_catalog['w2mpro'] <= ch2_faint_mag)]
+# irac_catalog = irac_catalog[(ch1_bright_mag < irac_catalog['I1_MAG_APER4']) &
+#                             (irac_catalog['I1_MAG_APER4'] <= ch1_faint_mag) &
+#                             (ch2_bright_mag < irac_catalog['I2_MAG_APER4']) &
+#                             (irac_catalog['I2_MAG_APER4'] <= ch2_faint_mag)]
+# wise_catalog = wise_catalog[(ch1_bright_mag < wise_catalog['w1mpro']) & (wise_catalog['w1mpro'] <= ch1_faint_mag) &
+#                             (ch2_bright_mag < wise_catalog['w2mpro']) & (wise_catalog['w2mpro'] <= ch2_faint_mag)]
 
 # Match the catalogs together
 irac_coords = SkyCoord(irac_catalog['ALPHA_J2000'], irac_catalog['DELTA_J2000'], unit=u.deg)
@@ -81,6 +84,42 @@ max_separation = 1 * u.arcsec
 sep_constraint = sep < max_separation
 irac_matches = irac_catalog[sep_constraint]
 wise_matches = wise_catalog[wise_idx[sep_constraint]]
+
+#%% Matched Magnitude turnovers
+
+# snr cuts
+irac_matches_snr = irac_matches[(irac_matches['I1_FLUX_APER4'] / irac_matches['I1_FLUXERR_APER4'] >= 5) &
+                                (irac_matches['I2_FLUX_APER4'] / irac_matches['I2_FLUXERR_APER4'] >= 5)]
+wise_matches_snr = wise_matches[(wise_matches['w1flux'] / wise_matches['w1sigflux'] >= 5) &
+                                (wise_matches['w2flux'] / wise_matches['w2sigflux'] >= 5)]
+
+turnover_mag_bins = np.arange(10., 20., 0.25)
+fig, ax = plt.subplots()
+ax.hist(irac_matches_snr['I2_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
+ax.hist(wise_matches_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
+ax.axvline(x=17.48, ls='--', c='k')
+ax.legend()
+ax.set(title='SDWFS Galaxies', xlabel='[4.5] or W2 (Vega)', ylabel='number', yscale='log')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover_matches_snr5.pdf')
+plt.show()
+
+#%% Plot the galaxies on the Boötes footprint
+i1_img, i1_hdr = fits.getdata('Data_Repository/Images/Bootes/SDWFS/I1_bootes.v32.fits', header=True)
+i1_wcs = WCS(i1_hdr)
+
+#%%
+fig, ax = plt.subplots(figsize=(9, 12), subplot_kw={'projection': i1_wcs})
+imshow_norm(i1_img, ax=ax, origin='lower', cmap='Greys', interval=ZScaleInterval(), stretch=LinearStretch())
+ax.scatter(irac_catalog_snr['ALPHA_J2000'], irac_catalog_snr['DELTA_J2000'], marker='o', s=10, fc='none', ec='tab:blue',
+           alpha=0.2, label='IRAC Galaxies', transform=ax.get_transform('world'))
+ax.scatter(wise_catalog_snr['ra'], wise_catalog_snr['dec'], marker='s', s=10, fc='none', ec='tab:orange', alpha=0.2,
+           label='WISE Galaxies',
+           transform=ax.get_transform('world'))
+ax.legend(loc='lower left')
+ax.set(xlabel='Right Ascension', ylabel='Declination')
+plt.tight_layout()
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_footprint.png')
+plt.show()
 
 #%% Plot the magnitude differences
 fig, (ax, bx) = plt.subplots(ncols=2, sharey='row', figsize=(6.4*2, 4.8))
