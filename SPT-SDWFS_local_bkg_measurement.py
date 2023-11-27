@@ -26,6 +26,11 @@ cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 def log_linear_model(x, alpha, beta):
     return alpha + beta * x
 
+
+def power_model(x, alpha, beta):
+    return alpha * x ** beta
+
+
 def sdwfs_wise_gal_irac_agn(sdwfs_wise_gal, sdwfs_irac_agn_bright):
     """Compute scaling factors per mag bin for SDWFS IRAC AGN number counts to SDWFS WISE galaxy number counts."""
     # Bin into 0.25 magnitude bins
@@ -79,7 +84,8 @@ def spt_wise_gal_irac_agn(spt_wise_gal, wise_irac_scaling):
     spt_wise_dn_dm_weighted = spt_wise_dn_dm / (spt_bkg_area.value * mag_bin_width)
 
     # Compute the errors
-    spt_wise_dn_dm_err = tuple(err / (spt_bkg_area.value * mag_bin_width) for err in small_poisson(spt_wise_dn_dm))[::-1]
+    spt_wise_dn_dm_err = tuple(err / (spt_bkg_area.value * mag_bin_width) for err in small_poisson(spt_wise_dn_dm))[
+                         ::-1]
 
     # Determine the fractional error
     spt_wise_frac_err = spt_wise_dn_dm_err / spt_wise_dn_dm_weighted
@@ -94,7 +100,7 @@ def spt_wise_gal_irac_agn(spt_wise_gal, wise_irac_scaling):
 
 
 def spt_irac_sdwfs_irac(spt_irac_dn_dm, spt_irac_dn_dm_err, sdwfs_full_dn_dm, sdwfs_full_dn_dm_err, mag_bin_centers):
-    '''Fits a simple model to the data and scales the SDWFS data to have the same amplitude as the WISE "AGN".'''
+    """Fits a simple model to the data and scales the SDWFS data to have the same amplitude as the WISE "AGN"."""
 
     # First we need to only select a narrow range where data is reliable
     spt_irac_dn_dm_narrow = spt_irac_dn_dm[(15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
@@ -102,8 +108,8 @@ def spt_irac_sdwfs_irac(spt_irac_dn_dm, spt_irac_dn_dm_err, sdwfs_full_dn_dm, sd
     mag_bin_centers_narrow = mag_bin_centers[(15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
 
     # Do the same with the errors
-    spt_irac_dn_dm_err_narrow = spt_irac_dn_dm_err[:, (15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
-    sdwfs_full_dn_dm_err_narrow = sdwfs_full_dn_dm_err[:, (15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
+    spt_irac_dn_dm_err_narrow = np.array(spt_irac_dn_dm_err)[:, (15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
+    sdwfs_full_dn_dm_err_narrow = np.array(sdwfs_full_dn_dm_err)[:, (15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
 
     # Symmetrize the errors
     spt_irac_dn_dm_symerr_narrow = np.sqrt(spt_irac_dn_dm_err_narrow[0] * spt_irac_dn_dm_err_narrow[1])
@@ -125,7 +131,7 @@ def spt_irac_sdwfs_irac(spt_irac_dn_dm, spt_irac_dn_dm_err, sdwfs_full_dn_dm, sd
     # Find the difference in the amplitude (intercept) parameter
     amplitude_shift = sdwfs_popt[0] - spt_popt[0]
 
-    return amplitude_shift
+    return spt_popt, spt_pcov, sdwfs_popt, sdwfs_pcov
 
 
 # %%
@@ -207,7 +213,7 @@ outer_radius_deg = outer_radius_mpc * cosmo.arcsec_per_kpc_proper(spt_wise_gal['
 
 spt_wise_gal = spt_wise_gal[(inner_radius_mpc < spt_wise_gal_sep_mpc) & (spt_wise_gal_sep_mpc <= outer_radius_mpc)]
 
-#%% Test Plots
+# %% Test Plots
 mag_bin_width = 0.25
 num_counts_mag_bins = np.arange(ch2_bright_mag, ch2_faint_mag, mag_bin_width)
 mag_bin_centers = num_counts_mag_bins[:-1] + np.diff(num_counts_mag_bins) / 2
@@ -247,7 +253,7 @@ ax.set(title='SDWFS', xlabel='[4.5] or W2 (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ 
 #             'SDWFS_WISEgal-IRACagn_dNdm.pdf')
 plt.show()
 
-#%% Make plot of applying the scaling factors on our test cluster
+# %% Make plot of applying the scaling factors on our test cluster
 fig, ax = plt.subplots()
 ax.errorbar(mag_bin_centers, spt_wise_dn_dm_weighted, yerr=spt_wise_dn_dm_err, fmt='o', label='Original WISE Galaxies')
 ax.errorbar(mag_bin_centers, spt_irac_dndm, yerr=spt_irac_dndm_err, fmt='o', label='Scaled IRAC "AGN"')
@@ -255,6 +261,23 @@ ax.errorbar(mag_bin_centers, spt0334_scaling['hist'], yerr=spt0334_scaling['err'
 ax.legend()
 ax.set(title=r'SPT-CLJ0334-4645   $3 < r/r_{200} \leq 7$', xlabel='[4.5] or W2 (Vega)',
        ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$', yscale='log')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/cluster_gal-agn_scaling_tests/'
-            'wide_mag_range_test_SPT-CLJ0334-4645_3-7r200.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/cluster_gal-agn_scaling_tests/'
+#             'wide_mag_range_test_SPT-CLJ0334-4645_3-7r200.pdf')
 plt.show()
+
+#%%
+spt_param, spt_cov, sdwfs_param, sdwfs_cov = spt_irac_sdwfs_irac(spt_irac_dndm, spt_irac_dndm_err, spt0334_scaling['hist'], spt0334_scaling['err'], mag_bin_centers)
+xx = np.linspace(15., 16.5, num=100)
+xxx = np.linspace(0., 15., num=100)
+fig, ax = plt.subplots()
+ax.plot(xx, log_linear_model(xx, *spt_param), label='SPT')
+ax.plot(xx, log_linear_model(xx, *sdwfs_param), label='SDWFS')
+ax.plot(xxx, log_linear_model(xxx, *spt_param), ls='--', c='tab:blue')
+ax.plot(xxx, log_linear_model(xxx, *sdwfs_param), ls='--', c='tab:orange')
+ax.legend()
+ax.set(xlabel='[4.5]', ylabel='log(dn/dm)')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/cluster_gal-agn_scaling_tests/'
+            'log-linear_fit_comparisons_wide.pdf')
+plt.show()
+
+
