@@ -17,6 +17,7 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from matplotlib import pyplot as plt
+from scipy.integrate import simpson
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
@@ -54,7 +55,8 @@ def sdwfs_wise_gal_irac_agn(sdwfs_wise_gal, sdwfs_irac_agn_bright):
         irac_agn = sdwfs_irac_agn_bright[sdwfs_irac_agn_bright[selection_membership] >= 0.5]
 
         # Create the IRAC AGN histogram
-        irac_agn_dn_dm, _ = np.histogram(irac_agn['I2_MAG_APER4'], bins=num_counts_mag_bins)
+        irac_agn_dn_dm, _ = np.histogram(irac_agn['I2_MAG_APER4'], bins=num_counts_mag_bins,
+                                         weights=irac_agn['COMPLETENESS_CORRECTION'])
         irac_agn_dn_dm_weighted = irac_agn_dn_dm / (sdwfs_area.value * mag_bin_width)
 
         # Compute the IRAC AGN errors
@@ -132,6 +134,31 @@ def spt_irac_sdwfs_irac(spt_irac_dn_dm, spt_irac_dn_dm_err, sdwfs_full_dn_dm, sd
     amplitude_shift = sdwfs_popt[0] - spt_popt[0]
 
     return spt_popt, spt_pcov, sdwfs_popt, sdwfs_pcov
+
+
+def renorm_sdwfs_agn(sdwfs_full_dn_dm, sdwfs_full_dn_dm_err, spt_dn_dm, spt_dn_dm_err, pivot_point):
+
+    # First we need to only select a narrow range where data is reliable
+    spt_dn_dm_narrow = spt_dn_dm[(15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
+    sdwfs_full_dn_dm_narrow = sdwfs_full_dn_dm[(15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
+
+    # Do the same with the errors
+    spt_irac_dn_dm_err_narrow = np.array(spt_dn_dm_err)[:, (15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
+    sdwfs_full_dn_dm_err_narrow = np.array(sdwfs_full_dn_dm_err)[:, (15. < mag_bin_centers) & (mag_bin_centers <= 16.5)]
+
+    # Symmetrize the errors
+    spt_irac_dn_dm_symerr_narrow = np.sqrt(spt_irac_dn_dm_err_narrow[0] * spt_irac_dn_dm_err_narrow[1])
+    sdwfs_full_dn_dm_symerr_narrow = np.sqrt(sdwfs_full_dn_dm_err_narrow[0] * sdwfs_full_dn_dm_err_narrow[1])
+
+    def model(data, a):
+        return a * data
+
+    sdwfs_popt, sdwfs_pcov = curve_fit(model, spt_dn_dm_narrow, sdwfs_full_dn_dm_narrow,
+                                       sigma=sdwfs_full_dn_dm_symerr_narrow)
+    sdwfs_perr = np.sqrt(np.diag(sdwfs_pcov))
+
+    return sdwfs_popt, sdwfs_perr
+
 
 
 # %%
@@ -242,7 +269,22 @@ spt0334_scaling = sdwfs_scalings[f'SELECTION_MEMBERSHIP_{agn_purity_color(spt_wi
 # Apply the scaling factors to our cluster
 spt_irac_dndm, spt_irac_dndm_err = spt_wise_gal_irac_agn(spt_wise_gal, spt0334_scaling['scaling_frac'])
 
-# Make plot of the SDWFS input dN/dm distributions for the scaling factors
+# Scale the SDWFS IRAC AGN data to the level of the SPT "AGN"
+# spt_param, spt_cov, sdwfs_param, sdwfs_cov = spt_irac_sdwfs_irac(spt_irac_dndm, spt_irac_dndm_err, spt0334_scaling['hist'], spt0334_scaling['err'], mag_bin_centers)
+scaling_param, scaling_err = renorm_sdwfs_agn(sdwfs_full_dn_dm=spt0334_scaling['hist'],
+                                              sdwfs_full_dn_dm_err=spt0334_scaling['err'], spt_dn_dm=spt_irac_dndm,
+                                              spt_dn_dm_err=spt_irac_dndm_err, pivot_point=None)
+
+sdwfs_irac_dndm_scaled = 1/scaling_param * spt0334_scaling['hist']
+
+# Integrate the SDWFS dN/dm distribution over the magnitude range to determine the total AGN surface density
+bkg_agn_surf_den = simpson(sdwfs_irac_dndm_scaled, mag_bin_centers) * u.deg**-2
+
+print(f'Background AGN Surface density: {bkg_agn_surf_den:.2f} ({bkg_agn_surf_den.to(u.arcmin**-2):.3f})')
+print(f'Number of AGN in background annulus: {bkg_agn_surf_den * spt_bkg_area:.2f}')
+print(f'Number of AGN in approximate LoS region: {(bkg_agn_surf_den * 25 * u.arcmin**2).decompose():.2f}')
+
+#%% Make plot of the SDWFS input dN/dm distributions for the scaling factors
 fig, ax = plt.subplots()
 ax.errorbar(mag_bin_centers, wise_gal_dn_dm_weighted, yerr=wise_gal_dn_dm_err, fmt='o', label='WISE Galaxies')
 ax.errorbar(mag_bin_centers, spt0334_scaling['hist'], yerr=spt0334_scaling['err'], fmt='o',
@@ -266,7 +308,6 @@ ax.set(title=r'SPT-CLJ0334-4645   $3 < r/r_{200} \leq 7$', xlabel='[4.5] or W2 (
 plt.show()
 
 #%%
-spt_param, spt_cov, sdwfs_param, sdwfs_cov = spt_irac_sdwfs_irac(spt_irac_dndm, spt_irac_dndm_err, spt0334_scaling['hist'], spt0334_scaling['err'], mag_bin_centers)
 xx = np.linspace(15., 16.5, num=100)
 xxx = np.linspace(0., 15., num=100)
 fig, ax = plt.subplots()
@@ -276,8 +317,15 @@ ax.plot(xxx, log_linear_model(xxx, *spt_param), ls='--', c='tab:blue')
 ax.plot(xxx, log_linear_model(xxx, *sdwfs_param), ls='--', c='tab:orange')
 ax.legend()
 ax.set(xlabel='[4.5]', ylabel='log(dn/dm)')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/cluster_gal-agn_scaling_tests/'
-            'log-linear_fit_comparisons_wide.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/cluster_gal-agn_scaling_tests/'
+#             'log-linear_fit_comparisons_wide.pdf')
 plt.show()
 
-
+#%%
+fig, ax = plt.subplots()
+ax.errorbar(mag_bin_centers, spt_wise_dn_dm_weighted, yerr=spt_wise_dn_dm_err, fmt='o', label='Original WISE Galaxies')
+ax.errorbar(mag_bin_centers, spt_irac_dndm, yerr=spt_irac_dndm_err, fmt='o', label='Scaled IRAC "AGN"')
+ax.errorbar(mag_bin_centers, 1/scaling_param * spt0334_scaling['hist'], fmt='o', label='SDWFS IRAC AGN (scaled)')
+ax.legend()
+ax.set(title=r'SPT-CLJ0334-4645    $3 < r/r_{200} \leq 7$', xlabel='[4.5] or W2 (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$]', yscale='log')
+plt.show()
