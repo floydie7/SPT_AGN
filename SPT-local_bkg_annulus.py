@@ -63,7 +63,8 @@ for catalog_name in tqdm(catalog_names, desc='Finding background annulus radii')
 
     spt_wise_gal_data[cluster_id.search(catalog_name).group(0)] = {'inner_radius_deg': inner_radius_deg.value,
                                                                    'outer_radius_deg': outer_radius_deg.value,
-                                                                   'annulus_area': spt_bkg_area.value}
+                                                                   'annulus_area': spt_bkg_area.value,
+                                                                   'frac_err': frac_err}
 
 with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_annulus.json', 'w') as f:
     json.dump(spt_wise_gal_data, f)

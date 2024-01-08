@@ -48,8 +48,9 @@ class ClusterInfo:
     inner_radius: u.Quantity
     outer_radius: u.Quantity
     annulus_area: u.Quantity
-    cluster_data: QTable = None
-    bkg_catalog: QTable = None
+    cluster_data: QTable
+    bkg_catalog: QTable
+    frac_err: float = None
 
 
 # Read in the SSDF catalog
@@ -110,6 +111,9 @@ for cluster_data in tqdm(spt_bkg_gal_data.values(), desc='Computing dN/dm distri
                       (ch2_bright_mag < catalog['MAG_APER_2'].value) & (catalog['MAG_APER_2'].value <= ch2_faint_mag)]
     catalog = catalog[catalog['MAG_APER_1'].value - catalog['MAG_APER_2'].value >= agn_purity_color(cluster_z)]
 
+    # Compute fractional error of the IRAC AGN within the background annulus
+    cluster_data.frac_err = np.sqrt(len(catalog)) / len(catalog)
+
     # Create histogram
     spt_bkg_dndm, _ = np.histogram(catalog['MAG_APER_2'].value, bins=magnitude_bins)
     spt_bkg_dndm_weighted = spt_bkg_dndm / dndm_weight
@@ -129,3 +133,6 @@ spt_ssdf_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.bkg_dndm, 
 
 with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_local_bkg.json', 'w') as f:
     json.dump(spt_ssdf_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)
+
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_frac_err.json', 'w') as f:
+    json.dump({cluster_name: cluster_data.frac_err for cluster_name, cluster_data in spt_bkg_gal_data.items()}, f, cls=NumpyArrayEncoder)
