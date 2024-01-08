@@ -100,7 +100,7 @@ ax.hist(wise_matches_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=
 ax.axvline(x=17.48, ls='--', c='k')
 ax.legend()
 ax.set(title='SDWFS Galaxies', xlabel='[4.5] or W2 (Vega)', ylabel='number', yscale='log')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover_matches_snr5.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover_matches_snr5.pdf')
 plt.show()
 
 #%% Plot the galaxies on the Boötes footprint
@@ -118,20 +118,23 @@ ax.scatter(wise_catalog_snr['ra'], wise_catalog_snr['dec'], marker='s', s=10, fc
 ax.legend(loc='lower left')
 ax.set(xlabel='Right Ascension', ylabel='Declination')
 plt.tight_layout()
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_footprint.png')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_footprint.png')
 plt.show()
 
 #%% Plot the magnitude differences
-fig, (ax, bx) = plt.subplots(ncols=2, sharey='row', figsize=(6.4*2, 4.8))
+i1_w1_offset = np.mean(irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'])
+i2_w2_offset = np.mean(irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'])
+fig, (ax, bx) = plt.subplots(ncols=2, figsize=(6.4*2, 4.8))
 # ax.scatter(irac_matches['I1_MAG_APER4'], irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'], marker='.')
 # bx.scatter(irac_matches['I2_MAG_APER4'], irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'], marker='.')
-sns.kdeplot(x=irac_matches['I1_MAG_APER4'], y=irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'], ax=ax)
-sns.kdeplot(x=irac_matches['I2_MAG_APER4'], y=irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'], ax=bx)
+sns.kdeplot(x=irac_matches['I1_MAG_APER4'], y=irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'] - i1_w1_offset, ax=ax)
+sns.kdeplot(x=irac_matches['I2_MAG_APER4'], y=irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'] - i2_w2_offset, ax=bx)
 ax.axhline(0.0, ls='--', c='k')
 bx.axhline(0.0, ls='--', c='k')
 ax.set(xlabel=r'[3.6 $\mu$m]', ylabel=r'[3.6 $\mu$m] - $W1$')
-bx.set(xlabel=r'[4.5 $\mu$m]', ylabel=r'[4.5 $\mu$m] - $W2$')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_diffs_cont.pdf')
+bx.set(xlabel=r'[4.5 $\mu$m]', ylabel=r'[4.5 $\mu$m] - $W2$', ylim=ax.get_ylim())
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/'
+            'SDWFS_IRAC-WISE_mag_diffs_cont_corrected.pdf')
 plt.show()
 
 #%% Plot the color differences
@@ -157,7 +160,7 @@ ax.axvline(mode_color_diff, ls='-', label=fr'${mode_color_diff:.2f}_{{-{hdi_lvls
 ax.axvspan(hdi_color_diff[0], hdi_color_diff[1], alpha=0.3)
 ax.legend()
 ax.set(xlabel=r'IRAC - WISE Colors')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_color_diffs_hist.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_color_diffs_hist.pdf')
 plt.show()
 
 #%%
@@ -166,5 +169,5 @@ fig, ax = plt.subplots()
 sns.kdeplot(x=irac_matches['I1_MAG_APER4'] - irac_matches['I2_MAG_APER4'], y=color_diff, ax=ax)
 ax.axhline(0.0, ls='--', c='k')
 ax.set(xlabel=r'[3.6 $\mu$m] - [4.5 $\mu$m]', ylabel='IRAC - WISE Colors')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_color_diffs_cont.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_color_diffs_cont.pdf')
 plt.show()
