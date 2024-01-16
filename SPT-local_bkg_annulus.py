@@ -25,6 +25,10 @@ ch1_faint_mag = 18.3  # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 
+# Set our correction factors needed to be able to use IRAC magnitude cuts
+w1_correction = -0.11 * u.mag
+w2_correction = -0.07 * u.mag
+
 # Set our background annulus ranges in terms of r200 radii
 inner_radius_factor = 3
 
@@ -33,6 +37,10 @@ spt_wise_gal_data = {}
 catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
 for catalog_name in tqdm(catalog_names, desc='Finding background annulus radii'):
     spt_wise_gal = QTable.read(catalog_name)
+
+    # Apply photometric correction factors
+    spt_wise_gal['w1mpro'] = spt_wise_gal['w1mpro'] + w1_correction
+    spt_wise_gal['w2mpro'] = spt_wise_gal['w2mpro'] + w2_correction
 
     # Select only objects within the magnitude ranges
     spt_wise_gal = spt_wise_gal[(ch1_bright_mag < spt_wise_gal['w1mpro'].value) &

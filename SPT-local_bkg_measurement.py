@@ -37,6 +37,10 @@ ch1_faint_mag = 18.3  # Faint-end 3.6 um magnitude
 ch2_bright_mag = 10.45  # Bright-end 4.5 um magnitude
 ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 
+# Set our correction factors needed to be able to use IRAC magnitude cuts
+w1_correction = -0.11 * u.mag
+w2_correction = -0.07 * u.mag
+
 # Set our magnitude binning
 mag_bin_width = 0.25
 magnitude_bins = np.arange(ch2_bright_mag, ch2_faint_mag, mag_bin_width)
@@ -74,6 +78,10 @@ catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrou
 for catalog_name in tqdm(catalog_names, desc='Processing SPT WISE Catalogs'):
     cluster_name = cluster_id.search(catalog_name).group(0)
     spt_wise_gal = QTable.read(catalog_name)
+
+    # Apply photometric correction factors
+    spt_wise_gal['w1mpro'] = spt_wise_gal['w1mpro'] + w1_correction
+    spt_wise_gal['w2mpro'] = spt_wise_gal['w2mpro'] + w2_correction
 
     # Select only objects within the magnitude ranges
     spt_wise_gal = spt_wise_gal[(ch1_bright_mag < spt_wise_gal['w1mpro'].value) &

@@ -45,12 +45,17 @@ wise_catalog_snr = wise_catalog[(wise_catalog['w1flux'] / wise_catalog['w1sigflu
 
 #%% Quick plot to check the relative magnitude turn overs
 turnover_mag_bins = np.arange(10., 20., 0.25)
-fig, ax = plt.subplots()
-ax.hist(irac_catalog_snr['I2_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
-ax.hist(wise_catalog_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
-ax.axvline(x=17.48, ls='--', c='k')
-ax.legend()
-ax.set(title='SDWFS Galaxies', xlabel='[4.5] (W2) (Vega)', ylabel='number', yscale='log')
+fig, (ax, bx) = plt.subplots(ncols=2, sharey='row', figsize=(2*6.8, 4.8))
+ax.hist(irac_catalog_snr['I1_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
+ax.hist(wise_catalog_snr['w1mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
+ax.axvline(x=18.3, ls='--', c='k')
+# ax.legend()
+ax.set(title='SDWFS Galaxies', xlabel='[3.6] (W1) (Vega)', ylabel='number', yscale='log')
+bx.hist(irac_catalog_snr['I2_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
+bx.hist(wise_catalog_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
+bx.axvline(x=17.48, ls='--', c='k')
+bx.legend()
+bx.set(title='SDWFS Galaxies', xlabel='[4.5] (W2) (Vega)', ylabel='number', yscale='log')
 # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover.pdf')
 plt.show()
 
@@ -94,12 +99,19 @@ wise_matches_snr = wise_matches[(wise_matches['w1flux'] / wise_matches['w1sigflu
                                 (wise_matches['w2flux'] / wise_matches['w2sigflux'] >= 5)]
 
 turnover_mag_bins = np.arange(10., 20., 0.25)
-fig, ax = plt.subplots()
-ax.hist(irac_matches_snr['I2_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
-ax.hist(wise_matches_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
-ax.axvline(x=17.48, ls='--', c='k')
+fig, (ax, bx) = plt.subplots(ncols=2, sharey='row', figsize=(2*6.8, 4.8))
+ax.hist(irac_matches_snr['I1_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
+ax.hist(wise_matches_snr['w1mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
+ax.axvline(x=18.3, ls='--', c='k')
 ax.legend()
-ax.set(title='SDWFS Galaxies', xlabel='[4.5] or W2 (Vega)', ylabel='number', yscale='log')
+ax.set(xlabel='[3.6] or W1 (Vega)', ylabel='number', yscale='log')
+
+bx.hist(irac_matches_snr['I2_MAG_APER4'], bins=turnover_mag_bins, label='IRAC', alpha=0.4)
+bx.hist(wise_matches_snr['w2mpro'], bins=turnover_mag_bins, label='WISE', alpha=0.4)
+bx.axvline(x=17.48, ls='--', c='k')
+bx.legend()
+bx.set(xlabel='[4.5] or W2 (Vega)', yscale='log')
+fig.suptitle('SDWFS Galaxies')
 # fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS_IRAC-WISE_mag_turnover_matches_snr5.pdf')
 plt.show()
 
@@ -122,19 +134,38 @@ plt.tight_layout()
 plt.show()
 
 #%% Plot the magnitude differences
-i1_w1_offset = np.mean(irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'])
-i2_w2_offset = np.mean(irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'])
+# Create a filter on a faint magnitude bin to compute the correction
+i1_correction_filter = (16.5 < irac_matches['I1_MAG_APER4']) & (irac_matches['I1_MAG_APER4'] <= 17.0)
+w1_correction_filter = (16.5 < wise_matches['w1mpro']) & (wise_matches['w1mpro'] <= 17.0)
+i2_correction_filter = (16.5 < irac_matches['I2_MAG_APER4']) & (irac_matches['I2_MAG_APER4'] <= 17.0)
+w2_correction_filter = (16.5 < wise_matches['w2mpro']) & (wise_matches['w2mpro'] <= 17.0)
+i1_selection_cut_filter = (ch1_bright_mag < irac_matches['I1_MAG_APER4']) & (irac_matches['I1_MAG_APER4'] <= ch1_faint_mag)
+i2_selection_cut_filter = (ch2_bright_mag < irac_matches['I2_MAG_APER4']) & (irac_matches['I2_MAG_APER4'] <= ch2_faint_mag)
+
+i1_w1_offset = np.mean(irac_matches['I1_MAG_APER4'][i1_selection_cut_filter] - wise_matches['w1mpro'][i1_selection_cut_filter])
+i2_w2_offset = np.mean(irac_matches['I2_MAG_APER4'][i2_selection_cut_filter] - wise_matches['w2mpro'][i2_selection_cut_filter])
+
 fig, (ax, bx) = plt.subplots(ncols=2, figsize=(6.4*2, 4.8))
 # ax.scatter(irac_matches['I1_MAG_APER4'], irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'], marker='.')
 # bx.scatter(irac_matches['I2_MAG_APER4'], irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'], marker='.')
-sns.kdeplot(x=irac_matches['I1_MAG_APER4'], y=irac_matches['I1_MAG_APER4'] - wise_matches['w1mpro'] - i1_w1_offset, ax=ax)
-sns.kdeplot(x=irac_matches['I2_MAG_APER4'], y=irac_matches['I2_MAG_APER4'] - wise_matches['w2mpro'] - i2_w2_offset, ax=bx)
+sns.kdeplot(x=irac_matches['I1_MAG_APER4'][i1_selection_cut_filter],
+            y=irac_matches['I1_MAG_APER4'][i1_selection_cut_filter]
+              - (wise_matches['w1mpro'][i1_selection_cut_filter] + i1_w1_offset), ax=ax)
+sns.kdeplot(x=irac_matches['I2_MAG_APER4'][i2_selection_cut_filter],
+            y=irac_matches['I2_MAG_APER4'][i2_selection_cut_filter]
+              - (wise_matches['w2mpro'][i2_selection_cut_filter] + i2_w2_offset), ax=bx)
 ax.axhline(0.0, ls='--', c='k')
 bx.axhline(0.0, ls='--', c='k')
+
+# ax.axvline(ch1_bright_mag, ls='..', c='k')
+# ax.axvline(ch1_faint_mag, ls='..', c='k')
+# bx.axvline(ch2_bright_mag, ls='..', c='k')
+# bx.axvline(ch2_faint_mag, ls='..', c='k')
+
 ax.set(xlabel=r'[3.6 $\mu$m]', ylabel=r'[3.6 $\mu$m] - $W1$')
 bx.set(xlabel=r'[4.5 $\mu$m]', ylabel=r'[4.5 $\mu$m] - $W2$', ylim=ax.get_ylim())
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/'
-            'SDWFS_IRAC-WISE_mag_diffs_cont_corrected.pdf')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/'
+#             'SDWFS_IRAC-WISE_mag_diffs_cont_selectionfilter_with_cuts.pdf')
 plt.show()
 
 #%% Plot the color differences
