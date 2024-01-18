@@ -54,7 +54,10 @@ class ClusterInfo:
 
 
 # Read in the SSDF catalog
-ssdf = QTable.read('Data_Repository/Catalogs/SSDF/SSDF2.20170125.v10.public.cat', format='ascii')
+ssdf_template = QTable.read('Data_Repository/Project_Data/SPT-IRAGN/SPTPol/catalogs/ssdf_table_template.cat',
+                           format='ascii.sextractor')
+ssdf = QTable.read('Data_Repository/Catalogs/SSDF/SSDF2.20170125.v10.public.cat', format='ascii',
+                   names=ssdf_template.colnames)
 
 # Read in the SPTpol 100d IR-AGN catalog (this way we only work on clusters that reside within the SSDF footprint)
 sptpol_iragn = QTable.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTpol_100d_IRAGN.fits')
@@ -87,6 +90,10 @@ for cluster in tqdm(sptcl_clusters, desc='Creating Background Catalogs in SSDF')
     sep = cluster_center.separation(ssdf_coords)
     background_ssdf = ssdf[(inner_radius <= sep) & (sep < outer_radius)]
 
+    # For later analysis, write the background catalogs to disk
+    background_ssdf.write('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/ssdf_irac/'
+                          f'{cluster["SPT_ID"]}_ssdf-irac_local_bkg.ecsv', overwrite=True)
+
     spt_bkg_gal_data[cluster['SPT_ID']] = ClusterInfo(inner_radius=inner_radius, outer_radius=outer_radius,
                                                       annulus_area=annulus_area, cluster_data=cluster,
                                                       bkg_catalog=background_ssdf)
@@ -107,15 +114,15 @@ for cluster_data in tqdm(spt_bkg_gal_data.values(), desc='Computing dN/dm distri
     dndm_weight = spt_bkg_area.value * mag_bin_width
 
     # Select for AGN in the SSDF catalog
-    catalog = catalog[(ch1_bright_mag < catalog['MAG_APER_1'].value) & (catalog['MAG_APER_1'].value <= ch1_faint_mag) &
-                      (ch2_bright_mag < catalog['MAG_APER_2'].value) & (catalog['MAG_APER_2'].value <= ch2_faint_mag)]
-    catalog = catalog[catalog['MAG_APER_1'].value - catalog['MAG_APER_2'].value >= agn_purity_color(cluster_z)]
+    catalog = catalog[(ch1_bright_mag < catalog['I1_MAG_APER4'].value) & (catalog['I1_MAG_APER4'].value <= ch1_faint_mag) &
+                      (ch2_bright_mag < catalog['I2_MAG_APER4'].value) & (catalog['I2_MAG_APER4'].value <= ch2_faint_mag)]
+    catalog = catalog[catalog['I1_MAG_APER4'].value - catalog['I2_MAG_APER4'].value >= agn_purity_color(cluster_z)]
 
     # Compute fractional error of the IRAC AGN within the background annulus
     cluster_data.frac_err = np.sqrt(len(catalog)) / len(catalog)
 
     # Create histogram
-    spt_bkg_dndm, _ = np.histogram(catalog['MAG_APER_2'].value, bins=magnitude_bins)
+    spt_bkg_dndm, _ = np.histogram(catalog['I2_MAG_APER4'].value, bins=magnitude_bins)
     spt_bkg_dndm_weighted = spt_bkg_dndm / dndm_weight
 
     # Compute the errors
@@ -131,8 +138,9 @@ spt_ssdf_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.bkg_dndm, 
                                    for cluster_name, cluster_data in tqdm(spt_bkg_gal_data.items(),
                                                                           desc='Integrating SSDF dN/dm')}
 
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_local_bkg.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_local_bkg_fixed_cols.json', 'w') as f:
     json.dump(spt_ssdf_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)
 
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_frac_err.json', 'w') as f:
-    json.dump({cluster_name: cluster_data.frac_err for cluster_name, cluster_data in spt_bkg_gal_data.items()}, f, cls=NumpyArrayEncoder)
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_frac_err_fixed_cols.json', 'w') as f:
+    json.dump({cluster_name: cluster_data.frac_err for cluster_name, cluster_data in spt_bkg_gal_data.items()}, f,
+              cls=NumpyArrayEncoder)
