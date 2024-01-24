@@ -22,7 +22,9 @@ from astro_compendium.utils.json_helpers import NumpyArrayEncoder
 from astro_compendium.utils.small_poisson import small_poisson
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
-from astropy.table import QTable
+from astropy.io import fits
+from astropy.table import QTable, Table
+from astropy.wcs import WCS
 from scipy.integrate import simpson
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
@@ -104,11 +106,45 @@ for catalog_name in tqdm(catalog_names, desc='Processing SPT WISE Catalogs'):
 
     spt_wise_gal_data[cluster_name] = ClusterInfo(catalog=spt_wise_gal, annulus_area=spt_bkg_area)
 
+# Read in the SDWFS WISE galaxy catalog
+sdwfs_wise_gal = Table.read('Data_Repository/Catalogs/Bootes/SDWFS/SDWFS_catWISE.ecsv')
+
+# Read in the SDWFS mask image and WCS
+sdwfs_mask_img, sdwfs_mask_hdr = fits.getdata('Data_Repository/Project_Data/SPT-IRAGN/Masks/SDWFS/'
+                                              'SDWFS_full-field_cov_mask11_11.fits', header=True)
+sdwfs_wcs = WCS(sdwfs_mask_hdr)
+
+# Determine the area of the mask
+sdwfs_area = np.count_nonzero(sdwfs_mask_img) * sdwfs_wcs.proj_plane_pixel_area()
+
+# Convert the mask image into a boolean mask
+sdwfs_mask_img = sdwfs_mask_img.astype(bool)
+
+xy_coords = np.array(sdwfs_wcs.world_to_array_index(SkyCoord(sdwfs_wise_gal['ra'], sdwfs_wise_gal['dec'],
+                                                             unit=u.deg)))
+
+# Filter the WISE galaxies using the mask
+sdwfs_wise_gal = sdwfs_wise_gal[sdwfs_mask_img[*xy_coords]]
+
+# Select the WISE galaxies within our selection magnitudes
+sdwfs_wise_gal = sdwfs_wise_gal[(ch1_bright_mag < sdwfs_wise_gal['w1mpro']) &
+                                (sdwfs_wise_gal['w1mpro'] <= ch1_faint_mag) &
+                                (ch2_bright_mag < sdwfs_wise_gal['w2mpro']) &
+                                (sdwfs_wise_gal['w2mpro'] <= ch2_faint_mag)]
+
+# Create histogram for the WISE galaxies
+sdwfs_wise_gal_dn_dm, _ = np.histogram(sdwfs_wise_gal['w2mpro'], bins=magnitude_bins)
+sdwfs_wise_gal_dn_dm_weighted = sdwfs_wise_gal_dn_dm / (sdwfs_area.value * mag_bin_width)
+
+# Compute the WISE galaxy errors
+wise_gal_dn_dm_err = tuple(err / (sdwfs_area.value * mag_bin_width)
+                           for err in small_poisson(sdwfs_wise_gal_dn_dm))[::-1]
+
 # Read in the SDWFS WISE galaxy--IRAC AGN scaling factor data
 with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
           'SDWFS_WISEgal-IRACagn_scaling_factors.json', 'r') as f:
-    sdwfs_scaling_data = json.load(f)
-for d in sdwfs_scaling_data.values():
+    sdwfs_wise_irac_scaling_data = json.load(f)
+for d in sdwfs_wise_irac_scaling_data.values():
     for k, v in d.items():
         d[k] = np.array(v)
 
@@ -119,11 +155,14 @@ z_bins = sdwfs_purity_data['redshift_bins'][:-1]
 agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
 
 # Compute the number count distribution of the WISE galaxies in the SPT background annulus
+local_wise_sdwfs_wise_scaling = {}
 for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Computing dN/dm distributions'):
     catalog = cluster_data.catalog
     spt_bkg_area = cluster_data.annulus_area
+
+    # Pull the appropriate SDWFS WISE galaxy--SDWFS IRAC AGN scaling factors
     selection_color = agn_purity_color(catalog["REDSHIFT"][0])
-    scaling_factors = sdwfs_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['scaling_frac']
+    sdwfs_wise_to_irac_scaling_factors = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['scaling_frac']
 
     # Calculate our weighting factor
     dndm_weight = spt_bkg_area.value * mag_bin_width
@@ -138,8 +177,17 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Computing dN/dm distr
     # Determine the fractional error
     spt_wise_frac_err = spt_wise_dndm_err / spt_wise_dndm_weighted
 
+    # Compute the local WISE galaxy--SDWFS WISE galaxy scaling factors
+    local_to_sdwfs_wise_scaling_factors = sdwfs_wise_gal_dn_dm_weighted / spt_wise_dndm_weighted
+
+    # record the scaling factors
+    local_wise_sdwfs_wise_scaling[catalog['SPT_ID'][0]] = local_to_sdwfs_wise_scaling_factors
+
+    # Combine the two scaling factors to get the total scaling factor
+    total_scaling_factors = local_to_sdwfs_wise_scaling_factors * sdwfs_wise_to_irac_scaling_factors
+
     # Scale the number count distributions to the IRAC AGN levels
-    spt_wise_dndm_scaled = spt_wise_dndm_weighted * scaling_factors
+    spt_wise_dndm_scaled = spt_wise_dndm_weighted * total_scaling_factors
 
     # Fix the errors using a constant fractional error
     spt_wise_dndm_scaled_err = spt_wise_dndm_scaled * spt_wise_frac_err
@@ -149,8 +197,13 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Computing dN/dm distr
     cluster_data.wise_scaled_dndm_err = spt_wise_dndm_scaled_err
 
     # Also store the associated SDWFS number count distribution and errors
-    cluster_data.sdwfs_irac_dndm = sdwfs_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['hist']
-    cluster_data.sdwfs_irac_dndm_err = sdwfs_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['err']
+    cluster_data.sdwfs_irac_dndm = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['hist']
+    cluster_data.sdwfs_irac_dndm_err = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['err']
+
+# Store the scaling factors
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+          'SPT_WISEgal-SDWFS_WISEgal_scaling_factors.json', 'w') as f:
+    json.dump(local_wise_sdwfs_wise_scaling, f, cls=NumpyArrayEncoder)
 
 # For each cluster, renormalize the SDWFS number count distribution to match the scaled WISE galaxy level
 for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Renormalizing SDWFS dN/dm to local levels'):
@@ -168,8 +221,8 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Renormalizing SDWFS d
 
     # NaNs can show up in errors if the counts in a bin were 0
     # We want to handle this by setting the error to a large number so that it does not contribute to the fit
-    np.nan_to_num(spt_dndm_symerr_narrow, nan=1e64, copy=False)
-    np.nan_to_num(spt_dndm_symerr_narrow, nan=1e64, copy=False)
+    np.nan_to_num(spt_dndm_symerr_narrow, nan=1e64, posinf=1e64, neginf=-1e64, copy=False)
+    np.nan_to_num(spt_dndm_symerr_narrow, nan=1e64, posinf=1e64, neginf=-1e64, copy=False)
 
     # For our model fitting we will use errors that combine the two sources together
     combined_errors = np.sqrt(spt_dndm_symerr_narrow ** 2 + sdwfs_dndm_symerr_narrow ** 2)

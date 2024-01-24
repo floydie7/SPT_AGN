@@ -17,6 +17,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.table import QTable, vstack, join
 from astropy.wcs import WCS
+from scipy.interpolate import interp1d
 from tqdm import tqdm
 from tqdm.contrib import tzip
 
@@ -37,6 +38,12 @@ w2_correction = -0.07
 mag_bin_width = 0.25
 magnitude_bins = np.arange(ch2_bright_mag, ch2_faint_mag, mag_bin_width)
 magnitude_bin_centers = magnitude_bins[:-1] + np.diff(magnitude_bins) / 2
+
+# Read in the color threshold--redshift relations
+with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/SDWFS_purity_color_4.5_17.48.json', 'r') as f:
+    sdwfs_purity_data = json.load(f)
+z_bins = sdwfs_purity_data['redshift_bins'][:-1]
+agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
 
 # Read in the annulus information that we previously calculated
 with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_annulus.json', 'r') as f:
@@ -147,6 +154,12 @@ sdwfs_wise_gals = sdwfs_wise_gals[(ch1_bright_mag < sdwfs_wise_gals['w1mpro'].va
                                   (sdwfs_wise_gals['w1mpro'].value <= ch1_faint_mag) &
                                   (ch2_bright_mag < sdwfs_wise_gals['w2mpro'].value) &
                                   (sdwfs_wise_gals['w2mpro'].value <= ch2_faint_mag)]
+#%%
+sdwfs_wise_agn = sdwfs_wise_gals[sdwfs_wise_gals['w1mpro'].value - sdwfs_wise_gals['w2mpro'].value >= agn_purity_color(0.8)]
+sdwfs_irac_agn = sdwfs_irac_gals[sdwfs_irac_gals['I1_MAG_APER4'] - sdwfs_irac_gals['I2_MAG_APER4'] >= agn_purity_color(0.8)]
+ssdf_wise_agn = ssdf_wise_gals[ssdf_wise_gals['w1mpro'].value - ssdf_wise_gals['w2mpro'].value >= agn_purity_color(0.8)]
+ssdf_irac_agn = ssdf_irac_gals[ssdf_irac_gals['I1_MAG_APER4'] - ssdf_irac_gals['I2_MAG_APER4'] >= agn_purity_color(0.8)]
+
 
 # We will need the total areas for both of the fields used
 ssdf_area = np.sum([data['annulus_area'] for data in spt_wise_annuli_data.values()]) * u.deg**2
@@ -169,12 +182,30 @@ sdwfs_irac_dndm_weighted = sdwfs_irac_dndm / sdwfs_dndm_weight
 sdwfs_wise_dndm, _ = np.histogram(sdwfs_wise_gals['w2mpro'].value, bins=magnitude_bins)
 sdwfs_wise_dndm_weighted = sdwfs_wise_dndm / sdwfs_dndm_weight
 
+sdwfs_wise_agn_dndm, _ = np.histogram(sdwfs_wise_agn['w2mpro'].value, bins=magnitude_bins)
+sdwfs_wise_agn_dndm_weighted = sdwfs_wise_agn_dndm / sdwfs_dndm_weight
+
+sdwfs_irac_agn_dndm, _ = np.histogram(sdwfs_irac_agn['I2_MAG_APER4'], bins=magnitude_bins)
+sdwfs_irac_agn_dndm_weighted = sdwfs_irac_agn_dndm / sdwfs_dndm_weight
+
+ssdf_wise_agn_dndm, _ = np.histogram(ssdf_wise_agn['w2mpro'].value, bins=magnitude_bins)
+ssdf_wise_agn_dndm_weighted = ssdf_wise_agn_dndm / ssdf_dndm_weight
+
+ssdf_irac_agn_dndm, _ = np.histogram(ssdf_irac_agn['I2_MAG_APER4'], bins=magnitude_bins)
+ssdf_irac_agn_dndm_weighted = ssdf_irac_agn_dndm / ssdf_dndm_weight
+
 # Calculate the errors
 ssdf_irac_dndm_err = np.sqrt(ssdf_irac_dndm) / ssdf_dndm_weight
 ssdf_wise_dndm_err = np.sqrt(sdwfs_wise_dndm) / ssdf_dndm_weight
 
 sdwfs_irac_dndm_err = np.sqrt(sdwfs_irac_dndm) / sdwfs_dndm_weight
 sdwfs_wise_dndm_err = np.sqrt(sdwfs_wise_dndm) / sdwfs_dndm_weight
+
+sdwfs_irac_agn_dndm_err = np.sqrt(sdwfs_irac_agn_dndm) / sdwfs_dndm_weight
+sdwfs_wise_agn_dndm_err = np.sqrt(sdwfs_wise_agn_dndm) / sdwfs_dndm_weight
+
+ssdf_irac_agn_dndm_err = np.sqrt(ssdf_irac_agn_dndm) / ssdf_dndm_weight
+ssdf_wise_agn_dndm_err = np.sqrt(ssdf_wise_agn_dndm) / ssdf_dndm_weight
 
 #%% Make the plot
 fig, ax = plt.subplots()
@@ -186,8 +217,50 @@ ax.errorbar(magnitude_bin_centers, sdwfs_irac_dndm_weighted, yerr=sdwfs_irac_dnd
             c='tab:blue', label='SDWFS IRAC')
 ax.errorbar(magnitude_bin_centers, sdwfs_wise_dndm_weighted, yerr=ssdf_irac_dndm_err, xerr=mag_bin_width/2, fmt='o',
             c='tab:orange', label='SDWFS WISE')
+
+ax.errorbar(magnitude_bin_centers, ssdf_irac_agn_dndm_weighted, yerr=ssdf_irac_agn_dndm_err, xerr=mag_bin_width/2,
+            fmt='^', mfc='none', c='tab:blue', label='SSDF IRAC AGN')
+# ax.errorbar(magnitude_bin_centers, ssdf_wise_agn_dndm_weighted, yerr=ssdf_wise_agn_dndm_err, xerr=mag_bin_width/2,
+#             fmt='^', mfc='none', c='tab:orange', label='SSDF WISE AGN')
+ax.errorbar(magnitude_bin_centers, sdwfs_irac_agn_dndm_weighted, yerr=sdwfs_irac_agn_dndm_err, xerr=mag_bin_width/2,
+            fmt='^', c='tab:blue', label='SDWFS IRAC AGN')
+# ax.errorbar(magnitude_bin_centers, sdwfs_wise_agn_dndm_weighted, yerr=sdwfs_wise_agn_dndm_err, xerr=mag_bin_width/2,
+#             fmt='^', c='tab:orange', label='SDWFS WISE AGN')
 ax.legend()
-ax.set(title='Field Galaxy Distributions', xlabel='[3.6] or W2 (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$]',
+ax.set(title='Field Galaxy Distributions', xlabel='[4.5] or W2 (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$]',
        yscale='log')
-fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/SDWFS-SSDF_IRAC-WISE_galaxy_dndm.pdf')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/'
+            'SDWFS-SSDF_IRAC-WISE_galaxy_dndm_agn.pdf')
+plt.show()
+
+#%%
+fig, ax = plt.subplots()
+ax.errorbar(magnitude_bin_centers, sdwfs_irac_agn_dndm_weighted / sdwfs_irac_dndm_weighted, fmt='o', c='tab:blue',
+            label='SDWFS (IRAC AGN / IRAC galaxies)')
+ax.errorbar(magnitude_bin_centers, sdwfs_irac_agn_dndm_weighted / sdwfs_wise_dndm_weighted, fmt='o', c='tab:orange',
+            label='SDWFS (IRAC AGN / WISE galaxies)')
+ax.errorbar(magnitude_bin_centers, ssdf_irac_agn_dndm_weighted / ssdf_irac_dndm_weighted, fmt='o', c='tab:blue',
+            mfc='none', label='SSDF (IRAC AGN / IRAC galaxies)')
+ax.errorbar(magnitude_bin_centers, ssdf_irac_agn_dndm_weighted / ssdf_wise_dndm_weighted, fmt='o', c='tab:orange',
+            mfc='none', label='SSDF (IRAC AGN / WISE galaxies)')
+ax.legend()
+ax.set(xlabel='[4.5] or W2 (Vega)', ylabel=r'$(dN/dm)_\text{AGN}\ / \ (dN/dm)_\text{gal}$ ', yscale='log')
+fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/'
+            'SDWFS-SSDF_IRAC-WISE_gal-agn_scaling_factors.pdf')
+plt.show()
+
+#%%
+fig, ax = plt.subplots()
+ax.errorbar(magnitude_bin_centers, sdwfs_irac_agn_dndm_weighted / sdwfs_irac_dndm_weighted, fmt='o', c='tab:blue',
+            label='SDWFS (IRAC AGN / IRAC galaxies)')
+ax.errorbar(magnitude_bin_centers, sdwfs_irac_agn_dndm_weighted / ssdf_wise_dndm_weighted, fmt='o', c='tab:orange',
+            label='SDWFS IRAC AGN / SSDF WISE galaxies')
+ax.errorbar(magnitude_bin_centers, sdwfs_irac_agn_dndm_weighted / ssdf_irac_dndm_weighted, fmt='o', c='tab:blue',
+            mfc='none', label='SDWFS IRAC AGN / SSDF IRAC galaxies')
+# ax.errorbar(magnitude_bin_centers, ssdf_irac_agn_dndm_weighted / ssdf_wise_dndm_weighted, fmt='o', c='tab:orange',
+#             mfc='none', label='SSDF (IRAC AGN / WISE galaxies)')
+ax.legend()
+ax.set(xlabel='[4.5] or W2 (Vega)', ylabel=r'$(dN/dm)_\text{AGN}\ / \ (dN/dm)_\text{gal}$ ', yscale='log')
+# fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/plots/SDWFS/'
+#             'SDWFS-SSDF_IRAC-WISE_gal-agn_scaling_factors.pdf')
 plt.show()
