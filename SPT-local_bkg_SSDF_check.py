@@ -16,7 +16,7 @@ from astro_compendium.utils.json_helpers import NumpyArrayEncoder
 from astro_compendium.utils.small_poisson import small_poisson
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
-from astropy.table import QTable, vstack
+from astropy.table import QTable, vstack, setdiff
 from colossus.cosmology import cosmology
 from scipy.integrate import simpson
 from scipy.interpolate import interp1d
@@ -55,9 +55,20 @@ class ClusterInfo:
 
 # Read in the SSDF catalog
 ssdf_template = QTable.read('Data_Repository/Project_Data/SPT-IRAGN/SPTPol/catalogs/ssdf_table_template.cat',
-                           format='ascii.sextractor')
+                            format='ascii.sextractor')
 ssdf = QTable.read('Data_Repository/Catalogs/SSDF/SSDF2.20170125.v10.public.cat', format='ascii',
                    names=ssdf_template.colnames)
+
+# Read in the Gaia catalog in SSDF
+ssdf_gaia = QTable.read('Data_Repository/Catalogs/SSDF/SSDF_Gaia_sources.fits')
+ssdf_gaia = ssdf_gaia[~(ssdf_gaia['in_qso_candidates'].astype(bool) | ssdf_gaia['in_galaxy_candidates'].astype(bool))]
+
+# Remove stars from the IRAC catalog
+ssdf_coords = SkyCoord(ssdf['ALPHA_J2000'], ssdf['DELTA_J2000'], unit=u.deg)
+ssdf_gaia_coords = SkyCoord(ssdf_gaia['ra'], ssdf_gaia['dec'], unit=u.deg)
+ssdf_idx, ssdf_sep, _ = ssdf_gaia_coords.match_to_catalog_sky(ssdf_coords)
+ssdf_stars = ssdf[ssdf_idx[ssdf_sep < 1 * u.arcsec]]
+ssdf = setdiff(ssdf, ssdf_stars)
 
 # Read in the SPTpol 100d IR-AGN catalog (this way we only work on clusters that reside within the SSDF footprint)
 sptpol_iragn = QTable.read('Data_Repository/Project_Data/SPT-IRAGN/Output/SPTpol_100d_IRAGN.fits')
@@ -114,8 +125,9 @@ for cluster_data in tqdm(spt_bkg_gal_data.values(), desc='Computing dN/dm distri
     dndm_weight = spt_bkg_area.value * mag_bin_width
 
     # Select for AGN in the SSDF catalog
-    catalog = catalog[(ch1_bright_mag < catalog['I1_MAG_APER4'].value) & (catalog['I1_MAG_APER4'].value <= ch1_faint_mag) &
-                      (ch2_bright_mag < catalog['I2_MAG_APER4'].value) & (catalog['I2_MAG_APER4'].value <= ch2_faint_mag)]
+    catalog = catalog[
+        (ch1_bright_mag < catalog['I1_MAG_APER4'].value) & (catalog['I1_MAG_APER4'].value <= ch1_faint_mag) &
+        (ch2_bright_mag < catalog['I2_MAG_APER4'].value) & (catalog['I2_MAG_APER4'].value <= ch2_faint_mag)]
     catalog = catalog[catalog['I1_MAG_APER4'].value - catalog['I2_MAG_APER4'].value >= agn_purity_color(cluster_z)]
 
     # Compute fractional error of the IRAC AGN within the background annulus
@@ -138,9 +150,9 @@ spt_ssdf_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.bkg_dndm, 
                                    for cluster_name, cluster_data in tqdm(spt_bkg_gal_data.items(),
                                                                           desc='Integrating SSDF dN/dm')}
 
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_local_bkg_fixed_cols.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_local_bkg_no_stars.json', 'w') as f:
     json.dump(spt_ssdf_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)
 
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_frac_err_fixed_cols.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPT-SSDF_frac_err_no_stars.json', 'w') as f:
     json.dump({cluster_name: cluster_data.frac_err for cluster_name, cluster_data in spt_bkg_gal_data.items()}, f,
               cls=NumpyArrayEncoder)

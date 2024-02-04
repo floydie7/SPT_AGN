@@ -8,12 +8,13 @@ determined iteratively for each cluster until the Poisson fractional error is ap
 import glob
 import json
 import re
+from itertools import groupby
 
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
-from astropy.table import QTable
+from astropy.table import QTable, setdiff
 from tqdm import tqdm
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
@@ -34,9 +35,20 @@ inner_radius_factor = 3
 
 # Read in and process the SPT WISE galaxy catalogs
 spt_wise_gal_data = {}
-catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
-for catalog_name in tqdm(catalog_names, desc='Finding background annulus radii'):
-    spt_wise_gal = QTable.read(catalog_name)
+wise_catalog_names = glob.glob(
+    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
+gaia_catalog_names = glob.glob(
+    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
+catalog_names = sorted([*wise_catalog_names, *gaia_catalog_names], key=lambda s: cluster_id.search(s).group(0))
+catalog_names = {cluster_name: list(names)
+                 for cluster_name, names in groupby(catalog_names, key=lambda s: cluster_id.search(s).group(0))}
+
+for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.items(),
+                                                                 desc='Finding background annulus radii'):
+    spt_wise_gal = QTable.read(wise_catalog_name)
+    spt_gaia_cat = QTable.read(gaia_catalog_name)
+    spt_gaia_stars = spt_gaia_cat[~((spt_gaia_cat['in_qso_candidates'].astype(bool)) |
+                                    (spt_gaia_cat['in_galaxy_candidates'].astype(bool)))]
 
     # Apply photometric correction factors
     spt_wise_gal['w1mpro'] = spt_wise_gal['w1mpro'] + w1_correction
@@ -50,6 +62,14 @@ for catalog_name in tqdm(catalog_names, desc='Finding background annulus radii')
 
     # Excise the cluster and only select objects in our chosen annulus
     spt_wise_gal_cluster_coord = SkyCoord(spt_wise_gal['SZ_RA'][0], spt_wise_gal['SZ_DEC'][0], unit=u.deg)
+    spt_wise_gal_coords = SkyCoord(spt_wise_gal['ra'], spt_wise_gal['dec'], unit=u.deg)
+    spt_gaia_star_coords = SkyCoord(spt_gaia_stars['ra'], spt_gaia_stars['dec'], unit=u.deg)
+
+    # Remove stars
+    spt_wise_gal_idx, spt_wise_gal_sep, _ = spt_gaia_star_coords.match_to_catalog_sky(spt_wise_gal_coords)
+    spt_wise_stars = spt_wise_gal[spt_wise_gal_idx[spt_wise_gal_sep < 1 * u.arcsec]]
+    spt_wise_gal = setdiff(spt_wise_gal, spt_wise_stars, keys=['ra', 'dec'])
+
     spt_wise_gal_coords = SkyCoord(spt_wise_gal['ra'], spt_wise_gal['dec'], unit=u.deg)
     spt_wise_gal_sep_deg = spt_wise_gal_cluster_coord.separation(spt_wise_gal_coords)
 
@@ -69,10 +89,10 @@ for catalog_name in tqdm(catalog_names, desc='Finding background annulus radii')
     # Also compute the annulus area
     spt_bkg_area = np.pi * (outer_radius_deg ** 2 - inner_radius_deg ** 2)
 
-    spt_wise_gal_data[cluster_id.search(catalog_name).group(0)] = {'inner_radius_deg': inner_radius_deg.value,
-                                                                   'outer_radius_deg': outer_radius_deg.value,
-                                                                   'annulus_area': spt_bkg_area.value,
-                                                                   'frac_err': frac_err}
+    spt_wise_gal_data[cluster_name] = {'inner_radius_deg': inner_radius_deg.value,
+                                       'outer_radius_deg': outer_radius_deg.value,
+                                       'annulus_area': spt_bkg_area.value,
+                                       'frac_err': frac_err}
 
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_annulus.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_annulus_no_stars.json', 'w') as f:
     json.dump(spt_wise_gal_data, f)
