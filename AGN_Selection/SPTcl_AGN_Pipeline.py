@@ -16,7 +16,8 @@ from AGN_Selection.Pipeline_functions import SelectIRAGN
 
 # Define directories
 # prefix = '/Users/btfkwd/PycharmProjects/SPT_AGN/'
-prefix = '/home/ben-work/PycharmProjects/SPT_AGN/'
+# prefix = '/home/ben-work/PycharmProjects/SPT_AGN/'
+prefix = '/home/ben/PycharmProjects/SPT_AGN/'
 
 # SPT-SZ Directories
 spt_sz_catalog_directory = f'{prefix}Data_Repository/Catalogs/SPT/Spitzer_catalogs/SPT-SZ_2500d'
@@ -30,19 +31,27 @@ sptpol_image_directory = f'{prefix}Data_Repository/Images/SPT/Spitzer_IRAC/SPTpo
 sptpol_regions_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Regions/SPTpol_100d'
 sptpol_masks_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SPTpol_100d'
 
+# Gaia stellar catalog directory
+gaia_catalog_directory = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia'
+
 # SDWFS 90% AGN purity color-redshift file (for color selection thresholds)
-sdwfs_purity_color_threshold = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/' \
-                               f'SDWFS_purity_color_4.5_17.48.json'
+sdwfs_purity_color_threshold = (f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+                                f'SDWFS_purity_color_4.5_17.48.json')
 
 # Polletta QSO2 SED used for computing the J-band absolute magnitudes
 polletta_qso2 = SourceSpectrum.from_file(f'{prefix}Data_Repository/SEDs/Polletta-SWIRE/QSO2_template_norm.sed',
                                          wave_unit=u.Angstrom, flux_unit=units.FLAM)
 
 # Completeness simulation results files
-spt_sz_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPT-SZ_2500d/Results/' \
-                                  f'SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
-sptpol_completeness_sim_results = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPTpol_100d/Results/' \
-                                  f'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json'
+spt_sz_completeness_sim_results = (f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPT-SZ_2500d/Results/'
+                                   f'SPTSZ_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json')
+sptpol_completeness_sim_results = (f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Comp_Sim/SPTpol_100d/Results/'
+                                   f'SPTpol_I2_results_gaussian_fwhm2.02_corr-0.11_mag0.2.json')
+
+# K-correction files
+irac_filter = f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt'
+j_band_filter = (f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
+                 f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
 
 # Clusters to manually exclude
 spt_sz_clusters_to_exclude = {'SPT-CLJ0045-5757', 'SPT-CLJ0201-6051', 'SPT-CLJ0230-4427', 'SPT-CLJ0456-5623',
@@ -73,10 +82,10 @@ ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 spt_column_names = ['REDSHIFT', 'REDSHIFT_UNC', 'M500', 'M500_uerr', 'M500_lerr']
 
 # Output catalog file name
-sptsz_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPT-SZ_2500d_IRAGN.fits'
-sptpol_output_catalog = f'{prefix}Data_Repository/Project_data/SPT-IRAGN/Output/SPTpol_100d_IRAGN.fits'
-sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN.fits'
-sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse.fits'
+sptsz_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPT-SZ_2500d_IRAGN_no-stars.fits'
+sptpol_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTpol_100d_IRAGN_no-stars.fits'
+sptcl_std_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_no-stars.fits'
+sptcl_inv_output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SPTcl_IRAGN_inverse_no-stars.fits'
 
 # Requested columns for output catalog
 output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000', 'RADIAL_SEP_ARCMIN',
@@ -118,13 +127,13 @@ spt_sz_selector_start_time = time()
 # Initialize the SPT-SZ selector
 spt_sz_selector = SelectIRAGN(sextractor_cat_dir=spt_sz_catalog_directory, irac_image_dir=spt_sz_image_directory,
                               region_file_dir=spt_sz_regions_directory, mask_dir=spt_sz_masks_directory,
+                              gaia_cat_dir=gaia_catalog_directory,
                               spt_catalog=SPTcl,
                               completeness_file=spt_sz_completeness_sim_results,
                               purity_color_threshold_file=sdwfs_purity_color_threshold,
                               sed=polletta_qso2,
-                              irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
-                              j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
-                                            f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
+                              irac_filter=irac_filter,
+                              j_band_filter=j_band_filter)
 
 # Run the SPT-SZ pipeline and store the catalog for later
 spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
@@ -145,13 +154,13 @@ sptpol_selector_start_time = time()
 # Initialize the SPTpol 100d selector
 sptpol_selector = SelectIRAGN(sextractor_cat_dir=sptpol_catalog_directory, irac_image_dir=sptpol_image_directory,
                               region_file_dir=sptpol_regions_directory, mask_dir=sptpol_masks_directory,
+                              gaia_cat_dir=gaia_catalog_directory,
                               spt_catalog=SPTcl,
                               completeness_file=sptpol_completeness_sim_results,
                               purity_color_threshold_file=sdwfs_purity_color_threshold,
                               sed=polletta_qso2,
-                              irac_filter=f'{prefix}Data_Repository/filter_curves/Spitzer_IRAC/080924ch1trans_full.txt',
-                              j_band_filter=f'{prefix}Data_Repository/filter_curves/KPNO/KPNO_2.1m/FLAMINGOS/'
-                                            f'FLAMINGOS.BARR.J.MAN240.ColdWitness.txt')
+                              irac_filter=irac_filter,
+                              j_band_filter=j_band_filter)
 
 # Run the SPTpol pipeline and store the catalog for later
 sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,

@@ -20,7 +20,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord, Angle
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
-from astropy.table import Table, unique, vstack, join
+from astropy.table import Table, unique, vstack, join, setdiff
 from astropy.units import Quantity
 from astropy.utils.exceptions import AstropyWarning  # For suppressing the astropy warnings.
 from astropy.wcs import WCS
@@ -88,6 +88,7 @@ class SelectIRAGN:
                  irac_image_dir: str | pl_Path | list[str | pl_Path] | None,
                  region_file_dir: str | pl_Path | None,
                  mask_dir: str | pl_Path,
+                 gaia_cat_dir: str | pl_Path,
                  spt_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
                  purity_color_threshold_file: str | pl_Path | None,
@@ -100,6 +101,7 @@ class SelectIRAGN:
         self._irac_image_dir = irac_image_dir
         self._region_file_dir = region_file_dir
         self._mask_dir = mask_dir
+        self._gaia_dir = gaia_cat_dir
 
         # Official SPT cluster catalog table
         self._spt_catalog = spt_catalog
@@ -478,7 +480,7 @@ class SelectIRAGN:
         clusters_to_remove = []
         for cluster_id, cluster_info in self._catalog_dictionary.items():
             # Read in the catalog
-            se_catalog = Table.read(cluster_info.se_catalog_path, format='ascii', names=colnames)
+            se_catalog = Table.read(cluster_info.se_catalog_path, format='ascii', guess=True)
 
             # Add the mask name to the catalog. Extracting only the system agnostic portion of the path
             se_catalog['MASK_NAME'] = re.search(r'Data_Repository/.*?\Z', str(cluster_info.mask_path)).group(0)
@@ -619,6 +621,42 @@ class SelectIRAGN:
         # Remove any cluster that has no objects surviving our selection cuts
         for cluster_id in clusters_to_remove:
             self._catalog_dictionary.pop(cluster_id, None)
+
+        return self
+
+    def remove_stars(self) -> Self:
+        """
+        Uses the provided stellar catalog to remove any stellar contamination from the catalog.
+
+        This relies on a catalog to be obtained from Gaia covering the entire IRAC field of view.
+        """
+
+        for cluster_info in self._catalog_dictionary.values():
+            # Retrieve the Source Extractor catalog
+            se_catalog = cluster_info.catalog
+
+            # We need the true SPT-ID of the cluster for the Gaia catalog lookup
+            spt_id = self._spt_catalog['SPT_ID'][cluster_info.spt_catalog_idx]
+
+            # Read in the Gaia catalog
+            gaia_cat_name = pl_Path(f'{self._gaia_dir}/{spt_id}_bkgs_gaia.fits')
+            gaia_cat = Table.read(gaia_cat_name)
+
+            # Ensure that the catalog only has stars
+            gaia_cat = gaia_cat[~(gaia_cat['in_qso_candidates'] | gaia_cat['in_galaxy_candidates'])]
+
+            # Match the Gaia sources to the IRAC catalog
+            gaia_coords = SkyCoord(gaia_cat['ra'], gaia_cat['dec'], unit=u.deg)
+            irac_coords = SkyCoord(se_catalog['ALPHA_J2000'], se_catalog['DELTA_J2000'], unit=u.deg)
+
+            irac_idx, sep, _ = gaia_coords.match_to_catalog_sky(irac_coords)
+            irac_stars = se_catalog[irac_idx[sep <= 1 * u.arcsec]]
+
+            # Clean the catalog by removing the identified stars
+            se_catalog = setdiff(se_catalog, irac_stars)
+
+            # Store the cleaned catalog in our data structure
+            cluster_info.catalog = se_catalog
 
         return self
 
@@ -884,6 +922,7 @@ class SelectIRAGN:
                          .object_selection(ch1_bright_mag=ch1_bright_mag, ch2_bright_mag=ch2_bright_mag,
                                            ch1_faint_mag=ch1_faint_mag,
                                            selection_band_faint_mag=selection_band_faint_mag)
+                         .remove_stars()
                          .selection_membership(color_threshold=ch1_ch2_color)
                          .j_band_abs_mag()
                          .catalog_merge(catalog_cols=spt_colnames)
@@ -919,6 +958,7 @@ class SelectSDWFS(SelectIRAGN):
                  irac_image_dir: str | pl_Path | list[str | pl_Path] | None,
                  region_file_dir: str | pl_Path | list[str | pl_Path] | None,
                  mask_dir: str | pl_Path,
+                 gaia_cat_dir: str | pl_Path,
                  sdwfs_master_catalog: Table,
                  purity_color_threshold_file: str | pl_Path,
                  completeness_file: str | pl_Path | list[str | pl_Path],
@@ -929,6 +969,7 @@ class SelectSDWFS(SelectIRAGN):
                          irac_image_dir=irac_image_dir,
                          region_file_dir=region_file_dir,
                          mask_dir=mask_dir,
+                         gaia_cat_dir=gaia_cat_dir,
                          spt_catalog=sdwfs_master_catalog,
                          completeness_file=completeness_file,
                          purity_color_threshold_file=purity_color_threshold_file,
@@ -992,6 +1033,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                  irac_images: list[str | pl_Path],
                  object_mask: str | pl_Path,
                  mask_dir: str | pl_Path,
+                 gaia_cat_dir: str | pl_Path,
                  photoz_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
                  purity_color_threshold_file: str | pl_Path,
@@ -1002,6 +1044,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                          irac_image_dir=None,
                          region_file_dir=None,
                          mask_dir=mask_dir,
+                         gaia_cat_dir=gaia_cat_dir,
                          sdwfs_master_catalog=photoz_catalog,
                          purity_color_threshold_file=purity_color_threshold_file,
                          completeness_file=completeness_file,
@@ -1158,6 +1201,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                          .good_pixel_mask(ch1_min_cov, ch2_min_cov)
                          .object_selection(ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag,
                                            colnames=photo_cat_colnames)
+                         .remove_stars()
                          .selection_membership(ch1_ch2_color)
                          .catalog_merge()
                          .j_band_abs_mag()
