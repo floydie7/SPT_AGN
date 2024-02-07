@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from itertools import groupby
 
 import astropy.units as u
+import matplotlib.pyplot as plt
 import numpy as np
 from astro_compendium.utils.json_helpers import NumpyArrayEncoder
 from astro_compendium.utils.small_poisson import small_poisson
@@ -83,8 +84,7 @@ with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_
 # Read in and process the SPT WISE galaxy catalogs
 spt_wise_gal_data = {}
 wise_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
-gaia_catalog_names = glob.glob(
-    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
+gaia_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
 catalog_names = sorted([*wise_catalog_names, *gaia_catalog_names], key=lambda s: cluster_id.search(s).group(0))
 catalog_names = {cluster_name: list(names)
                  for cluster_name, names in groupby(catalog_names, key=lambda s: cluster_id.search(s).group(0))}
@@ -95,8 +95,8 @@ for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.i
                                     (spt_gaia_cat['in_galaxy_candidates'].astype(bool)))]
 
     # Apply photometric correction factors
-    spt_wise_gal['w1mpro'] = spt_wise_gal['w1mpro'] + w1_correction
-    spt_wise_gal['w2mpro'] = spt_wise_gal['w2mpro'] + w2_correction
+    spt_wise_gal['w1mpro'] += w1_correction
+    spt_wise_gal['w2mpro'] += w2_correction
 
     # Select only objects within the magnitude ranges
     spt_wise_gal = spt_wise_gal[(ch1_bright_mag < spt_wise_gal['w1mpro'].value) &
@@ -104,16 +104,16 @@ for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.i
                                 (ch2_bright_mag < spt_wise_gal['w2mpro'].value) &
                                 (spt_wise_gal['w2mpro'].value <= ch2_faint_mag)]
 
-    # Excise the cluster and only select objects in our chosen annulus
-    spt_wise_gal_cluster_coord = SkyCoord(spt_wise_gal['SZ_RA'][0], spt_wise_gal['SZ_DEC'][0], unit=u.deg)
+    # Remove stars
     spt_wise_gal_coords = SkyCoord(spt_wise_gal['ra'], spt_wise_gal['dec'], unit=u.deg)
     spt_gaia_star_coords = SkyCoord(spt_gaia_stars['ra'], spt_gaia_stars['dec'], unit=u.deg)
 
-    # Remove stars
     spt_wise_gal_idx, spt_wise_gal_sep, _ = spt_gaia_star_coords.match_to_catalog_sky(spt_wise_gal_coords)
-    spt_wise_stars = spt_wise_gal[spt_wise_gal_idx[spt_wise_gal_sep < 1 * u.arcsec]]
+    spt_wise_stars = spt_wise_gal[spt_wise_gal_idx[spt_wise_gal_sep <= 1 * u.arcsec]]
     spt_wise_gal = setdiff(spt_wise_gal, spt_wise_stars, keys=['ra', 'dec'])
 
+    # Excise the cluster and only select objects in our chosen annulus
+    spt_wise_gal_cluster_coord = SkyCoord(spt_wise_gal['SZ_RA'][0], spt_wise_gal['SZ_DEC'][0], unit=u.deg)
     spt_wise_gal_coords = SkyCoord(spt_wise_gal['ra'], spt_wise_gal['dec'], unit=u.deg)
     spt_wise_gal_sep_deg = spt_wise_gal_cluster_coord.separation(spt_wise_gal_coords)
 
@@ -226,8 +226,8 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Computing dN/dm distr
 #           'SPT_WISEgal-SDWFS_WISEgal_scaling_factors.json', 'w') as f:
 #     json.dump(local_wise_sdwfs_wise_scaling, f, cls=NumpyArrayEncoder)
 
-# For each cluster, renormalize the SDWFS number count distribution to match the scaled WISE galaxy level
-for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Renormalizing SDWFS dN/dm to local levels'):
+#%% For each cluster, renormalize the SDWFS number count distribution to match the scaled WISE galaxy level
+for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(), desc='Renormalizing SDWFS dN/dm to local levels'):
     # First, we need to only select objects within a narrow range of magnitudes where the data is reliable
     spt_dndm_narrow = cluster_data.wise_scaled_dndm[narrow_magnitude_filter]
     sdwfs_dndm_narrow = cluster_data.sdwfs_irac_dndm[narrow_magnitude_filter]
@@ -249,13 +249,22 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Renormalizing SDWFS d
     combined_errors = np.sqrt(spt_dndm_symerr_narrow ** 2 + sdwfs_dndm_symerr_narrow ** 2)
 
     # Fit a simple model that relates the SDWFS IRAC and SPT scaled WISE distributions together
-    # renorm_popt, _ = curve_fit(lambda data, a: a * data, sdwfs_dndm_narrow, spt_dndm_narrow, sigma=combined_errors)
+    renorm_popt, _ = curve_fit(lambda data, a: a * data, sdwfs_dndm_narrow, spt_dndm_narrow, sigma=combined_errors)
 
     # Find the translation needed to shift the SDWFS data at the pivot point
-    translation_shift = cluster_data.wise_scaled_dndm[pivot_idx] - cluster_data.sdwfs_irac_dndm[pivot_idx]
+    translation_factor = cluster_data.wise_scaled_dndm[pivot_idx] / cluster_data.sdwfs_irac_dndm[pivot_idx]
 
     # Apply the scaling factor to the data
-    cluster_data.sdwfs_irac_dndm_scaled = cluster_data.sdwfs_irac_dndm + translation_shift
+    cluster_data.sdwfs_irac_dndm_scaled = cluster_data.sdwfs_irac_dndm * translation_factor
+    # cluster_data.sdwfs_irac_dndm_scaled = cluster_data.sdwfs_irac_dndm + translation_shift
+
+    fig, ax = plt.subplots()
+    ax.errorbar(magnitude_bin_centers, cluster_data.wise_scaled_dndm, fmt='.', label='Local WISE Galaxies')
+    ax.errorbar(magnitude_bin_centers, cluster_data.sdwfs_irac_dndm, fmt='.', label='SDWFS AGN')
+    ax.errorbar(magnitude_bin_centers, cluster_data.sdwfs_irac_dndm_scaled, fmt='.', label='Scaled local AGN')
+    ax.legend()
+    ax.set(title=f'{cluster_name}', xlabel='[4.5] (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$', yscale='log')
+    plt.show()
 
 # print('Integrating dN/dm')
 # For each cluster integrate the scaled SDWFS number count distribution over the full selection magnitude range to find
@@ -264,6 +273,6 @@ spt_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.sdwfs_irac_dndm
                               for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(),
                                                                      desc='Integrating scaled SDWFS dN/dm')}
 
-# Write the results to file
+#%% Write the results to file
 with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_frac_err_pivot.json', 'w') as f:
     json.dump(spt_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)

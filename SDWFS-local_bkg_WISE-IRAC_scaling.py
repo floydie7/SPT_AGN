@@ -33,8 +33,7 @@ sdwfs_wise_gal = Table.read('Data_Repository/Catalogs/Bootes/SDWFS/SDWFS_catWISE
 sdwfs_gaia = Table.read('Data_Repository/Catalogs/Bootes/SDWFS/SDWFS_Gaia.fits')
 
 # Select only stars
-sdwfs_gaia_stars = sdwfs_gaia[~((sdwfs_gaia['in_qso_candidates'].astype(bool)) |
-                                (sdwfs_gaia['in_galaxy_candidates'].astype(bool)))]
+sdwfs_gaia_stars = sdwfs_gaia[~(sdwfs_gaia['in_qso_candidates'] | sdwfs_gaia['in_galaxy_candidates'])]
 
 # Read in the SDWFS mask image and WCS
 sdwfs_mask_img, sdwfs_mask_hdr = fits.getdata('Data_Repository/Project_Data/SPT-IRAGN/Masks/SDWFS/'
@@ -86,8 +85,8 @@ sdwfs_wise_gal_coords = SkyCoord(sdwfs_wise_gal['ra'], sdwfs_wise_gal['dec'], un
 sdwfs_irac_agn_idx, sdwfs_irac_agn_sep, _ = sdwfs_star_coords.match_to_catalog_sky(sdwfs_irac_agn_coords)
 sdwfs_wise_gal_idx, sdwfs_wise_gal_sep, _ = sdwfs_star_coords.match_to_catalog_sky(sdwfs_wise_gal_coords)
 
-sdwfs_irac_stars = sdwfs_irac_agn[sdwfs_irac_agn_idx[sdwfs_irac_agn_sep < 1 * u.arcsec]]
-sdwfs_wise_stars = sdwfs_wise_gal[sdwfs_wise_gal_idx[sdwfs_wise_gal_sep < 1 * u.arcsec]]
+sdwfs_irac_stars = sdwfs_irac_agn[sdwfs_irac_agn_idx[sdwfs_irac_agn_sep <= 1 * u.arcsec]]
+sdwfs_wise_stars = sdwfs_wise_gal[sdwfs_wise_gal_idx[sdwfs_wise_gal_sep <= 1 * u.arcsec]]
 
 # Remove the stars from the catalogs
 sdwfs_irac_agn = setdiff(sdwfs_irac_agn, sdwfs_irac_stars)

@@ -35,10 +35,8 @@ inner_radius_factor = 3
 
 # Read in and process the SPT WISE galaxy catalogs
 spt_wise_gal_data = {}
-wise_catalog_names = glob.glob(
-    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
-gaia_catalog_names = glob.glob(
-    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
+wise_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
+gaia_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
 catalog_names = sorted([*wise_catalog_names, *gaia_catalog_names], key=lambda s: cluster_id.search(s).group(0))
 catalog_names = {cluster_name: list(names)
                  for cluster_name, names in groupby(catalog_names, key=lambda s: cluster_id.search(s).group(0))}
@@ -47,8 +45,7 @@ for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.i
                                                                  desc='Finding background annulus radii'):
     spt_wise_gal = QTable.read(wise_catalog_name)
     spt_gaia_cat = QTable.read(gaia_catalog_name)
-    spt_gaia_stars = spt_gaia_cat[~((spt_gaia_cat['in_qso_candidates'].astype(bool)) |
-                                    (spt_gaia_cat['in_galaxy_candidates'].astype(bool)))]
+    spt_gaia_stars = spt_gaia_cat[~(spt_gaia_cat['in_qso_candidates'] | spt_gaia_cat['in_galaxy_candidates'])]
 
     # Apply photometric correction factors
     spt_wise_gal['w1mpro'] = spt_wise_gal['w1mpro'] + w1_correction
