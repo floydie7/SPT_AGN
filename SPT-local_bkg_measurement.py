@@ -81,6 +81,13 @@ class ClusterInfo:
 with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_annulus_no_stars.json', 'r') as f:
     spt_wise_annuli_data = json.load(f)
 
+# Find the largest radii
+max_inner_radius_deg = np.max([cluster['inner_radius_deg'] for cluster in spt_wise_annuli_data.values()]) * u.deg
+# max_outer_radius_deg = np.max([cluster['outer_radius_deg'] for cluster in spt_wise_annuli_data.values()]) * u.deg
+max_outer_radius_deg = 0.9 * u.deg
+max_annulus_area = np.pi * (max_outer_radius_deg**2 - max_inner_radius_deg**2)
+print(f'{max_inner_radius_deg = }\n{max_outer_radius_deg = }\n{max_annulus_area = }')
+
 # Read in and process the SPT WISE galaxy catalogs
 spt_wise_gal_data = {}
 wise_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
@@ -91,8 +98,7 @@ catalog_names = {cluster_name: list(names)
 for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.items(), desc='Processing SPT WISE Catalogs'):
     spt_wise_gal = QTable.read(wise_catalog_name)
     spt_gaia_cat = QTable.read(gaia_catalog_name)
-    spt_gaia_stars = spt_gaia_cat[~((spt_gaia_cat['in_qso_candidates'].astype(bool)) |
-                                    (spt_gaia_cat['in_galaxy_candidates'].astype(bool)))]
+    spt_gaia_stars = spt_gaia_cat[~(spt_gaia_cat['in_qso_candidates'] | spt_gaia_cat['in_galaxy_candidates'])]
 
     # Apply photometric correction factors
     spt_wise_gal['w1mpro'] += w1_correction
@@ -118,9 +124,13 @@ for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.i
     spt_wise_gal_sep_deg = spt_wise_gal_cluster_coord.separation(spt_wise_gal_coords)
 
     # Retrieve the annulus radii and area
-    inner_radius_deg = spt_wise_annuli_data[cluster_name]['inner_radius_deg'] * u.deg
-    outer_radius_deg = spt_wise_annuli_data[cluster_name]['outer_radius_deg'] * u.deg
-    spt_bkg_area = spt_wise_annuli_data[cluster_name]['annulus_area'] * u.deg ** 2
+    # inner_radius_deg = spt_wise_annuli_data[cluster_name]['inner_radius_deg'] * u.deg
+    # outer_radius_deg = spt_wise_annuli_data[cluster_name]['outer_radius_deg'] * u.deg
+    # spt_bkg_area = spt_wise_annuli_data[cluster_name]['annulus_area'] * u.deg ** 2
+
+    inner_radius_deg = max_inner_radius_deg
+    outer_radius_deg = max_outer_radius_deg
+    spt_bkg_area = max_annulus_area
 
     # Select for the objects within the background annulus
     spt_wise_gal = spt_wise_gal[(inner_radius_deg < spt_wise_gal_sep_deg) & (spt_wise_gal_sep_deg <= outer_radius_deg)]
@@ -274,5 +284,5 @@ spt_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.sdwfs_irac_dndm
                                                                      desc='Integrating scaled SDWFS dN/dm')}
 
 #%% Write the results to file
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_frac_err_pivot.json', 'w') as f:
+with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_frac_err_pivot_max_annulus_out09d.json', 'w') as f:
     json.dump(spt_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)
