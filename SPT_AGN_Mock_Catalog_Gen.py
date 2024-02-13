@@ -26,7 +26,7 @@ from synphot import SpectralElement, SourceSpectrum, units
 from k_correction import k_corr_abs_mag
 
 # Set up logger
-logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Final_Tests/'
+logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/'
                              'local_bkg_test_mock.log',
                     level=logging.INFO)
 
@@ -259,6 +259,7 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
     
     # Draw the background rate from the local background distribution
     c_true = rng.normal(loc=c_mean, scale=c_std)
+    logging.info(f'{spt_id}: {c_mean = :.3f}, {c_std = :.3f}, {c_true = :.3f} ({color_threshold = :.2f}, {z_cl = :.2f})')
 
     # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
     background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
@@ -279,6 +280,11 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
 
     # Add flag to background objects
     bkg_cat['CLUSTER_AGN'] = np.full_like(bkg_cat['x_pixel'], False)
+
+    # For diagnostics, record the input mean, std, and sampled background surface densites.
+    bkg_cat['c_mean'] = c_mean
+    bkg_cat['c_std'] = c_std
+    bkg_cat['c_true'] = c_true
 
     # Cluster Catalog
     # Calculate the model values for the AGN candidates in the cluster
@@ -656,8 +662,8 @@ local_bkgs_mean = local_bkgs_grp['local_bkg_surf_den'].groups.aggregate(np.mean)
 local_bkgs_std = local_bkgs_grp['local_bkg_surf_den'].groups.aggregate(np.std)
 
 # Create functions to call the background data
-local_bkg_mean_func = interp1d(threshold_bins, local_bkgs_mean, kind='previous')
-local_bkg_std_func = interp1d(threshold_bins, local_bkgs_std, kind='previous')
+local_bkg_mean_func = interp1d(local_bkgs_grp.groups.keys['COLOR_THRESHOLD'], local_bkgs_mean, kind='previous')
+local_bkg_std_func = interp1d(local_bkgs_grp.groups.keys['COLOR_THRESHOLD'], local_bkgs_std, kind='previous')
 
 # For our masks, we will co-op the masks for the real clusters.
 masks_files = [*glob.glob('Data_Repository/Project_Data/SPT-IRAGN/Masks/SPT-SZ_2500d/*.fits'),
@@ -742,8 +748,7 @@ for cluster_catalog, cluster_color_threshold in zip(SPT_data, color_thresholds):
 # Stack the individual cluster catalogs into a single master catalog
 outAGN = vstack(AGN_cats)
 filename = (
-    f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/'
-    f'Final_Tests/'
+    f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/'
     f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
     f'_C-local_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_local_bkg_test.fits')
 outAGN.write(filename, overwrite=True)
