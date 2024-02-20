@@ -70,6 +70,8 @@ outer_radius_factor = 7
 class ClusterInfo:
     catalog: QTable
     annulus_area: u.Quantity
+    cluster_z: float = None
+    selection_color: float = None
     sdwfs_irac_dndm: np.ndarray = None
     sdwfs_irac_dndm_err: np.ndarray = None
     sdwfs_irac_dndm_scaled: np.ndarray = None
@@ -85,17 +87,20 @@ with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_
 max_inner_radius_deg = np.max([cluster['inner_radius_deg'] for cluster in spt_wise_annuli_data.values()]) * u.deg
 # max_outer_radius_deg = np.max([cluster['outer_radius_deg'] for cluster in spt_wise_annuli_data.values()]) * u.deg
 max_outer_radius_deg = 0.9 * u.deg
-max_annulus_area = np.pi * (max_outer_radius_deg**2 - max_inner_radius_deg**2)
+max_annulus_area = np.pi * (max_outer_radius_deg ** 2 - max_inner_radius_deg ** 2)
 print(f'{max_inner_radius_deg = }\n{max_outer_radius_deg = }\n{max_annulus_area = }')
 
 # Read in and process the SPT WISE galaxy catalogs
 spt_wise_gal_data = {}
-wise_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
-gaia_catalog_names = glob.glob('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
+wise_catalog_names = glob.glob(
+    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/*_wise_local_bkg.ecsv')
+gaia_catalog_names = glob.glob(
+    'Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/catalogs/gaia/*_bkgs_gaia.fits')
 catalog_names = sorted([*wise_catalog_names, *gaia_catalog_names], key=lambda s: cluster_id.search(s).group(0))
 catalog_names = {cluster_name: list(names)
                  for cluster_name, names in groupby(catalog_names, key=lambda s: cluster_id.search(s).group(0))}
-for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.items(), desc='Processing SPT WISE Catalogs'):
+for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.items(),
+                                                                 desc='Processing SPT WISE Catalogs'):
     spt_wise_gal = QTable.read(wise_catalog_name)
     spt_gaia_cat = QTable.read(gaia_catalog_name)
     spt_gaia_stars = spt_gaia_cat[~(spt_gaia_cat['in_qso_candidates'] | spt_gaia_cat['in_galaxy_candidates'])]
@@ -124,13 +129,13 @@ for cluster_name, (wise_catalog_name, gaia_catalog_name) in tqdm(catalog_names.i
     spt_wise_gal_sep_deg = spt_wise_gal_cluster_coord.separation(spt_wise_gal_coords)
 
     # Retrieve the annulus radii and area
-    # inner_radius_deg = spt_wise_annuli_data[cluster_name]['inner_radius_deg'] * u.deg
-    # outer_radius_deg = spt_wise_annuli_data[cluster_name]['outer_radius_deg'] * u.deg
-    # spt_bkg_area = spt_wise_annuli_data[cluster_name]['annulus_area'] * u.deg ** 2
+    inner_radius_deg = spt_wise_annuli_data[cluster_name]['inner_radius_deg'] * u.deg
+    outer_radius_deg = spt_wise_annuli_data[cluster_name]['outer_radius_deg'] * u.deg
+    spt_bkg_area = spt_wise_annuli_data[cluster_name]['annulus_area'] * u.deg ** 2
 
-    inner_radius_deg = max_inner_radius_deg
-    outer_radius_deg = max_outer_radius_deg
-    spt_bkg_area = max_annulus_area
+    # inner_radius_deg = max_inner_radius_deg
+    # outer_radius_deg = max_outer_radius_deg
+    # spt_bkg_area = max_annulus_area
 
     # Select for the objects within the background annulus
     spt_wise_gal = spt_wise_gal[(inner_radius_deg < spt_wise_gal_sep_deg) & (spt_wise_gal_sep_deg <= outer_radius_deg)]
@@ -193,7 +198,8 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Computing dN/dm distr
 
     # Pull the appropriate SDWFS WISE galaxy--SDWFS IRAC AGN scaling factors
     selection_color = agn_purity_color(catalog["REDSHIFT"][0])
-    sdwfs_wise_to_irac_scaling_factors = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['scaling_frac']
+    sdwfs_wise_to_irac_scaling_factors = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}'][
+        'scaling_frac']
 
     # Calculate our weighting factor
     dndm_weight = spt_bkg_area.value * mag_bin_width
@@ -231,6 +237,10 @@ for cluster_data in tqdm(spt_wise_gal_data.values(), desc='Computing dN/dm distr
     cluster_data.sdwfs_irac_dndm = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['hist']
     cluster_data.sdwfs_irac_dndm_err = sdwfs_wise_irac_scaling_data[f'SELECTION_MEMBERSHIP_{selection_color:.2f}']['err']
 
+    # And store the cluster redshift and the selection color for later
+    cluster_data.cluster_z = catalog['REDSHIFT'][0]
+    cluster_data.selection_color = selection_color
+
 # Store the scaling factors
 # with open('Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
 #           'SPT_WISEgal-SDWFS_WISEgal_scaling_factors.json', 'w') as f:
@@ -259,7 +269,7 @@ for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(), desc='Renormal
     combined_errors = np.sqrt(spt_dndm_symerr_narrow ** 2 + sdwfs_dndm_symerr_narrow ** 2)
 
     # Fit a simple model that relates the SDWFS IRAC and SPT scaled WISE distributions together
-    renorm_popt, _ = curve_fit(lambda data, a: a * data, sdwfs_dndm_narrow, spt_dndm_narrow, sigma=combined_errors)
+    # renorm_popt, _ = curve_fit(lambda data, a: a * data, sdwfs_dndm_narrow, spt_dndm_narrow, sigma=combined_errors)
 
     # Find the translation needed to shift the SDWFS data at the pivot point
     translation_factor = cluster_data.wise_scaled_dndm[pivot_idx] / cluster_data.sdwfs_irac_dndm[pivot_idx]
@@ -268,21 +278,31 @@ for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(), desc='Renormal
     cluster_data.sdwfs_irac_dndm_scaled = cluster_data.sdwfs_irac_dndm * translation_factor
     # cluster_data.sdwfs_irac_dndm_scaled = cluster_data.sdwfs_irac_dndm + translation_shift
 
-    fig, ax = plt.subplots()
-    ax.errorbar(magnitude_bin_centers, cluster_data.wise_scaled_dndm, fmt='.', label='Local WISE Galaxies')
-    ax.errorbar(magnitude_bin_centers, cluster_data.sdwfs_irac_dndm, fmt='.', label='SDWFS AGN')
-    ax.errorbar(magnitude_bin_centers, cluster_data.sdwfs_irac_dndm_scaled, fmt='.', label='Scaled local AGN')
-    ax.legend()
-    ax.set(title=f'{cluster_name}', xlabel='[4.5] (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$', yscale='log')
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.errorbar(magnitude_bin_centers, cluster_data.wise_scaled_dndm, fmt='.', label='Local WISE Galaxies')
+    # ax.errorbar(magnitude_bin_centers, cluster_data.sdwfs_irac_dndm, fmt='.', label='SDWFS AGN')
+    # ax.errorbar(magnitude_bin_centers, cluster_data.sdwfs_irac_dndm_scaled, fmt='.', label='Scaled local AGN')
+    # ax.legend()
+    # ax.set(title=f'{cluster_name}', xlabel='[4.5] (Vega)', ylabel=r'$dN/dm$ [deg$^{-2}$ mag$^{-1}$', yscale='log')
+    # plt.show()
 
 # print('Integrating dN/dm')
 # For each cluster integrate the scaled SDWFS number count distribution over the full selection magnitude range to find
 # the local background AGN surface density estimation
-spt_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.sdwfs_irac_dndm_scaled, magnitude_bin_centers)
-                              for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(),
-                                                                     desc='Integrating scaled SDWFS dN/dm')}
+# spt_local_bkg_agn_surf_den = {cluster_name: simpson(cluster_data.sdwfs_irac_dndm_scaled, magnitude_bin_centers)
+#                               for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(),
+#                                                                      desc='Integrating scaled SDWFS dN/dm')}
 
-#%% Write the results to file
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg_frac_err_pivot_max_annulus_out09d.json', 'w') as f:
-    json.dump(spt_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)
+# %% Write the results to file
+# with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/'
+#           'SPTcl-local_bkg_frac_err_pivot_max_annulus_out09d.json', 'w') as f:
+#     json.dump(spt_local_bkg_agn_surf_den, f, cls=NumpyArrayEncoder)
+
+spt_local_bkg_table = QTable(rows=[[cluster_name, cluster_data.cluster_z, cluster_data.selection_color,
+                                    cluster_data.annulus_area,
+                                    simpson(cluster_data.sdwfs_irac_dndm_scaled, magnitude_bin_centers)]
+                                   for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(),
+                                                                          desc='Integrating scaled SDWFS dN/dm')],
+                             names=['SPT_ID', 'REDSHIFT', 'COLOR_THRESHOLD', 'ANNULUS_AREA', 'LOCAL_BKG_SURF_DEN'])
+spt_local_bkg_table.write('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits',
+                          overwrite=True)
