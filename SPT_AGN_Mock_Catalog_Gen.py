@@ -27,7 +27,7 @@ from k_correction import k_corr_abs_mag
 
 # Set up logger
 logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/'
-                             'local_bkg_test_mock.log',
+                             'eta-zeta_slopes/raw_grid/local_bkg_raw_grid_mock.log',
                     level=logging.INFO)
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -259,7 +259,7 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
     
     # Draw the background rate from the local background distribution
     c_true = rng.normal(loc=c_mean, scale=c_std)
-    logging.info(f'{spt_id}: {c_mean = :.3f}, {c_std = :.3f}, {c_true = :.3f} ({color_threshold = :.2f}, {z_cl = :.2f})')
+    # logging.info(f'{spt_id}: {c_mean = :.3f}, {c_std = :.3f}, {c_true = :.3f} ({color_threshold = :.2f}, {z_cl = :.2f})')
 
     # Generate background sources using a Poisson point process but skipping the rejection sampling step from above.
     background_rate = c_true / u.arcmin ** 2 * mask_pixel_scale.to(u.arcmin) ** 2
@@ -543,11 +543,7 @@ z_bins = sdwfs_purity_data['redshift_bins'][:-1]
 threshold_bins = sdwfs_prior_data['color_thresholds'][:-1]
 
 # Read in the local background data
-with open('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/'
-          'SPTcl-local_bkg_frac_err_pivot_max_annulus_out09d.json', 'r') as f:
-    local_bkgs = json.load(f)
-local_bkgs = Table(rows=[[cluster_name, (surf_den * u.deg**-2).to_value(u.arcmin**-2)]
-                         for cluster_name, surf_den in local_bkgs.items()], names=['SPT_ID', 'local_bkg_surf_den'])
+local_bkgs = Table.read('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits')
 
 # Set up interpolators
 agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
@@ -586,16 +582,15 @@ cluster_amp = 1.
 # theta_true = 50.0  # Amplitude
 # eta_true = 4.0  # Redshift slope
 # zeta_true = -1.0  # Mass slope
-theta_true = 0.
-eta_true = 0.
-zeta_true = 0.
 beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 # c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
 theta_range = np.arange(0., 0.1, 0.01)
-eta_range = [-5., -3., 0., 3., 4., 5.]
-zeta_range = [-2., -1, 0., 1., 2.]
+# eta_range = [-5., -3., 0., 3., 4., 5.]
+# zeta_range = [-2., -1, 0., 1., 2.]
+eta_range = [4.]
+zeta_range = [-1.]
 
 # Using our targeted SNR, determine the cluster amplitude parameter needed.
 target_snr = 20.
@@ -652,11 +647,7 @@ SPTcl['M500_lerr'] *= 1e14
 # Remove any unconfirmed clusters
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
-# Match the local backgrounds with the cluster redshifts
-local_bkgs = join(SPTcl['SPT_ID', 'REDSHIFT'], local_bkgs, keys='SPT_ID')
-
 # Bin the local backgrounds by color threshold bins
-local_bkgs['COLOR_THRESHOLD'] = agn_purity_color(local_bkgs['REDSHIFT'])
 local_bkgs_grp = local_bkgs.group_by('COLOR_THRESHOLD')
 local_bkgs_mean = local_bkgs_grp['local_bkg_surf_den'].groups.aggregate(np.mean)
 local_bkgs_std = local_bkgs_grp['local_bkg_surf_den'].groups.aggregate(np.std)
@@ -714,54 +705,53 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
 # </editor-fold>
 
 catalog_start_time = time()
-# for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
-# for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
-# For our chosen redshift and mass slopes, use the amplitude value that produces a cluster-to-background SNR of 13.
-# theta_true = snr_theta_fits[f'{(eta_true, zeta_true)}'](target_snr)
+for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
+    # for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
+    # theta_true = snr_theta_fits[f'{(eta_true, zeta_true)}'](target_snr)
 
-# theta_true, eta_true, zeta_true = 6.6, -5.0, 1.0
-params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
-# params_true = (6.6, -5.0, 1.0, 1.0, 0.1)
+    # theta_true, eta_true, zeta_true = 6.6, -5.0, 1.0
+    params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
+    # params_true = (6.6, -5.0, 1.0, 1.0, 0.1)
 
-# Find the appropriate color thresholds for our clusters
-color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
+    # Find the appropriate color thresholds for our clusters
+    color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
 
-# Set the redshift dependent background rates
-# c_truths = np.array([agn_prior_surf_den(z) for z in SPT_data['REDSHIFT']])
-# c_err_truths = np.array([agn_prior_surf_den_err(z) for z in SPT_data['REDSHIFT']])
+    # Set the redshift dependent background rates
+    # c_truths = np.array([agn_prior_surf_den(z) for z in SPT_data['REDSHIFT']])
+    # c_err_truths = np.array([agn_prior_surf_den_err(z) for z in SPT_data['REDSHIFT']])
 
-# Set the background truths to be drawn from the local background distributions
-c_truths = np.array(local_bkgs_mean)
-c_err_truths = np.array(local_bkgs_std)
+    # Set the background truths to be drawn from the local background distributions
+    c_truths = np.array(local_bkgs_mean)
+    c_err_truths = np.array(local_bkgs_std)
 
-# We will amplify the true parameters by the number of clusters in the sample.
-c_truths *= cluster_amp
-c_err_truths *= cluster_amp
+    # We will amplify the true parameters by the number of clusters in the sample.
+    c_truths *= cluster_amp
+    c_err_truths *= cluster_amp
 
-# # Run the catalog generation in parallel
-# with MPIPool() as pool:
-#     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
-AGN_cats = []
-for cluster_catalog, cluster_color_threshold in zip(SPT_data, color_thresholds):
-    AGN_cats.append(generate_mock_cluster(cluster_catalog, cluster_color_threshold))
+    # # Run the catalog generation in parallel
+    # with MPIPool() as pool:
+    #     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
+    AGN_cats = []
+    for cluster_catalog, cluster_color_threshold in zip(SPT_data, color_thresholds):
+        AGN_cats.append(generate_mock_cluster(cluster_catalog, cluster_color_threshold))
 
-# Stack the individual cluster catalogs into a single master catalog
-outAGN = vstack(AGN_cats)
-filename = (
-    f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/'
-    f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-    f'_C-local_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_local_bkg_test.fits')
-outAGN.write(filename, overwrite=True)
-logging.info(filename)
+    # Stack the individual cluster catalogs into a single master catalog
+    outAGN = vstack(AGN_cats)
+    filename = (
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/eta-zeta_slopes/raw_grid/'
+        f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
+        f'_C-local_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_tez_grid.fits')
+    outAGN.write(filename, overwrite=True)
+    logging.info(filename)
 
-# Print out statistics
-logging.info(f'RNG Seed: {seed}')
-logging.info('Mock Catalog (no rejection sampling)')
-print_catalog_stats(outAGN)
+    # Print out statistics
+    logging.info(f'RNG Seed: {seed}')
+    logging.info('Mock Catalog (no rejection sampling)')
+    print_catalog_stats(outAGN)
 
-# print('-----\n')
-# outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECT'].astype(bool)]
-# print('Mock Catalog (with rejection sampling)')
-# print_catalog_stats(outAGN_rejection)
+    # print('-----\n')
+    # outAGN_rejection = outAGN[outAGN['COMPLETENESS_REJECT'].astype(bool)]
+    # print('Mock Catalog (with rejection sampling)')
+    # print_catalog_stats(outAGN_rejection)
 
 logging.info(f'Total run time: {time() - start_time:.2f}s')
