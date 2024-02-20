@@ -115,6 +115,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     z = catalog_dict[cluster_id]['redshift']
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
+    local_bkg_offset = cluster_info[cluster_id]['local_bkg_offset']
 
     # Luminosity function number
     if integral:
@@ -131,7 +132,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     if args.cluster_only:
         cz = 0.
     else:
-        cz = (((c0 + delta_c(z)) / u.arcmin ** 2)
+        cz = (((c0 + delta_c(z) + local_bkg_offset) / u.arcmin ** 2)
               * cosmo.arcsec_per_kpc_proper(z).to(u.arcmin / u.Mpc) ** 2 * r500 ** 2)
 
     # Our amplitude is determined from the cluster data
@@ -216,13 +217,14 @@ def lnprior(params: tuple[float, ...]):
 
     cluster_lnprior = []
     for cluster_id in catalog_dict:
-        # Get the cluster redshift to set the background hyperparameters
+        # Get the local background information for the cluster to set the background hyperparameters
         z = catalog_dict[cluster_id]['redshift']
-        h_c = agn_prior_surf_den(z)
-        h_c_err = agn_prior_surf_den_err(z)
+        h_c = catalog_dict[cluster_id]['local_bkg_surf_den']
+        h_c_err = catalog_dict[cluster_id]['local_bkg_surf_den_err']
+        local_bkg_offset = cluster_info[cluster_id]['local_bkg_offset']
 
         # Shift background parameter to redshift-dependent value.
-        cz = c0 + delta_c(z)
+        cz = c0 + delta_c(z) + local_bkg_offset
 
         # Define all priors
         if (0.0 <= theta <= 20. and
@@ -299,33 +301,22 @@ preprocess_file = os.path.abspath(f'{local_dir}{args.preprocessing}')
 with open(preprocess_file, 'r') as f:
     catalog_dict = json.load(f)
 
-# Read in the purity and surface density files
-with (open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
-           f'SDWFS_purity_color_4.5_17.48.json', 'r') as f,
-      open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
-           f'SDWFS_background_prior_distributions_mu_cut_updated_cuts.json', 'r') as g):
-    sdwfs_purity_data = json.load(f)
-    sdwfs_prior_data = json.load(g)
-z_bins = sdwfs_purity_data['redshift_bins'][:-1]
-threshold_bins = sdwfs_prior_data['color_thresholds'][:-1]
+# Pop out the auxiliary data
+aux_data = catalog_dict.pop('aux_data')
 
 # Set up interpolators
-agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
-agn_surf_den = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den'], kind='previous')
-agn_surf_den_err = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den_err'], kind='previous')
+agn_purity_color = interp1d(aux_data['redshift_bins'], aux_data['color_thresholds'], kind='previous')
+local_bkg_means = interp1d(aux_data['local_bkg_colors'], aux_data['local_bkg_means'], kind='previous')
 
 
 # For convenience, set up the function compositions
 def agn_prior_surf_den(redshift: float) -> float:
-    return agn_surf_den(agn_purity_color(redshift))
-
-
-def agn_prior_surf_den_err(redshift: float) -> float:
-    return agn_surf_den_err(agn_purity_color(redshift))
+    return local_bkg_means(agn_purity_color(redshift))
 
 
 # Set up an interpolation for the AGN surface density relative to the reference surface density at z = 0
-delta_c = interp1d(z_bins, agn_prior_surf_den(z_bins) - agn_prior_surf_den(0.), kind='previous')
+delta_c = interp1d(aux_data['redshift_bins'], agn_prior_surf_den(aux_data['redshift_bins']) - agn_prior_surf_den(0.),
+                   kind='previous')
 
 # Go through the catalog dictionary and recasting the cluster's mass and r500 to quantities and recast all the list-type
 # data to numpy arrays

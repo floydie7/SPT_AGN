@@ -17,6 +17,7 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy.wcs import WCS
 from schwimmbad import MPIPool
+from scipy.interpolate import interp1d
 from scipy.spatial.distance import cdist
 from synphot import SourceSpectrum, SpectralElement, units
 
@@ -165,6 +166,16 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     cluster_agn_membership = cluster['SELECTION_MEMBERSHIP']
     j_band_abs_mag = cluster['J_ABS_MAG']
 
+    # We also need to grab the local background information
+    local_bkg_surf_den = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['LOCAL_BKG_SURF_DEN'] * u.deg**-2)
+                          .to_value(u.arcmin**-2))
+    local_bkg_area = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['ANNULUS_AREA'] * u.deg**-2)
+                      .to_value(u.arcmin**2))
+    local_bkg_surf_den_err = np.sqrt(local_bkg_surf_den * local_bkg_area) / local_bkg_area
+
+    # Determine the offset of the local background with respect to the mean at the color threshold for the cluster
+    local_bkg_offset = local_bkg_surf_den - local_bkg_color_mean_func(agn_purity_color(cluster_z))
+
     # Set up a switch to handle the options for the radial separation
     # radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
     #                  0.5: cluster['RADIAL_SEP_R500_HALF_OFFSET'],
@@ -223,7 +234,9 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
                     'gpf_rall': cluster_gpf_all, 'rall': list(rall), 'radial_r500_maxr': list(radial_r500_maxr),
                     'completeness_weight_maxr': list(completeness_weight_maxr),
                     'agn_membership_maxr': list(agn_membership_maxr),
-                    'j_abs_mag': list(j_band_abs_mag_maxr), 'jall': list(jall)}
+                    'j_abs_mag': list(j_band_abs_mag_maxr), 'jall': list(jall),
+                    'local_bkg_surf_den': local_bkg_surf_den, 'local_bkg_surf_den_err': local_bkg_surf_den_err,
+                    'local_bkg_offset': local_bkg_offset}
 
     return cluster_id, cluster_dict
 
@@ -248,12 +261,24 @@ max_radius = 5. * u.arcmin  # Maximum integration radius in arcmin
 
 rescale_fact = 6  # Factor by which we will rescale the mask images to gain higher resolution
 
-# Read in the mock catalog
+# Read in the LoS and local background catalogs
 sptcl_catalog = Table.read(args.catalog)
-# sptcl_catalog = Table.read('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/pure_poisson/'
-#                            'mock_AGN_catalog_t10.000_e4.00_z-1.00_b1.00_rc0.100_C0.316_maxr5.00_seed3775_6x2_fullMasks_forGPF_withLF.fits')
+local_bkgs = Table.read('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits')
 
-# Before we do anything further, make the selection membership cut
+# Define the relationships between the means of the local backgrounds for a given color selection threshold/redshift
+local_bkgs_color_grp = local_bkgs.group_by('COLOR_THRESHOLD')
+local_bkgs_color_grp_means = local_bkgs_color_grp['LOCAL_BKG_SURF_DEN'].groups.aggregate(np.mean)
+local_bkg_color_mean_func = interp1d(local_bkgs_color_grp.groups.keys['COLOR_THRESHOLD'], local_bkgs_color_grp_means,
+                                     kind='previous')
+
+# Read in the purity and surface density files
+with (open(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/SDWFS_background/'
+           f'SDWFS_purity_color_4.5_17.48.json', 'r') as f):
+    sdwfs_purity_data = json.load(f)
+z_bins = sdwfs_purity_data['redshift_bins'][:-1]
+agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
+
+# Before we do anything further with the LoS catalog, make the selection membership cut
 sptcl_catalog = sptcl_catalog[sptcl_catalog['SELECTION_MEMBERSHIP'] >= 0.5]
 
 # Filter the catalog using the rejection flag
@@ -291,6 +316,12 @@ with MPIPool() as pool:
         catalog_dict = {cluster_id: cluster_info for cluster_id, cluster_info in filter(None, pool_results)}
 
 print('Time spent calculating GPFs: {:.2f}s'.format(time() - start_gpf_time))
+
+# Add auxiliary data into the output file
+catalog_dict['aux_data'] = {'color_thresholds': sdwfs_purity_data['purity_90_colors'],
+                            'redshift_bins': z_bins,
+                            'local_bkg_means': list(local_bkgs_color_grp_means),
+                            'local_bkg_colors': list(local_bkgs_color_grp.groups.keys['COLOR_THRESHOLD'])}
 
 # Store the results in a JSON file to be used later by the MCMC sampler
 # local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
