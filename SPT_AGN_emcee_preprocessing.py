@@ -167,11 +167,11 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     j_band_abs_mag = cluster['J_ABS_MAG']
 
     # We also need to grab the local background information
-    local_bkg_surf_den = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['LOCAL_BKG_SURF_DEN'][0] * u.deg**-2)
-                          .to_value(u.arcmin**-2))
-    local_bkg_area = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['ANNULUS_AREA'][0] * u.deg**2)
-                      .to_value(u.arcmin**2))
-    local_bkg_surf_den_err = np.sqrt(local_bkg_surf_den * local_bkg_area) / local_bkg_area
+    if not args.empirical:
+        local_bkg_surf_den = cluster['c_true'][0] * u.arcmin**-2
+    else:
+        local_bkg_surf_den = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['LOCAL_BKG_SURF_DEN'][0] * u.deg**-2)
+                              .to_value(u.arcmin**-2))
 
     # Determine the offset of the local background with respect to the mean at the color threshold for the cluster
     local_bkg_offset = local_bkg_surf_den - sdwfs_prior_data(agn_purity_color(cluster_z))
@@ -235,7 +235,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
                     'completeness_weight_maxr': list(completeness_weight_maxr),
                     'agn_membership_maxr': list(agn_membership_maxr),
                     'j_abs_mag': list(j_band_abs_mag_maxr), 'jall': list(jall),
-                    'local_bkg_surf_den': local_bkg_surf_den, 'local_bkg_surf_den_err': local_bkg_surf_den_err,
+                    'local_bkg_surf_den': local_bkg_surf_den,
                     'local_bkg_offset': local_bkg_offset}
 
     return cluster_id, cluster_dict
