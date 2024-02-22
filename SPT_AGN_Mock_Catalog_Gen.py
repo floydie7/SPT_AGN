@@ -547,7 +547,7 @@ local_bkgs = Table.read('Data_Repository/Project_Data/SPT-IRAGN/local_background
 
 # Set up interpolators
 agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
-# agn_surf_den = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den'], kind='previous')
+sdwfs_surf_den = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den'], kind='previous')
 # agn_surf_den_err = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den_err'], kind='previous')
 
 
@@ -728,6 +728,9 @@ for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_ran
     c_truths *= cluster_amp
     c_err_truths *= cluster_amp
 
+    # The control fitting background parameter will however be the SDWFS surface density associated with z = 0
+    c0_true = sdwfs_surf_den(agn_purity_color(0))
+
     # # Run the catalog generation in parallel
     # with MPIPool() as pool:
     #     AGN_cats = list(pool.map(generate_mock_cluster, cluster_sample))
@@ -740,7 +743,7 @@ for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_ran
     filename = (
         f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/eta-zeta_slopes/raw_grid/'
         f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
-        f'_C-local_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_tez_grid.fits')
+        f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
     logging.info(filename)
 
