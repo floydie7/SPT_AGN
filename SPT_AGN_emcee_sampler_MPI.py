@@ -144,7 +144,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
 
 
 # Set our log-likelihood
-def lnlike(param: tuple[float, ...]):
+def lnlike(param: tuple[float, ...]) -> float:
     lnlike_list = []
     for cluster_id in catalog_dict:
         # Get the good pixel fraction for this cluster
@@ -197,7 +197,11 @@ def lnlike(param: tuple[float, ...]):
 
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
-def lnprior(params: tuple[float, ...]):
+def lnprior(params: tuple[float, ...]) -> float:
+    # Set the background hyperparameters
+    h_c = aux_data['bkg_prior_mean']  # Mean is set to use the empirical surface density in SDWFS associated with z = 0
+    h_c_err = aux_data['bkg_prior_std'] # Std is set to have the largest frac. error measured from local backgrounds
+
     # Extract our parameters
     if args.cluster_only:
         theta, eta, zeta, beta, rc = params
@@ -215,52 +219,37 @@ def lnprior(params: tuple[float, ...]):
         # Exponentiate all the log-sampled parameters
         # rc, c0 = np.exp([ln_rc, ln_c0])
 
-    cluster_lnprior = []
-    for cluster_id in catalog_dict:
-        # Get the local background information for the cluster to set the background hyperparameters
-        z = catalog_dict[cluster_id]['redshift']
-        h_c = catalog_dict[cluster_id]['local_bkg_surf_den']
-        h_c_err = catalog_dict[cluster_id]['local_bkg_surf_den_err']
-        local_bkg_offset = cluster_info[cluster_id]['local_bkg_offset']
-
-        # Shift background parameter to redshift-dependent value.
-        cz = c0 + delta_c(z) + local_bkg_offset
-
-        # Define all priors
-        if (0.0 <= theta <= 20. and
-                -8. <= eta <= 8. and
-                -5. <= zeta <= 5. and
-                -3. <= beta <= 3. and
-                0.05 <= rc <= 0.5 and
-                0.0 <= cz < np.inf):
-            theta_lnprior = 0.0
-            eta_lnprior = 0.0
-            zeta_lnprior = 0.0
-            beta_lnprior = 0.0
-            rc_lnprior = 0.0
-            if args.cluster_only:
-                c_lnprior = 0.
-            else:
-                c_lnprior = -0.5 * np.sum((cz - h_c) ** 2 / h_c_err ** 2)
+    # Define all priors
+    if (0.0 <= theta <= 20. and
+            -8. <= eta <= 8. and
+            -5. <= zeta <= 5. and
+            -3. <= beta <= 3. and
+            0.05 <= rc <= 0.5 and
+            0.0 <= c0 < np.inf):
+        theta_lnprior = 0.0
+        eta_lnprior = 0.0
+        zeta_lnprior = 0.0
+        beta_lnprior = 0.0
+        rc_lnprior = 0.0
+        if args.cluster_only:
+            c_lnprior = 0.
         else:
-            theta_lnprior = -np.inf
-            eta_lnprior = -np.inf
-            zeta_lnprior = -np.inf
-            beta_lnprior = -np.inf
-            rc_lnprior = -np.inf
-            c_lnprior = -np.inf
+            c_lnprior = -0.5 * np.sum((c0 - h_c) ** 2 / h_c_err ** 2)
+    else:
+        theta_lnprior = -np.inf
+        eta_lnprior = -np.inf
+        zeta_lnprior = -np.inf
+        beta_lnprior = -np.inf
+        rc_lnprior = -np.inf
+        c_lnprior = -np.inf
 
-        ln_prior_prob = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + c_lnprior
-        cluster_lnprior.append(ln_prior_prob)
+    ln_prior_prob = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + c_lnprior
 
-    # Assuming all parameters are independent the joint log-prior is
-    total_lnprior = np.sum(cluster_lnprior)
-
-    return total_lnprior
+    return ln_prior_prob
 
 
 # Define the log-posterior probability
-def lnpost(params: tuple[float, ...]):
+def lnpost(params: tuple[float, ...]) -> float:
     lp = lnprior(params)
 
     # Check the finiteness of the prior.
@@ -276,7 +265,8 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 parser = ArgumentParser(description='Runs MCMC sampler')
 parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
-parser.add_argument('name', help='Chain name', type=str)
+parser.add_argument('file', help='Output chain file name', type=str)
+parser.add_argument('chain_name', help='Chain name', type=str)
 parser.add_argument('--preprocessing', help='Preprocessing file name', default='SPTcl_IRAGN_preprocessing.json',
                     type=str)
 parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
@@ -306,12 +296,12 @@ aux_data = catalog_dict.pop('aux_data')
 
 # Set up interpolators
 agn_purity_color = interp1d(aux_data['redshift_bins'], aux_data['color_thresholds'], kind='previous')
-local_bkg_means = interp1d(aux_data['local_bkg_colors'], aux_data['local_bkg_means'], kind='previous')
+sdwfs_surf_den = interp1d(aux_data['color_thresholds'][:-1], aux_data['sdwfs_surf_dens'], kind='previous')
 
 
 # For convenience, set up the function compositions
 def agn_prior_surf_den(redshift: float) -> float:
-    return local_bkg_means(agn_purity_color(redshift))
+    return sdwfs_surf_den(agn_purity_color(redshift))
 
 
 # Set up an interpolation for the AGN surface density relative to the reference surface density at z = 0
@@ -333,7 +323,8 @@ for cluster_id, cluster_info in catalog_dict.items():
 # rc_true = 0.1
 # c0_true = agn_prior_surf_den(0.)
 param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
-theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.name), dtype=float)
+theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.chain_name),
+                                                                        dtype=float)
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -369,11 +360,7 @@ autocorr = np.empty(nsteps)
 old_tau = np.inf  # For convergence
 
 with MPIPool() as pool:
-    # Filename for hd5 backend
-    # chain_file = f'{local_dir}emcee_mock_eta-zeta_grid.h5'
-    chain_file = f'{local_dir}emcee_mock_eta-zeta_grid_308cl_snr20.h5'
-    # chain_file = f'{local_dir}emcee_SPTcl-IRAGN_empirical.h5'
-    backend = emcee.backends.HDFBackend(chain_file, name=f'{args.name}'
+    backend = emcee.backends.HDFBackend(args.file, name=f'{args.chain_name}'
                                                          f'{"_no-LF" if args.no_luminosity else ""}'
                                                          f'{"_no-mu" if args.no_selection_membership else ""}'
                                                          f'{"_no-comp_corr" if args.no_completeness else ""}'
