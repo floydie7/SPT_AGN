@@ -167,9 +167,9 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     j_band_abs_mag = cluster['J_ABS_MAG']
 
     # We also need to grab the local background information
-    local_bkg_surf_den = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['LOCAL_BKG_SURF_DEN'] * u.deg**-2)
+    local_bkg_surf_den = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['LOCAL_BKG_SURF_DEN'][0] * u.deg**-2)
                           .to_value(u.arcmin**-2))
-    local_bkg_area = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['ANNULUS_AREA'] * u.deg**-2)
+    local_bkg_area = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['ANNULUS_AREA'][0] * u.deg**2)
                       .to_value(u.arcmin**2))
     local_bkg_surf_den_err = np.sqrt(local_bkg_surf_den * local_bkg_area) / local_bkg_area
 
@@ -263,7 +263,7 @@ rescale_fact = 6  # Factor by which we will rescale the mask images to gain high
 
 # Read in the LoS and local background catalogs
 sptcl_catalog = Table.read(args.catalog)
-local_bkgs = Table.read('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits')
+local_bkgs = Table.read(f'{hcc_prefix}Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits')
 
 # Define the relationships between the means of the local backgrounds for a given color selection threshold/redshift
 local_bkgs_color_grp = local_bkgs.group_by('COLOR_THRESHOLD')
