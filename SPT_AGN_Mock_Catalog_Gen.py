@@ -210,6 +210,7 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
 def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
     """Task function to create the line-of-sight cluster catalogs."""
     spt_id = cluster['SPT_ID']
+    orig_id = cluster['orig_SPT_ID']
     mask_name = cluster['MASK_NAME']
     z_cl = cluster['REDSHIFT']
     m500_cl = cluster['M500'] * u.Msun
