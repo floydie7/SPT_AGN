@@ -115,7 +115,7 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     z = catalog_dict[cluster_id]['redshift']
     m = catalog_dict[cluster_id]['m500']
     r500 = catalog_dict[cluster_id]['r500']
-    local_bkg_offset = cluster_info[cluster_id]['local_bkg_offset']
+    local_bkg_offset = catalog_dict[cluster_id]['local_bkg_offset']
 
     # Luminosity function number
     if integral:
