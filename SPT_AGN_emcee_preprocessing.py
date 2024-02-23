@@ -168,7 +168,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
 
     # We also need to grab the local background information
     if not args.empirical:
-        local_bkg_surf_den = cluster['c_true'][0] * u.arcmin**-2
+        local_bkg_surf_den = cluster['c_true'][0]  # arcmin^-2
     else:
         local_bkg_surf_den = ((local_bkgs[local_bkgs['SPT_ID'] == cluster_id]['LOCAL_BKG_SURF_DEN'][0] * u.deg**-2)
                               .to_value(u.arcmin**-2))
