@@ -650,8 +650,8 @@ SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
 # Bin the local backgrounds by color threshold bins
 local_bkgs_grp = local_bkgs.group_by('COLOR_THRESHOLD')
-local_bkgs_mean = local_bkgs_grp['local_bkg_surf_den'].groups.aggregate(np.mean)
-local_bkgs_std = local_bkgs_grp['local_bkg_surf_den'].groups.aggregate(np.std)
+local_bkgs_mean = local_bkgs_grp['LOCAL_BKG_SURF_DEN'].groups.aggregate(np.mean)
+local_bkgs_std = local_bkgs_grp['LOCAL_BKG_SURF_DEN'].groups.aggregate(np.std)
 
 # Create functions to call the background data
 local_bkg_mean_func = interp1d(local_bkgs_grp.groups.keys['COLOR_THRESHOLD'], local_bkgs_mean, kind='previous')
@@ -716,18 +716,6 @@ for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_ran
 
     # Find the appropriate color thresholds for our clusters
     color_thresholds = [agn_purity_color(z) for z in SPT_data['REDSHIFT']]
-
-    # Set the redshift dependent background rates
-    # c_truths = np.array([agn_prior_surf_den(z) for z in SPT_data['REDSHIFT']])
-    # c_err_truths = np.array([agn_prior_surf_den_err(z) for z in SPT_data['REDSHIFT']])
-
-    # Set the background truths to be drawn from the local background distributions
-    c_truths = np.array(local_bkgs_mean)
-    c_err_truths = np.array(local_bkgs_std)
-
-    # We will amplify the true parameters by the number of clusters in the sample.
-    c_truths *= cluster_amp
-    c_err_truths *= cluster_amp
 
     # The control fitting background parameter will however be the SDWFS surface density associated with z = 0
     c0_true = sdwfs_surf_den(agn_purity_color(0))
