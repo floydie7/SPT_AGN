@@ -323,7 +323,7 @@ for cluster_id, cluster_info in catalog_dict.items():
 # rc_true = 0.1
 # c0_true = agn_prior_surf_den(0.)
 param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
-theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.chain_name),
+theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.file),
                                                                         dtype=float)
 
 # Set up our MCMC sampler.
