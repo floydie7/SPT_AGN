@@ -174,7 +174,7 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
                               .to_value(u.arcmin**-2))
 
     # Determine the offset of the local background with respect to the mean at the color threshold for the cluster
-    local_bkg_offset = local_bkg_surf_den - sdwfs_prior_data(agn_purity_color(cluster_z))
+    local_bkg_offset = local_bkg_surf_den - sdwfs_surf_den(agn_purity_color(cluster_z))
 
     # Set up a switch to handle the options for the radial separation
     # radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
@@ -282,14 +282,14 @@ z_bins = sdwfs_purity_data['redshift_bins'][:-1]
 
 # Set up interpolators
 agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')
-agn_surf_den = interp1d(sdwfs_purity_data['purity_90_colors'][:-1], sdwfs_prior_data['agn_surf_den'], kind='previous')
+sdwfs_surf_den = interp1d(sdwfs_purity_data['purity_90_colors'][:-1], sdwfs_prior_data['agn_surf_den'], kind='previous')
 
 # For the background prior we want to set the stdev to be the maximum fractional error from the local background data
 local_bkgs_color_group_std = local_bkgs_color_grp['LOCAL_BKG_SURF_DEN'].groups.aggregate(np.std)
 local_bkgs_color_group_max_frac_err = np.max(local_bkgs_color_group_std / local_bkgs_color_grp_means)
 
 # Define the background prior hyperparameters
-background_prior_mean = agn_surf_den(agn_purity_color(0))
+background_prior_mean = sdwfs_surf_den(agn_purity_color(0))
 background_prior_std = background_prior_mean * local_bkgs_color_group_max_frac_err
 
 # Before we do anything further with the LoS catalog, make the selection membership cut
