@@ -156,7 +156,7 @@ def good_pixel_fraction(r, z, r500, center, cluster_id, rescale_factor=None):
 def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     """Parses the input catalog into a dictionary structure containing only the necessary information for the MCMC
     sampler."""
-    cluster_id = cluster['orig_SPT_ID'][0]
+    cluster_id = cluster['SPT_ID'][0]
     cluster_z = cluster['REDSHIFT'][0]
     cluster_m500 = cluster['M500'][0] * u.Msun
     cluster_r500 = cluster['R500'][0] * u.Mpc
