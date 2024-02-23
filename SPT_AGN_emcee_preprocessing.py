@@ -337,8 +337,8 @@ catalog_dict['aux_data'] = {'color_thresholds': sdwfs_purity_data['purity_90_col
                             'sdwfs_surf_dens': sdwfs_prior_data['agn_surf_den'],
                             'local_bkg_means': list(local_bkgs_color_grp_means),
                             'local_bkg_colors': list(local_bkgs_color_grp.groups.keys['COLOR_THRESHOLD']),
-                            'bkg_prior_mean': background_prior_mean,
-                            'bkg_prior_std': background_prior_std}
+                            'bkg_prior_mean': float(background_prior_mean),
+                            'bkg_prior_std': float(background_prior_std)}
 
 # Store the results in a JSON file to be used later by the MCMC sampler
 # local_dir = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/'
