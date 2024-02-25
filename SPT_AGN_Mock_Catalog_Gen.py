@@ -28,7 +28,7 @@ from k_correction import k_corr_abs_mag
 # Set up logger
 logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/'
                              'eta-zeta_slopes/raw_grid/local_bkg_raw_grid_mock.log',
-                    level=logging.INFO)
+                    level=logging.DEBUG)
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 hcc_prefix = ''
@@ -210,7 +210,6 @@ def model_rate(params, z, m, r500, r_r500, j_mag):
 def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
     """Task function to create the line-of-sight cluster catalogs."""
     spt_id = cluster['SPT_ID']
-    orig_id = cluster['orig_SPT_ID']
     mask_name = cluster['MASK_NAME']
     z_cl = cluster['REDSHIFT']
     m500_cl = cluster['M500'] * u.Msun
@@ -281,11 +280,6 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
 
     # Add flag to background objects
     bkg_cat['CLUSTER_AGN'] = np.full_like(bkg_cat['x_pixel'], False)
-
-    # For diagnostics, record the input mean, std, and sampled background surface densites.
-    bkg_cat['c_mean'] = c_mean
-    bkg_cat['c_std'] = c_std
-    bkg_cat['c_true'] = c_true
 
     # Cluster Catalog
     # Calculate the model values for the AGN candidates in the cluster
@@ -380,6 +374,11 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
     los_cat['REDSHIFT'] = z_cl
     los_cat['R500'] = r500_cl
     los_cat['MASK_NAME'] = mask_name
+
+    # For diagnostics, record the input mean, std, and sampled background surface densites.
+    los_cat['c_mean'] = c_mean
+    los_cat['c_std'] = c_std
+    los_cat['c_true'] = c_true
 
     # Convert the pixel coordinates to RA/Dec coordinates
     los_coords_skycoord = SkyCoord.from_pixel(los_cat['x_pixel'], los_cat['y_pixel'], wcs=w, origin=0, mode='wcs')
