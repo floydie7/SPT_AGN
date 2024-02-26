@@ -300,7 +300,7 @@ for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(), desc='Renormal
 
 spt_local_bkg_table = QTable(rows=[[cluster_name, cluster_data.cluster_z, cluster_data.selection_color,
                                     cluster_data.annulus_area,
-                                    simpson(cluster_data.sdwfs_irac_dndm_scaled, magnitude_bin_centers)]
+                                    simpson(cluster_data.sdwfs_irac_dndm_scaled, magnitude_bin_centers) * u.deg**-2]
                                    for cluster_name, cluster_data in tqdm(spt_wise_gal_data.items(),
                                                                           desc='Integrating scaled SDWFS dN/dm')],
                              names=['SPT_ID', 'REDSHIFT', 'COLOR_THRESHOLD', 'ANNULUS_AREA', 'LOCAL_BKG_SURF_DEN'])

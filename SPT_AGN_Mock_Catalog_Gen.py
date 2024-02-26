@@ -15,7 +15,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
-from astropy.table import Table, join, unique, vstack
+from astropy.table import Table, QTable, join, unique, vstack
 from astropy.wcs import WCS
 from matplotlib import pyplot as plt
 from numpy.polynomial import Polynomial
@@ -254,8 +254,8 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
 
     # Background Catalog
     # Get the correct background info 
-    c_mean = local_bkg_mean_func(color_threshold)
-    c_std = local_bkg_std_func(color_threshold)
+    c_mean = float(local_bkg_mean_func(color_threshold))
+    c_std = float(local_bkg_std_func(color_threshold))
     
     # Draw the background rate from the local background distribution
     c_true = rng.normal(loc=c_mean, scale=c_std)
@@ -365,7 +365,7 @@ def generate_mock_cluster(cluster: Table, color_threshold: float) -> Table:
     try:
         los_cat['SPT_ID'] = spt_id
     except TypeError:
-        print(f'{params_true}\n{spt_id = }: {len(cl_cat) = }, {len(bkg_cat) = }')
+        print(f'{params_true}\n{spt_id = }: {len(cl_cat) = }, {len(bkg_cat) = }, {c_true = :.3f}')
         return los_cat
 
     los_cat['SZ_RA'] = SZ_center_skycoord.ra
@@ -543,7 +543,10 @@ z_bins = sdwfs_purity_data['redshift_bins'][:-1]
 threshold_bins = sdwfs_prior_data['color_thresholds'][:-1]
 
 # Read in the local background data
-local_bkgs = Table.read('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits')
+local_bkgs = QTable.read('Data_Repository/Project_Data/SPT-IRAGN/local_backgrounds/SPTcl-local_bkg.fits')
+
+# To avoid issues downstream convert the surface density to arcmin^-2 units
+local_bkgs['LOCAL_BKG_SURF_DEN'] = local_bkgs['LOCAL_BKG_SURF_DEN'].to_value(u.arcmin**-2)
 
 # Set up interpolators
 agn_purity_color = interp1d(z_bins, sdwfs_purity_data['purity_90_colors'], kind='previous')

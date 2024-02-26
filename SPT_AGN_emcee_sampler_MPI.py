@@ -200,7 +200,7 @@ def lnlike(param: tuple[float, ...]) -> float:
 def lnprior(params: tuple[float, ...]) -> float:
     # Set the background hyperparameters
     h_c = aux_data['bkg_prior_mean']  # Mean is set to use the empirical surface density in SDWFS associated with z = 0
-    h_c_err = aux_data['bkg_prior_std'] # Std is set to have the largest frac. error measured from local backgrounds
+    h_c_err = aux_data['bkg_prior_std']  # Std is set to have the largest frac. error measured from local backgrounds
 
     # Extract our parameters
     if args.cluster_only:
