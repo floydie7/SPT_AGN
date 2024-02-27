@@ -198,54 +198,76 @@ def lnlike(param: tuple[float, ...]) -> float:
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params: tuple[float, ...]) -> float:
-    # Set the background hyperparameters
-    h_c = aux_data['bkg_prior_mean']  # Mean is set to use the empirical surface density in SDWFS associated with z = 0
-    h_c_err = aux_data['bkg_prior_std']  # Std is set to have the largest frac. error measured from local backgrounds
+    cluster_lnpriors = []
+    for cluster_id in catalog_dict:
+        # Set the background hyperparameters
+        global_mean = aux_data['bkg_prior_mean']  # Mean is set to use the empirical surface density in SDWFS associated with z = 0
+        global_err = aux_data['bkg_prior_std']  # Std is set to have the largest frac. error measured from local backgrounds
 
-    # Extract our parameters
-    if args.cluster_only:
-        theta, eta, zeta, beta, rc = params
-        # rc = np.exp(ln_rc)
-        c0 = c0_true
-    elif args.background_only:
-        c0, = params
-        # c0 = np.exp(ln_c0)
-        # Set other parameters to values that will pass the priors.
-        theta, eta, zeta, beta = [0.] * 4
-        rc = 0.1  # Cannot be 0., min rc = 0.05
-    else:
-        theta, eta, zeta, beta, rc, c0 = params
+        # Find the original fractional error
+        global_frac_err = global_mean / global_err
 
-        # Exponentiate all the log-sampled parameters
-        # rc, c0 = np.exp([ln_rc, ln_c0])
+        # Get information from the cluster
+        z = catalog_dict[cluster_id]['redshift']
+        local_bkg_offset = catalog_dict[cluster_id]['local_bkg_offset']
 
-    # Define all priors
-    if (0.0 <= theta <= 20. and
-            -8. <= eta <= 8. and
-            -5. <= zeta <= 5. and
-            -3. <= beta <= 3. and
-            0.05 <= rc <= 0.5 and
-            0.0 <= c0 < np.inf):
-        theta_lnprior = 0.0
-        eta_lnprior = 0.0
-        zeta_lnprior = 0.0
-        beta_lnprior = 0.0
-        rc_lnprior = 0.0
+        # Shift the hyperparameters from the global to local values
+        h_c = global_mean + delta_c(z) + local_bkg_offset
+        h_c_err = h_c * global_frac_err
+
+        # Extract our parameters
         if args.cluster_only:
-            c_lnprior = 0.
+            theta, eta, zeta, beta, rc = params
+            # rc = np.exp(ln_rc)
+            c0 = c0_true
+        elif args.background_only:
+            c0, = params
+            # c0 = np.exp(ln_c0)
+            # Set other parameters to values that will pass the priors.
+            theta, eta, zeta, beta = [0.] * 4
+            rc = 0.1  # Cannot be 0., min rc = 0.05
         else:
-            c_lnprior = -0.5 * np.sum((c0 - h_c) ** 2 / h_c_err ** 2)
-    else:
-        theta_lnprior = -np.inf
-        eta_lnprior = -np.inf
-        zeta_lnprior = -np.inf
-        beta_lnprior = -np.inf
-        rc_lnprior = -np.inf
-        c_lnprior = -np.inf
+            theta, eta, zeta, beta, rc, c0 = params
 
-    ln_prior_prob = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + c_lnprior
+            # Exponentiate all the log-sampled parameters
+            # rc, c0 = np.exp([ln_rc, ln_c0])
 
-    return ln_prior_prob
+        # Shift the parameter to local values too
+        if not args.cluster_only:
+            c_local = c0 + delta_c(z) + local_bkg_offset
+        else:
+            c_local = c0
+
+        # Define all priors
+        if (0.0 <= theta <= 20. and
+                -8. <= eta <= 8. and
+                -5. <= zeta <= 5. and
+                -3. <= beta <= 3. and
+                0.05 <= rc <= 0.5 and
+                0.0 <= c_local < np.inf):
+            theta_lnprior = 0.0
+            eta_lnprior = 0.0
+            zeta_lnprior = 0.0
+            beta_lnprior = 0.0
+            rc_lnprior = 0.0
+            if args.cluster_only:
+                c_lnprior = 0.
+            else:
+                c_lnprior = -0.5 * np.sum((c_local - h_c) ** 2 / h_c_err ** 2)
+        else:
+            theta_lnprior = -np.inf
+            eta_lnprior = -np.inf
+            zeta_lnprior = -np.inf
+            beta_lnprior = -np.inf
+            rc_lnprior = -np.inf
+            c_lnprior = -np.inf
+
+        ln_prior_prob = theta_lnprior + eta_lnprior + zeta_lnprior + beta_lnprior + rc_lnprior + c_lnprior
+        cluster_lnpriors.append(ln_prior_prob)
+
+    total_ln_prior_prob = np.sum(cluster_lnpriors)
+
+    return total_ln_prior_prob
 
 
 # Define the log-posterior probability
