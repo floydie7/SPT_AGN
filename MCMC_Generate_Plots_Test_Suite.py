@@ -17,8 +17,8 @@ from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import interp1d
 
 # Set up logger
-logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_20/run_1/'
-                             'mock_catalog_chain_results_snr20_apriori_no-pinch.log',
+logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/local_backgrounds/'
+                             't0.09e4z-1/local_bkg_tests.log',
                     level=logging.INFO)
 
 # Read in the purity and surface density files
@@ -42,12 +42,12 @@ def agn_prior_surf_den(redshift: float) -> float:
 
 cluster_amp = 1.
 
-theta_true = 5.0
+theta_true = 0.09
 eta_true = 4.0
 zeta_true = -1.0
 beta_true = 1.0
 rc_true = 0.1
-c0_true = agn_prior_surf_den(0.)
+c0_true = 0.181
 
 theta_true *= cluster_amp
 c0_true *= cluster_amp
@@ -61,8 +61,8 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 # labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
-# filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/pure_poisson/emcee_mock_pure_poisson.h5'
-filename = 'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/Port_Rebuild_Tests/eta-zeta_grid/emcee_mock_eta-zeta_grid_308cl_snr20.h5'
+filename = ('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/local_backgrounds/t0.09e4z-1/'
+            'sptcl_mock_emcee_local_bkg.h5')
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
@@ -120,14 +120,13 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    fig.savefig(
-        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_20/run_1/'
-        f'Param_chains_mock_{chain_name}_expParams.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/local_backgrounds/t0.09e4z-1/'
+                f'Param_chains_mock_{chain_name}_expParams.pdf')
     plt.show()
 
     try:
         # Calculate the autocorrelation time (discarding the initial burn-in time)
-        tau_est = sampler.get_autocorr_time(discard=500)
+        tau_est = sampler.get_autocorr_time()
         assert np.isfinite(tau_est).all()
 
         tau = np.mean(tau_est)
@@ -139,20 +138,20 @@ for chain_name, sampler in sampler_dict.items():
         thinning = 1
 
     except emcee.autocorr.AutocorrError:
-        tau_est = sampler.get_autocorr_time(discard=500, quiet=True)
+        tau_est = sampler.get_autocorr_time(quiet=True)
         tau = np.mean(tau_est)
 
-        burnin = int((nsteps - 500) // 3)
+        burnin = int(nsteps // 3)
         thinning = 1
 
     except AssertionError:
-        tau_est = sampler.get_autocorr_time(discard=500, quiet=True)
+        tau_est = sampler.get_autocorr_time(quiet=True)
         tau = np.nanmean(tau_est)
 
-        burnin = int((nsteps - 500) // 3)
+        burnin = int(nsteps // 3)
         thinning = 1
 
-    flat_samples = sampler.get_chain(discard=burnin + 500, thin=thinning, flat=True)
+    flat_samples = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
     # if ndim == 1:
     #     flat_samples[:, 0] = np.exp(flat_samples[:, 0])
     # elif ndim == 5:
@@ -181,9 +180,8 @@ for chain_name, sampler in sampler_dict.items():
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(
-        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/Port_Rebuild_Tests/eta-zeta_grid/snr_20/run_1/'
-        f'Corner_plot_mock_{chain_name}_expParams.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/local_backgrounds/t0.09e4z-1/'
+                f'Corner_plot_mock_{chain_name}_local_bkg.pdf')
     plt.show()
 
     logging.info(f'Iterations ran: {sampler.iteration}')

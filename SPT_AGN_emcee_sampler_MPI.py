@@ -201,11 +201,13 @@ def lnprior(params: tuple[float, ...]) -> float:
     cluster_lnpriors = []
     for cluster_id in catalog_dict:
         # Set the background hyperparameters
-        global_mean = aux_data['bkg_prior_mean']  # Mean is set to use the empirical surface density in SDWFS associated with z = 0
-        global_err = aux_data['bkg_prior_std']  # Std is set to have the largest frac. error measured from local backgrounds
+        global_mean = aux_data['bkg_prior_mean']
 
-        # Find the original fractional error
-        global_frac_err = global_mean / global_err
+        # Allow the user to overwrite the fractional error stored in the preprocessing file
+        if args.prior_frac_err is None:
+            global_frac_err = aux_data['bkg_prior_frac_err']
+        else:
+            global_frac_err = args.prior_frac_err
 
         # Get information from the cluster
         z = catalog_dict[cluster_id]['redshift']
@@ -285,12 +287,13 @@ hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
 # hcc_prefix = ''
 
 parser = ArgumentParser(description='Runs MCMC sampler')
-parser.add_argument('--restart', help='Allows restarting the chain in place rather than resetting the chain.',
+parser.add_argument('--restart',
+                    help='Allows restarting the chain in place rather than resetting the chain.',
                     action='store_true')
 parser.add_argument('file', help='Output chain file name', type=str)
 parser.add_argument('chain_name', help='Chain name', type=str)
-parser.add_argument('--preprocessing', help='Preprocessing file name', default='SPTcl_IRAGN_preprocessing.json',
-                    type=str)
+parser.add_argument('--preprocessing', help='Preprocessing file name',
+                    default='SPTcl_IRAGN_preprocessing.json', type=str)
 parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
 parser.add_argument('--no-selection-membership', action='store_true',
                     help='Deactivate fuzzy degree of membership for AGN selection in likelihood function.')
@@ -298,6 +301,9 @@ parser.add_argument('--no-completeness', action='store_true',
                     help='Deactivate photometric completeness correction in likelihood function.')
 parser.add_argument('--poisson-only', action='store_true',
                     help='Use a pure Poisson likelihood function with a model that has no luminosity dependence.')
+parser.add_argument('--prior-frac-err',
+                    help='Overwrites the fractional error present in the preprocessing file with the provided value.',
+                    type=float)
 parser_grp = parser.add_mutually_exclusive_group()
 parser_grp.add_argument('--cluster-only', action='store_true',
                         help='Sample only on cluster objects.')
@@ -383,10 +389,10 @@ old_tau = np.inf  # For convergence
 
 with MPIPool() as pool:
     backend = emcee.backends.HDFBackend(args.file, name=f'{args.chain_name}'
-                                                         f'{"_no-LF" if args.no_luminosity else ""}'
-                                                         f'{"_no-mu" if args.no_selection_membership else ""}'
-                                                         f'{"_no-comp_corr" if args.no_completeness else ""}'
-                                                         f'{"_poisson-only" if args.poisson_only else ""}')
+                                                        f'{"_no-LF" if args.no_luminosity else ""}'
+                                                        f'{"_no-mu" if args.no_selection_membership else ""}'
+                                                        f'{"_no-comp_corr" if args.no_completeness else ""}'
+                                                        f'{"_poisson-only" if args.poisson_only else ""}')
     if not args.restart:
         backend.reset(nwalkers, ndim)
 
