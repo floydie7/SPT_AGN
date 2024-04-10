@@ -119,6 +119,13 @@ SPTcl['M500_lerr'] *= 1e14
 # Remove any unconfirmed clusters
 SPTcl = SPTcl[SPTcl['M500'] > 0.0]
 
+# We need to manually update the redshift and mass of SPT-CL J0459–4947 to use values from Mantz+20
+SPTcl[SPTcl['SPT_ID'] == 'SPT-CLJ0459-4947']['REDSHIFT'] = 1.705
+SPTcl[SPTcl['SPT_ID'] == 'SPT-CLJ0459-4947']['REDSHIFT_UNC'] = 0.018
+# SPTcl[SPTcl['SPT_ID'] == 'SPT-CLJ0459-4947']['M500'] = 1.8e14
+# SPTcl[SPTcl['SPT_ID'] == 'SPT-CLJ0459-4947']['M500_uerr'] = 0.2e14
+# SPTcl[SPTcl['SPT_ID'] == 'SPT-CLJ0459-4947']['M500_lerr'] = 0.2e14
+
 # Run the pipeline.
 print('Starting Pipeline.')
 pipeline_start_time = time()
