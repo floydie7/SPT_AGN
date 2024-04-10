@@ -68,7 +68,7 @@ def luminosity_function(abs_mag, redshift):
 
 def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
     """
-    Our generating model.
+    Our generating model. It is used as the intensity function of our Poisson likelihood function.
 
     Parameters
     ----------
@@ -145,6 +145,21 @@ def model_rate_opted(params, cluster_id, r_r500, j_mag, integral=False):
 
 # Set our log-likelihood
 def lnlike(param: tuple[float, ...]) -> float:
+    """
+    Log-likelihood function. It is a modified compound spatial Poisson point process comprising of two parts, the
+    inhomogeneous cluster term and a homogeneous background term.
+
+    Parameters
+    ----------
+    param: tuple of floats
+        MCMC proposal parameters to be passed to the intensity function.
+
+    Returns
+    -------
+    float
+        The probability value of the log-likelihood function evaluated with input parameters.
+    """
+
     lnlike_list = []
     for cluster_id in catalog_dict:
         # Get the good pixel fraction for this cluster
@@ -198,6 +213,21 @@ def lnlike(param: tuple[float, ...]) -> float:
 # For our prior, we will choose uninformative priors for all our parameters and for the constant field value we will use
 # a gaussian distribution set by the values obtained from the SDWFS data set.
 def lnprior(params: tuple[float, ...]) -> float:
+    """
+    Log-prior probability function. This is the joint prior probability of all parameter values. All values are assumed
+    to be independent of each other.
+
+    Parameters
+    ----------
+    params: tuple of floats
+        MCMC proposal parameter values.
+
+    Returns
+    -------
+    float
+        The joint log-prior probability value evaluated with input parameters.
+    """
+
     cluster_lnpriors = []
     for cluster_id in catalog_dict:
         # Set the background hyperparameters
@@ -274,6 +304,21 @@ def lnprior(params: tuple[float, ...]) -> float:
 
 # Define the log-posterior probability
 def lnpost(params: tuple[float, ...]) -> float:
+    """
+    Log-Posterior probability function. The marginal posterior probability function.
+
+    Parameters
+    ----------
+    params: tuple of floats
+        MCMC proposal parameter values.
+
+    Returns
+    -------
+    float
+        Returns either the value of the log-posterior value evaluated at the input parameters or negative infinity if
+        the joint prior evaluated at the proposed parameter values is not finite.
+    """
+
     lp = lnprior(params)
 
     # Check the finiteness of the prior.
