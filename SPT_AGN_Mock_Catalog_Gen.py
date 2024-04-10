@@ -27,7 +27,7 @@ from k_correction import k_corr_abs_mag
 
 # Set up logger
 logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/'
-                             'eta-zeta_slopes/raw_grid/local_bkg_raw_grid_mock.log',
+                             'eta-zeta_slopes/targeted_snr/local_bkg_targeted_snr4.16_mock.log',
                     level=logging.DEBUG)
 
 # hcc_prefix = '/work/mei/bfloyd/SPT_AGN/'
@@ -564,7 +564,7 @@ sdwfs_surf_den = interp1d(threshold_bins, sdwfs_prior_data['agn_surf_den'], kind
 
 
 # Read in the SNR-theta fit library
-with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/Port_Rebuild_Tests/eta_zeta_slopes/'
+with open('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/eta-zeta_slopes/'
           'snr_to_theta_fits.json', 'r') as f:
     snr_theta_fits = json.load(f)
 for name, fit_data in snr_theta_fits.items():
@@ -589,14 +589,12 @@ beta_true = 1.0  # Radial slope
 rc_true = 0.1  # Core radius (in r500)
 # c0_true = agn_prior_surf_den(0.)  # Background AGN surface density (in arcmin^-2)
 
-theta_range = np.arange(0., 0.1, 0.01)
-# eta_range = [-5., -3., 0., 3., 4., 5.]
-# zeta_range = [-2., -1, 0., 1., 2.]
-eta_range = [4.]
-zeta_range = [-1.]
+# theta_range = np.arange(0., 6., 0.1)
+eta_range = [-5., -3., 0., 3., 4., 5.]
+zeta_range = [-2., -1, 0., 1., 2.]
 
 # Using our targeted SNR, determine the cluster amplitude parameter needed.
-target_snr = 20.
+target_snr = 4.16
 targeted_snr_theta = Table(rows=[[name, theta_snr(target_snr)] for name, theta_snr in snr_theta_fits.items()],
                            names=['catalog', 'theta'])
 
@@ -708,9 +706,9 @@ qso2_sed = SourceSpectrum.from_file(f'{hcc_prefix}Data_Repository/SEDs/Polletta-
 # </editor-fold>
 
 catalog_start_time = time()
-for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
-    # for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
-    # theta_true = snr_theta_fits[f'{(eta_true, zeta_true)}'](target_snr)
+# for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_range, zeta_range)).T.reshape(-1, 3):
+for eta_true, zeta_true in np.array(np.meshgrid(eta_range, zeta_range)).T.reshape(-1, 2):
+    theta_true = snr_theta_fits[f'{(eta_true, zeta_true)}'](target_snr)
 
     # theta_true, eta_true, zeta_true = 6.6, -5.0, 1.0
     params_true = (theta_true, eta_true, zeta_true, beta_true, rc_true)
@@ -732,7 +730,7 @@ for theta_true, eta_true, zeta_true in np.array(np.meshgrid(theta_range, eta_ran
     # Stack the individual cluster catalogs into a single master catalog
     outAGN = vstack(AGN_cats)
     filename = (
-        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/eta-zeta_slopes/raw_grid/'
+        f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Catalogs/local_backgrounds/eta-zeta_slopes/targeted_snr/'
         f'mock_AGN_catalog_t{theta_true:.4f}_e{eta_true:.2f}_z{zeta_true:.2f}_b{beta_true:.2f}_rc{rc_true:.3f}'
         f'_C{c0_true:.3f}_maxr{max_radius:.2f}_seed{seed}_{n_cl}x{cluster_amp}_tez_grid.fits')
     outAGN.write(filename, overwrite=True)
