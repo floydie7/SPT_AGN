@@ -339,6 +339,7 @@ parser.add_argument('file', help='Output chain file name', type=str)
 parser.add_argument('chain_name', help='Chain name', type=str)
 parser.add_argument('--preprocessing', help='Preprocessing file name',
                     default='SPTcl_IRAGN_preprocessing.json', type=str)
+parser.add_argument('--empirical', action='store_true', help='For running on empirical datasets.')
 parser.add_argument('--no-luminosity', action='store_true', help='Deactivate luminosity dependence in model.')
 parser.add_argument('--no-selection-membership', action='store_true',
                     help='Deactivate fuzzy degree of membership for AGN selection in likelihood function.')
@@ -395,9 +396,6 @@ for cluster_id, cluster_info in catalog_dict.items():
 # beta_true = 1.0
 # rc_true = 0.1
 # c0_true = agn_prior_surf_den(0.)
-param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
-theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.chain_name),
-                                                                        dtype=float)
 
 # Set up our MCMC sampler.
 # Set the number of dimensions for the parameter space and the number of walkers to use to explore the space.
@@ -410,17 +408,24 @@ nwalkers = 50
 nsteps = int(100_000)
 
 # We will initialize our walkers in a tight ball near the initial parameter values.
-# theta_pos0 = rng.uniform(low=0.01, high=15., size=nwalkers)
-theta_pos0 = rng.normal(theta_true, 1e-4, size=nwalkers)
-# eta_pos0 = rng.uniform(low=-6., high=6., size=nwalkers)
-eta_pos0 = rng.normal(eta_true, 1e-4, size=nwalkers)
-# zeta_pos0 = rng.uniform(low=-3., high=3., size=nwalkers)
-zeta_pos0 = rng.normal(zeta_true, 1e-4, size=nwalkers)
-# beta_pos0 = rng.uniform(low=-1., high=1., size=nwalkers)
-beta_pos0 = rng.normal(beta_true, 1e-4, size=nwalkers)
-# rc_pos0 = rng.uniform(0.05, high=0.5, size=nwalkers)
-rc_pos0 = rng.normal(rc_true, 1e-4, size=nwalkers)
-c0_pos0 = rng.normal(c0_true, 1e-4, size=nwalkers)
+if args.empirical:
+    theta_pos0 = rng.uniform(low=0.01, high=15., size=nwalkers)
+    eta_pos0 = rng.uniform(low=-6., high=6., size=nwalkers)
+    zeta_pos0 = rng.uniform(low=-3., high=3., size=nwalkers)
+    beta_pos0 = rng.uniform(low=-1., high=1., size=nwalkers)
+    rc_pos0 = rng.uniform(0.05, high=0.5, size=nwalkers)
+    c0_pos0 = rng.normal(0.181, 1e-4, size=nwalkers)
+else:
+    param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
+    theta_true, eta_true, zeta_true, beta_true, rc_true, c0_true = np.array(param_pattern.findall(args.chain_name),
+                                                                            dtype=float)
+    theta_pos0 = rng.normal(theta_true, 1e-4, size=nwalkers)
+    eta_pos0 = rng.normal(eta_true, 1e-4, size=nwalkers)
+    zeta_pos0 = rng.normal(zeta_true, 1e-4, size=nwalkers)
+    beta_pos0 = rng.normal(beta_true, 1e-4, size=nwalkers)
+    rc_pos0 = rng.normal(rc_true, 1e-4, size=nwalkers)
+    c0_pos0 = rng.normal(c0_true, 1e-4, size=nwalkers)
+
 if args.cluster_only:
     pos0 = np.array([theta_pos0, eta_pos0, zeta_pos0, beta_pos0, rc_pos0]).T
 elif args.background_only:
