@@ -17,8 +17,8 @@ from matplotlib.ticker import MaxNLocator
 from scipy.interpolate import interp1d
 
 # Set up logger
-logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/local_backgrounds/'
-                             'local_bkg_SNR4.16.log',
+logging.basicConfig(filename='Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/'
+                             'SPTcl-IRAGN_empirical.log',
                     level=logging.INFO)
 
 # Read in the purity and surface density files
@@ -61,8 +61,7 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 # labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
-filename = ('Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Chains/local_backgrounds/'
-            'SPTcl-Mock_SNR_cl+bkg_chains.h5')
+filename = ('Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/SPTcl-IRAGN_empirical.h5')
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
@@ -78,7 +77,7 @@ for chain_name, sampler in sampler_dict.items():
     logging.info(f'-----\n{chain_name}')
 
     param_pattern = re.compile(r'(?:[tezbCx]|rc)(-*\d+.\d+|\d+)')
-    truths = np.array(param_pattern.findall(chain_name), dtype=float)
+    # truths = np.array(param_pattern.findall(chain_name), dtype=float)
 
     # Get the chain from the sampler
     samples = sampler.get_chain()
@@ -102,14 +101,14 @@ for chain_name, sampler in sampler_dict.items():
     for i in range(ndim):
         if ndim == 1:
             ax = axes
-            truth_value = truths[-1]
+            # truth_value = truths[-1]
             label_value = labels[-1]
         else:
             ax = axes[i]
-            truth_value = truths[i]
+            # truth_value = truths[i]
             label_value = labels[i]
         ax.plot(samples[:, :, i], color='k', alpha=0.3)
-        ax.axhline(truth_value, color='b')
+        # ax.axhline(truth_value, color='b')
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set(xlim=[0, len(samples)], ylabel=label_value)
 
@@ -120,8 +119,8 @@ for chain_name, sampler in sampler_dict.items():
         axes[0].set(title=chain_name)
         axes[-1].set(xlabel='Steps')
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/local_backgrounds/cluster+background/'
-                f'Param_chains_{chain_name}_expParams.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/Final/'
+                f'Param_chains_{chain_name}.pdf')
     plt.show()
 
     try:
@@ -168,42 +167,44 @@ for chain_name, sampler in sampler_dict.items():
     # Produce the corner plot
     if ndim == 1:
         label_list = [labels[-1]]
-        truth_list = [truths[-1]]
+        # truth_list = [truths[-1]]
     elif ndim == 5:
         label_list = labels[:-1]
-        truth_list = truths[:-1]
+        # truth_list = truths[:-1]
     else:
         label_list = labels
-        truth_list = truths
+        # truth_list = truths
     fig = corner.corner(flat_samples, labels=label_list, quantiles=[0.16, 0.5, 0.84], show_titles=True, title_fmt='.3f',
-                        plot_datapoints=False, truths=truth_list)
+                        plot_datapoints=False) #, truths=truth_list)
     fig.suptitle(chain_name)
     plt.tight_layout()
 
-    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/Mock_Catalog/Plots/local_backgrounds/cluster+background/'
-                f'Corner_plot_{chain_name}_local_bkg.pdf')
+    fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Plots/Final/'
+                f'Corner_plot_{chain_name}.pdf')
     plt.show()
 
     logging.info(f'Iterations ran: {sampler.iteration}')
     for i in range(ndim):
         if ndim == 1:
             label_list = [labels[-1]]
-            truth_list = [truths[-1]]
+            # truth_list = [truths[-1]]
         elif ndim == 5:
             label_list = labels[:-1]
-            truth_list = truths[:-1]
+            # truth_list = truths[:-1]
         else:
             label_list = labels
-            truth_list = truths
+            # truth_list = truths
         mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
         q = np.diff(mcmc)
-        logging.info('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true:.2f})'
-                     .format(labels=label_list[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0],
-                             true=truth_list[i]))
+        # logging.info('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f} (truth: {true:.2f})'
+        #              .format(labels=label_list[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0],
+        #                      true=truth_list[i]))
+        logging.info('{labels} = {median:.3f} +{upper_err:.4f} -{lower_err:.4f})'
+                     .format(labels=label_list[i].strip('$\\'), median=mcmc[1], upper_err=q[1], lower_err=q[0]))
 
     logging.info(f'Mean acceptance fraction: {np.mean(sampler.accepted / sampler.iteration):.2f}')
 
     # Get estimate of autocorrelation time
     logging.info(f'Autocorrelation time: {tau:.1f}')
     plt.close('all')
-# plt.show()
+    plt.show()
