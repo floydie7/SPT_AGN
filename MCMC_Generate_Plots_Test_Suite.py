@@ -61,7 +61,7 @@ labels = [r'$\theta$', r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 # labels = [r'$\eta$', r'$\zeta$', r'$\beta$', r'$r_c$', r'$C_0$']
 
 # Our file storing the full test suite
-filename = ('Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/SPTcl-IRAGN_empirical.h5')
+filename = ('Data_Repository/Project_Data/SPT-IRAGN/MCMC/SPT_Data/Chains/SPTcl-IRAGN_empirical_z1.h5')
 
 # Get a list of the chain runs stored in our file
 with h5py.File(filename, 'r') as f:
