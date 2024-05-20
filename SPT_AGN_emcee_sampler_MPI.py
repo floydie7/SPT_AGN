@@ -247,6 +247,10 @@ def lnprior(params: tuple[float, ...]) -> float:
         h_c = global_mean + delta_c(z) + local_bkg_offset
         h_c_err = h_c * global_frac_err
 
+        # Set redshift hyperparameters
+        h_eta = 4
+        h_eta_err = 3
+
         # Extract our parameters
         if args.cluster_only:
             theta, eta, zeta, beta, rc = params
@@ -278,7 +282,8 @@ def lnprior(params: tuple[float, ...]) -> float:
                 0.05 <= rc <= 0.5 and
                 0.0 <= c_local < np.inf):
             theta_lnprior = 0.0
-            eta_lnprior = 0.0
+            # eta_lnprior = 0.0
+            eta_lnprior = -0.5 * np.sum((eta - h_eta)**2 / h_eta_err**2)
             zeta_lnprior = 0.0
             beta_lnprior = 0.0
             rc_lnprior = 0.0
