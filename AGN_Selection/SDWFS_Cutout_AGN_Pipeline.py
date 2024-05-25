@@ -60,7 +60,7 @@ ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 # ch1_ch2_color = 0.7  # Minimum [3.6] - [4.5] color
 
 # Output catalog file name
-output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN.fits'
+output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_cutout_IRAGN_no-stars.fits'
 
 # Get the color thresholds from the file
 with open(sdwfs_purity_color_threshold, 'r') as f:
