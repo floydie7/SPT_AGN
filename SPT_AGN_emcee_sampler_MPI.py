@@ -249,7 +249,7 @@ def lnprior(params: tuple[float, ...]) -> float:
 
         # Set redshift hyperparameters
         h_eta = args.eta_prior
-        h_eta_err = args.eta_prior
+        h_eta_err = 10
 
         # Extract our parameters
         if args.cluster_only:
