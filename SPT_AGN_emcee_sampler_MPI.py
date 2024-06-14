@@ -251,6 +251,10 @@ def lnprior(params: tuple[float, ...]) -> float:
         h_eta = args.eta_prior
         h_eta_err = 10
 
+        # Set mass hyperparameters
+        h_zeta = args.zeta_prior
+        h_zeta_err = 10
+
         # Extract our parameters
         if args.cluster_only:
             theta, eta, zeta, beta, rc = params
@@ -282,9 +286,10 @@ def lnprior(params: tuple[float, ...]) -> float:
                 0.05 <= rc <= 0.5 and
                 0.0 <= c_local < np.inf):
             theta_lnprior = 0.0
-            # eta_lnprior = 0.0
-            eta_lnprior = -0.5 * np.sum((eta - h_eta)**2 / h_eta_err**2)
-            zeta_lnprior = 0.0
+            eta_lnprior = 0.0
+            # eta_lnprior = -0.5 * np.sum((eta - h_eta)**2 / h_eta_err**2)
+            # zeta_lnprior = 0.0
+            zeta_lnprior = -0.5 * np.sum((zeta - h_zeta)**2 / h_zeta_err**2)
             beta_lnprior = 0.0
             rc_lnprior = 0.0
             if args.cluster_only:
@@ -356,6 +361,7 @@ parser.add_argument('--prior-frac-err',
                     help='Overwrites the fractional error present in the preprocessing file with the provided value.',
                     type=float)
 parser.add_argument('--eta-prior', help='Set the mean of the eta prior.', type=float)
+parser.add_argument('--zeta-prior', help='Set the mean of the zeta prior', type=float)
 parser_grp = parser.add_mutually_exclusive_group()
 parser_grp.add_argument('--cluster-only', action='store_true',
                         help='Sample only on cluster objects.')
