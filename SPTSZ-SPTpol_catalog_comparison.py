@@ -646,14 +646,14 @@ for cluster in common_cluster_cat:
     ssdf_catalog['I2_flux_error'] = ssdf_I2_flux_err
 
     # Make magnitude cuts
-    targeted_catalog = targeted_catalog[(10.0 <= targeted_catalog['I1_MAG_APER4']) &
-                                        (targeted_catalog['I1_MAG_APER4'] <= 18.3) &
-                                        (10.45 <= targeted_catalog['I2_MAG_APER4']) &
-                                        (targeted_catalog['I2_MAG_APER4'] <= 17.46)]
-    ssdf_catalog = ssdf_catalog[(10.0 <= ssdf_catalog['I1_MAG_APER4']) &
-                                (ssdf_catalog['I1_MAG_APER4'] <= 18.3) &
-                                (10.45 <= ssdf_catalog['I2_MAG_APER4']) &
-                                (ssdf_catalog['I2_MAG_APER4'] <= 17.46)]
+    # targeted_catalog = targeted_catalog[(10.0 <= targeted_catalog['I1_MAG_APER4']) &
+    #                                     (targeted_catalog['I1_MAG_APER4'] <= 18.3) &
+    #                                     (10.45 <= targeted_catalog['I2_MAG_APER4']) &
+    #                                     (targeted_catalog['I2_MAG_APER4'] <= 17.46)]
+    # ssdf_catalog = ssdf_catalog[(10.0 <= ssdf_catalog['I1_MAG_APER4']) &
+    #                             (ssdf_catalog['I1_MAG_APER4'] <= 18.3) &
+    #                             (10.45 <= ssdf_catalog['I2_MAG_APER4']) &
+    #                             (ssdf_catalog['I2_MAG_APER4'] <= 17.46)]
     targeted_catalogs.append(targeted_catalog)
     ssdf_catalogs.append(ssdf_catalog)
 
@@ -672,14 +672,14 @@ for cluster in common_cluster_cat:
     fig.suptitle(f'{cluster_id}')
     plt.tight_layout()
     fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs'
-                f'/source_counts/{cluster_id}_source_count.pdf')
+                f'/source_counts/{cluster_id}_source_count_all.pdf')
 
     # Plot the objects on the targeted I2 image
     fig = plt.figure(figsize=(8, 8))
     plot_image(fig, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog,
                targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn, )
     fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'images/{cluster_id}_image.pdf')
+                f'images/{cluster_id}_image_all.pdf')
 
     # Plot the flux photometry comparison
     fig, axarr = plt.subplots(ncols=2, figsize=(17, 8), constrained_layout=True)
@@ -690,7 +690,7 @@ for cluster in common_cluster_cat:
     cbar.set_label('[3.6] - [4.5]')
     fig.suptitle(f'{cluster_id}')
     fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'phot_comparison/{cluster_id}_phot_comparison.pdf')
+                f'phot_comparison/{cluster_id}_phot_comparison_all.pdf')
 
     # Make the mag difference plot
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, sharey='row', figsize=(17, 8), constrained_layout=True)
@@ -698,7 +698,7 @@ for cluster in common_cluster_cat:
     mag_diff_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
     fig.suptitle(f'{cluster_id}')
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'mag_diff/{cluster_id}_mag_diff.pdf')
+                f'mag_diff/{cluster_id}_mag_diff_all.pdf')
 
     # Make the flux-flux err plot
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
@@ -706,7 +706,7 @@ for cluster in common_cluster_cat:
     flux_err_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
     fig.suptitle(f'{cluster_id}')
     fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'flux_error/{cluster_id}_flux_error.pdf')
+                f'flux_error/{cluster_id}_flux_error_all.pdf')
 
     # Make the mag-mag err plot
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
@@ -714,7 +714,7 @@ for cluster in common_cluster_cat:
     mag_err_plot(ax=ax_I2, channel=2, targeted_cat=targeted_catalog, ssdf_cat=ssdf_catalog)
     fig.suptitle(f'{cluster_id}')
     fig.savefig('Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'mag_error/{cluster_id}_mag_error.pdf')
+                f'mag_error/{cluster_id}_mag_error_all.pdf')
 
     # Make the color-mag plot
     fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
@@ -724,7 +724,7 @@ for cluster in common_cluster_cat:
                    targeted_agn_cat=targeted_agn, ssdf_agn_cat=ssdf_agn, color_threshold=selection_color, errors=True)
     fig.suptitle(f'{cluster_id}')
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'color_mag/{cluster_id}_color_mag.pdf')
+                f'color_mag/{cluster_id}_color_mag_all.pdf')
 
     # # Make the color-mag-snr plot
     # fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(18, 9), constrained_layout=True)
@@ -740,7 +740,7 @@ for cluster in common_cluster_cat:
                          ssdf_agn_cat=ssdf_agn, color_threshold=selection_color)
     ax.set(title=f'{cluster_id}')
     fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-                f'color_color_err/{cluster_id}_color_color_err.pdf')
+                f'color_color_err/{cluster_id}_color_color_err_all.pdf')
 
     plt.close('all')
 
@@ -759,7 +759,7 @@ source_count_plot(ax=ax, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf
 ax.set(title='All Common Clusters', xlabel=r'$\log\/S_{{4.5\mu\rm m}}\/[\mu\rm Jy]$', ylabel='Number')
 plt.tight_layout()
 fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-            f'common_clusters_stacked_noncum_hist.pdf')
+            f'common_clusters_stacked_noncum_hist_all.pdf')
 
 # Create the stacked mag comparison plot
 fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
@@ -768,15 +768,38 @@ stacked_mag_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, 
 fig.suptitle('All Common Clusters')
 plt.tight_layout()
 fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-            f'common_clusters_stacked_phot_comparison_mag.pdf')
+            f'common_clusters_stacked_phot_comparison_mag_all.pdf')
 
 # Create the stacked flux comparison plot
-fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
-stacked_flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
-stacked_flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
-fig.suptitle('All Common Clusters')
+# fig, (ax_I1, ax_I2) = plt.subplots(ncols=2, figsize=(16, 8))
+# stacked_flux_comparison_plot(ax=ax_I1, channel=1, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+# stacked_flux_comparison_plot(ax=ax_I2, channel=2, targeted_cat=targeted_stacked, ssdf_cat=ssdf_stacked)
+# fig.suptitle('All Common Clusters')
+# plt.tight_layout()
+# fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
+#             f'common_clusters_stacked_phot_comparison_logflux_all.pdf')
+
+#%%
+fig, axes = plt.subplots(ncols=2, nrows=2, figsize=(16, 16))
+axes[0, 0].errorbar(targeted_stacked['I1_MAG_APER4'], targeted_stacked['I1_MAG_AUTO'] - targeted_stacked['I1_MAG_APER4'], fmt='.', color='k')
+axes[1, 0].errorbar(targeted_stacked['I2_MAG_APER4'], targeted_stacked['I2_MAG_AUTO'] - targeted_stacked['I2_MAG_APER4'], fmt='.', color='k')
+axes[0, 1].errorbar(ssdf_stacked['I1_MAG_APER4'], ssdf_stacked['I1_MAG_AUTO'] - ssdf_stacked['I1_MAG_APER4'], fmt='.', color='k')
+axes[1, 1].errorbar(ssdf_stacked['I2_MAG_APER4'], ssdf_stacked['I2_MAG_AUTO'] - ssdf_stacked['I2_MAG_APER4'], fmt='.', color='k')
+for ax in axes.flatten():
+    # ax.axline(xy1=[0, 0], slope=1, ls='--', c='k', alpha=0.4)
+    ax.axhline(y=0, c='k', ls='--', alpha=0.4)
+    ax.yaxis.set_major_locator(MultipleLocator(1))
+    ax.yaxis.set_minor_locator(MultipleLocator(0.25))
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.xaxis.set_minor_locator(MultipleLocator(0.25))
+    # ax.set(xlim=[26.5, 9.5], ylim=[26.5, 9.5])
+    ax.set(xlim=[26.5, 9.5], ylim=[-5, 5])
+axes[0, 0].set(xlabel=r'Targeted I1_MAG_APER4 (Vega)', ylabel='Targeted I1_MAG_AUTO - I1_MAG_APER4  (Vega)', title='Targeted Observations')
+axes[1, 0].set(xlabel=r'Targeted I2_MAG_APER4 (Vega)', ylabel='Targeted I2_MAG_AUTO - I2_MAG_APER4  (Vega)')
+axes[0, 1].set(xlabel=r'SSDF I1_MAG_APER4 (Vega)', ylabel='SSDF I1_MAG_AUTO - I1_MAG_APER4  (Vega)', title='SSDF Observations')
+axes[1, 1].set(xlabel=r'SSDF I2_MAG_APER4 (Vega)', ylabel='SSDF I2_MAG_AUTO - I2_MAG_APER4  (Vega)')
 plt.tight_layout()
 fig.savefig(f'Data_Repository/Project_Data/SPT-IRAGN/SPTSZ_SPTpol_photometry_comparison/SSDFv10_catalogs/'
-            f'common_clusters_stacked_phot_comparison_logflux.pdf')
+            f'common_clusters_stacked_phot_comparison_mag_auto-aper_all.pdf')
 
 plt.close('all')
