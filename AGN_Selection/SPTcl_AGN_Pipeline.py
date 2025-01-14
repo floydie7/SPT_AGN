@@ -93,6 +93,36 @@ output_column_names = ['SPT_ID', 'SZ_RA', 'SZ_DEC', 'ALPHA_J2000', 'DELTA_J2000'
                        'I1_MAG_APER4', 'I1_MAGERR_APER4', 'I1_FLUX_APER4', 'I1_FLUXERR_APER4', 'I2_MAG_APER4',
                        'I2_MAGERR_APER4', 'I2_FLUX_APER4', 'I2_FLUXERR_APER4', 'J_ABS_MAG', 'COMPLETENESS_CORRECTION',
                        'SELECTION_MEMBERSHIP', 'MASK_NAME']
+output_column_descriptions = {'SPT_ID': 'Official SPT Cluster ID',
+                              'SZ_RA': 'Right ascension of cluster center',
+                              'SZ_DEC': 'Declination of cluster center',
+                              'REDSHIFT': 'Cluster redshift',
+                              'REDSHIFT_UNC': 'Cluster redshift uncertainty',
+                              'M500': 'Cluster M500 mass',
+                              'M500_uerr': 'Cluster M500 upper uncertainty',
+                              'M500_lerr': 'Cluster M500 lower uncertainty',
+                              'R500': 'Cluster R500 radius',
+                              'ALPHA_J2000': 'Right ascension of galaxy',
+                              'DELTA_J2000': 'Declination of galaxy',
+                              'I1_MAG_APER4': 'IRAC 3.6um, 4" diameter aperture magnitude, corrected',
+                              'I1_MAGERR_APER4': 'IRAC 3.6um, 4" diameter aperture magnitude uncertainty',
+                              'I1_FLUX_APER4': 'IRAC 3.6um, 4" diameter aperture flux, corrected',
+                              'I1_FLUXERR_APER4': 'IRAC 3.6um, 4" diameter aperture flux uncertainty',
+                              'I2_MAG_APER4': 'IRAC 4.5um, 4" diameter aperture magnitude, corrected',
+                              'I2_MAGERR_APER4': 'IRAC 4.5um, 4" diameter aperture magnitude uncertainty',
+                              'I2_FLUX_APER4': 'IRAC 4.5um, 4" diameter aperture flux, corrected',
+                              'I2_FLUXERR_APER4': 'IRAC 4.5um, 4" diameter aperture flux uncertainty',
+                              'J_ABS_MAG': 'K-corrected J-band absolute magnitude',
+                              'RADIAL_SEP_ARCMIN': 'Projected cluster-centric angular distance of galaxy',
+                              'RADIAL_SEP_R500': 'Projected cluster-centric distance of galaxy relative to cluster r500 radius ',
+                              'COMPLETENESS_CORRECTION': 'Photometric completeness corrected weight using IRAC 4.5um magnitudes',
+                              'SELECTION_MEMBERSHIP': 'Fuzzy degree of membership of a galaxy into the AGN sample',
+                              'MASK_NAME': 'File name of cluster pixel mask'}
+output_column_units = {'SZ_RA': 'deg',
+                       'SZ_DEC': 'deg',
+                       'M500': 'Msun',
+                       'M500_uerr': 'Msun',
+                       'M500_lerr': 'Msun',}
 
 # Read in SPT-SZ cluster catalog
 Bocquet = Table.read(f'{prefix}Data_Repository/Catalogs/SPT/SPT_catalogs/2500d_cluster_sample_Bocquet18.fits')
@@ -154,7 +184,9 @@ spt_sz_agn_catalog = spt_sz_selector.run_selection(included_clusters=None,
                                                    selection_band_faint_mag=ch2_faint_mag,
                                                    spt_colnames=spt_column_names,
                                                    output_name=None,
-                                                   output_colnames=output_column_names)
+                                                   output_colnames=output_column_names,
+                                                   output_coldescriptions=output_column_descriptions,
+                                                   output_colunits=output_column_units)
 print('SPT-SZ selection finished. Run time: {:.2f}s'.format(time() - spt_sz_selector_start_time))
 sptpol_selector_start_time = time()
 
@@ -181,7 +213,9 @@ sptpol_agn_catalog = sptpol_selector.run_selection(included_clusters=None,
                                                    selection_band_faint_mag=ch2_faint_mag,
                                                    spt_colnames=spt_column_names,
                                                    output_name=None,
-                                                   output_colnames=output_column_names)
+                                                   output_colnames=output_column_names,
+                                                   output_coldescriptions=output_column_descriptions,
+                                                   output_colunits=output_column_units)
 print('SPTpol 100d selection finished. Run time: {:.2f}s'.format(time() - sptpol_selector_start_time))
 print('Full pipeline finished. Run time: {:.2f}s'.format(time() - pipeline_start_time))
 
@@ -195,8 +229,8 @@ ssdf_only_cluster_ids = list(sptpol_cluster_ids.difference(spt_sz_cluster_ids))
 spt_sz_only_cluster_ids = list(spt_sz_cluster_ids.difference(sptpol_cluster_ids))
 
 # Filter the SPTpol 100d catalog to only include SSDF clusters
-sptpol_agn_catalog_ssdf_only = sptpol_agn_catalog[np.in1d(sptpol_agn_catalog['SPT_ID'], ssdf_only_cluster_ids)]
-spt_sz_agn_catalog_target_only = spt_sz_agn_catalog[np.in1d(spt_sz_agn_catalog['SPT_ID'], spt_sz_only_cluster_ids)]
+sptpol_agn_catalog_ssdf_only = sptpol_agn_catalog[np.isin(sptpol_agn_catalog['SPT_ID'], ssdf_only_cluster_ids)]
+spt_sz_agn_catalog_target_only = spt_sz_agn_catalog[np.isin(spt_sz_agn_catalog['SPT_ID'], spt_sz_only_cluster_ids)]
 
 # Combine the two cluster catalogs
 sptcl_agn_catalog_standard = vstack([spt_sz_agn_catalog, sptpol_agn_catalog_ssdf_only])

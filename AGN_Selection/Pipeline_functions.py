@@ -1,5 +1,5 @@
 """
-.. Pipeline_functions.py
+Pipeline_functions.py
 .. Author: Benjamin Floyd
 
 This script is designed to automate the process of selecting the AGN in the SPT clusters and generating the proper
@@ -68,9 +68,6 @@ class SelectIRAGN:
         Official SPT cluster catalog.
     completeness_file : str or list of str
         File name of the completeness simulation results.
-    field_number_dist_file : str
-        Filename containing the number count histogram of all galaxies as a function of [3.6] - [4.5] color
-        using the SDWFS field sample and the associated color bins.
     purity_color_threshold_file : str or None
         Filename containing the function values of the purity-based color selection thresholds and the associated
         redshift bins.
@@ -88,7 +85,7 @@ class SelectIRAGN:
                  irac_image_dir: str | pl_Path | list[str | pl_Path] | None,
                  region_file_dir: str | pl_Path | None,
                  mask_dir: str | pl_Path,
-                 gaia_cat_dir: str | pl_Path,
+                 gaia_cat_dir: str | pl_Path | None,
                  spt_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
                  purity_color_threshold_file: str | pl_Path | None,
@@ -337,8 +334,8 @@ class SelectIRAGN:
         clusters_to_mask = set(reg_files).intersection(self._catalog_dictionary)
 
         for cluster_id in clusters_to_mask:
-            cluster_info = self._catalog_dictionary.get(cluster_id, None)
-            region_file = reg_files.get(cluster_id, None)
+            cluster_info = self._catalog_dictionary[cluster_id]
+            region_file = reg_files[cluster_id]
 
             pixel_map_path = cluster_info.mask_path
 
@@ -446,8 +443,7 @@ class SelectIRAGN:
         return self
 
     def object_selection(self, ch1_bright_mag: float, ch1_faint_mag: float, ch2_bright_mag: float,
-                         selection_band_faint_mag: float, selection_band: str = 'I2_MAG_APER4',
-                         colnames: list[str] = None) -> Self:
+                         selection_band_faint_mag: float, selection_band: str = 'I2_MAG_APER4') -> Self:
         """
         Selects the objects in the clusters as AGN subject to a color cut.
 
@@ -473,8 +469,6 @@ class SelectIRAGN:
         selection_band : str, optional
             Column name in Source Extractor catalog specifying the selection band to use. Defaults to the 4.5 um, 4"
             aperture magnitude photometry.
-        colnames: list[str]
-            A list of column names for the photometric catalog if not present in the file itself.
         """
 
         clusters_to_remove = []
@@ -827,7 +821,36 @@ class SelectIRAGN:
 
         return self
 
-    def final_catalogs(self, filename: str | pl_Path = None, catalog_cols: Iterable[str] = None) -> Table | None:
+    def image_area(self) -> Self:
+        """
+        Computes the total "good" area in each field of view for the cluster and stores it in the catalog.
+        """
+
+        for cluster_info in self._catalog_dictionary.values():
+            se_catalog = cluster_info.catalog
+            pixel_mask_path = cluster_info.mask_path
+
+            # Read in the mask image
+            good_pix_mask, header = fits.getdata(pixel_mask_path, header=True, ignore_missing_end=True, memmap=False)
+
+            # Get the pixel area from the mask image's WCS
+            w = WCS(header)
+            pixel_area = w.proj_plane_pixel_area()
+
+            # Compute the total area of good pixels in the mask image
+            mask_area = np.count_nonzero(good_pix_mask) * pixel_area
+
+            # Add a column in the photometric catalog
+            se_catalog['IMAGE_AREA'] = mask_area
+
+            cluster_info.catalog = se_catalog
+
+        return self
+
+    def final_catalogs(self, filename: str | pl_Path = None,
+                       catalog_cols: Iterable[str] = None,
+                       column_descriptions: dict[str, str] = None,
+                       column_units: dict[str, str] = None) -> Table | None:
         """
         Collates all catalogs into one table then writes the catalog to disk.
 
@@ -839,6 +862,12 @@ class SelectIRAGN:
         catalog_cols : list_like, optional
             List of column names in the catalog which we wish to keep in our output file. If not specified, all columns
             present in the catalog are kept in the output catalog.
+        column_descriptions :
+            Dictionary of descriptions to be added to columns in the output catalog. Only columns specified will have
+            descriptions updated.
+        column_units :
+            Dictionary of units to be added to columns in the output catalog. Only columns specified will have units
+            updated.
 
         Returns
         -------
@@ -847,11 +876,18 @@ class SelectIRAGN:
             instead of returning.
         """
 
+        if column_descriptions is None:
+            column_descriptions = dict()
         final_catalog = vstack([cluster_info.catalog for cluster_info in self._catalog_dictionary.values()])
 
         # If we request to keep only certain columns in our output
         if catalog_cols is not None:
             final_catalog.keep_columns(catalog_cols)
+
+        if (column_descriptions is not None) or (column_units is not None):
+            descriptions = column_descriptions if column_descriptions is not None else dict()
+            units = column_units if column_units is not None else dict()
+            final_catalog = Table(final_catalog, descriptions=descriptions, units=units)
 
         if filename is None:
             return final_catalog
@@ -874,6 +910,8 @@ class SelectIRAGN:
                       spt_colnames: Iterable[str] | None,
                       output_name: str | pl_Path | None,
                       output_colnames: Iterable[str] | None,
+                      output_coldescriptions: dict[str, str] | None,
+                      output_colunits: dict[str, str] | None,
                       ch1_ch2_color: float = None) -> Table | None:
         """
         Executes full selection pipeline using default values.
@@ -904,6 +942,12 @@ class SelectIRAGN:
             File name of output catalog for :method:`final_catalogs`
         output_colnames : list_like
             Column names to be kept in output catalog for :method:`final_catalogs`
+        output_coldescriptions : dict
+            Dictionary of descriptions to be added to columns in the output catalog. Only columns specified will have
+            descriptions updated.
+        output_colunits : dict
+            Dictionary of units to be added to columns in the output catalog. Only columns specified will have
+            units updated.
         ch1_ch2_color : float or None
             Flat [3.6] -[4.5] color threshold to use when computing selection memberships in :method:`purify_selection`.
             If `None` then the purity based, redshift dependent color threshold relation will be used.
@@ -928,7 +972,9 @@ class SelectIRAGN:
                          .catalog_merge(catalog_cols=spt_colnames)
                          .object_separations()
                          .completeness_value()
-                         .final_catalogs(filename=output_name, catalog_cols=output_colnames))
+                         .image_area()
+                         .final_catalogs(filename=output_name, catalog_cols=output_colnames,
+                                         column_descriptions=output_coldescriptions, column_units=output_colunits))
         if final_catalog is not None:
             return final_catalog
 
@@ -958,7 +1004,7 @@ class SelectSDWFS(SelectIRAGN):
                  irac_image_dir: str | pl_Path | list[str | pl_Path] | None,
                  region_file_dir: str | pl_Path | list[str | pl_Path] | None,
                  mask_dir: str | pl_Path,
-                 gaia_cat_dir: str | pl_Path,
+                 gaia_cat_dir: str | pl_Path | None,
                  sdwfs_master_catalog: Table,
                  purity_color_threshold_file: str | pl_Path,
                  completeness_file: str | pl_Path | list[str | pl_Path],
@@ -1033,7 +1079,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                  irac_images: list[str | pl_Path],
                  object_mask: str | pl_Path,
                  mask_dir: str | pl_Path,
-                 gaia_cat_dir: str | pl_Path,
+                 gaia_cat: str | pl_Path,
                  photoz_catalog: Table,
                  completeness_file: str | pl_Path | list[str | pl_Path],
                  purity_color_threshold_file: str | pl_Path,
@@ -1044,7 +1090,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                          irac_image_dir=None,
                          region_file_dir=None,
                          mask_dir=mask_dir,
-                         gaia_cat_dir=gaia_cat_dir,
+                         gaia_cat_dir=None,
                          sdwfs_master_catalog=photoz_catalog,
                          purity_color_threshold_file=purity_color_threshold_file,
                          completeness_file=completeness_file,
@@ -1055,6 +1101,7 @@ class SelectFullFieldSDWFS(SelectSDWFS):
         self._photo_catalog = sextractor_cat
         self._irac_images = irac_images
         self._object_mask = object_mask
+        self._gaia_cat = gaia_cat
 
         # Purity-based color threshold function. This is used in place of a flat color cut in `purify_selection`.
         self._purity_color_funct = purity_color_threshold_file
@@ -1130,6 +1177,42 @@ class SelectFullFieldSDWFS(SelectSDWFS):
 
         return self
 
+    def remove_stars(self) -> Self:
+        """
+        Uses the provided stellar catalog to remove any stellar contamination from the catalog.
+
+        This relies on a catalog to be obtained from Gaia covering the entire IRAC field of view.
+        """
+
+        for cluster_info in self._catalog_dictionary.values():
+            # Retrieve the Source Extractor catalog
+            se_catalog = cluster_info.catalog
+
+            # We need the true SPT-ID of the cluster for the Gaia catalog lookup
+            spt_id = self._spt_catalog['SPT_ID'][cluster_info.spt_catalog_idx]
+
+            # Read in the Gaia catalog
+            gaia_cat_name = pl_Path(f'{self._gaia_cat}')
+            gaia_cat = Table.read(gaia_cat_name)
+
+            # Ensure that the catalog only has stars
+            gaia_cat = gaia_cat[~(gaia_cat['in_qso_candidates'] | gaia_cat['in_galaxy_candidates'])]
+
+            # Match the Gaia sources to the IRAC catalog
+            gaia_coords = SkyCoord(gaia_cat['ra'], gaia_cat['dec'], unit=u.deg)
+            irac_coords = SkyCoord(se_catalog['ALPHA_J2000'], se_catalog['DELTA_J2000'], unit=u.deg)
+
+            irac_idx, sep, _ = gaia_coords.match_to_catalog_sky(irac_coords)
+            irac_stars = se_catalog[irac_idx[sep <= 1 * u.arcsec]]
+
+            # Clean the catalog by removing the identified stars
+            se_catalog = setdiff(se_catalog, irac_stars)
+
+            # Store the cleaned catalog in our data structure
+            cluster_info.catalog = se_catalog
+
+        return self
+
     def catalog_merge(self, catalog_cols: Iterable = None) -> Self:
         # Get the field information
         cluster_info = self._catalog_dictionary['full_field_SDWFS']
@@ -1194,19 +1277,21 @@ class SelectFullFieldSDWFS(SelectSDWFS):
                       photo_cat_colnames: list[str],
                       output_name: str | pl_Path | None,
                       output_colnames: Iterable[str] | None,
+                      output_coldescriptions: dict[str, str] | None,
+                      output_colunits: dict[str, str] | None,
                       *args,
                       ch1_ch2_color: float = None,
                       **kwargs) -> Table | None:
         final_catalog = (self.file_pairing()
                          .good_pixel_mask(ch1_min_cov, ch2_min_cov)
-                         .object_selection(ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag,
-                                           colnames=photo_cat_colnames)
+                         .object_selection(ch1_bright_mag, ch1_faint_mag, ch2_bright_mag, selection_band_faint_mag)
                          .remove_stars()
                          .selection_membership(ch1_ch2_color)
                          .catalog_merge()
                          .j_band_abs_mag()
                          .completeness_value()
-                         .final_catalogs(filename=output_name, catalog_cols=output_colnames))
+                         .final_catalogs(filename=output_name, catalog_cols=output_colnames,
+                                         column_descriptions=output_coldescriptions, column_units=output_colunits))
         if final_catalog is not None:
             return final_catalog
 

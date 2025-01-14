@@ -29,6 +29,7 @@ sdwfs_images = [
 ]
 sdwfs_object_mask = f'{prefix}Data_Repository/Images/Bootes/SDWFS/SDWFS_full_field_object_mask.fits.gz'
 sdwfs_mask_dir = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Masks/SDWFS'
+sdwfs_gaia_cat = f'{prefix}Data_Repository/Catalogs/Bootes/SDWFS/SDWFS_Gaia.fits'
 
 # For the photometric catalog we need to specify the column names
 sdwfs_photometric_catalog_names = ['ID', 'ALPHA_J2000', 'DELTA_J2000',
@@ -83,6 +84,59 @@ ch2_faint_mag = 17.48  # Faint-end 4.5 um magnitude
 # Output catalog file name
 output_catalog = f'{prefix}Data_Repository/Project_Data/SPT-IRAGN/Output/SDWFS_full-field_IRAGN.fits'
 
+output_column_descriptions = {'ID': 'SDWFS Source ID',
+                              'ALPHA_J2000': 'Right ascension (J2000)',
+                              'DELTA_J2000': 'Declination (J2000)',
+                              'I1_FLUX_APER4': 'IRAC 3.6um, 4" diameter aperture flux, corrected',
+                              'I2_FLUX_APER4': 'IRAC 4.5um, 4" diameter aperture flux, corrected',
+                              'I3_FLUX_APER4': 'IRAC 5.8um, 4" diameter aperture flux, corrected',
+                              'I4_FLUX_APER4': 'IRAC 8.0um, 4" diameter aperture flux, corrected',
+                              'I1_FLUXERR_APER4': 'IRAC 3.6um, 4" diameter aperture flux uncertainty',
+                              'I2_FLUXERR_APER4': 'IRAC 4.5um, 4" diameter aperture flux uncertainty',
+                              'I3_FLUXERR_APER4': 'IRAC 5.8um, 4" diameter aperture flux uncertainty',
+                              'I4_FLUXERR_APER4': 'IRAC 8.0um, 4" diameter aperture flux uncertainty',
+                              'I1_MAG_APER4': 'IRAC 3.6um, 4" diameter aperture magnitude, corrected',
+                              'I2_MAG_APER4': 'IRAC 4.5um, 4" diameter aperture magnitude, corrected',
+                              'I3_MAG_APER4': 'IRAC 5.8um, 4" diameter aperture magnitude, corrected',
+                              'I4_MAG_APER4': 'IRAC 8.0um, 4" diameter aperture magnitude, corrected',
+                              'I1_MAGERR_APER4': 'IRAC 3.6um, 4" diameter aperture magnitude uncertainty',
+                              'I2_MAGERR_APER4': 'IRAC 4.5um, 4" diameter aperture magnitude uncertainty',
+                              'I3_MAGERR_APER4': 'IRAC 5.8um, 4" diameter aperture magnitude uncertainty',
+                              'I4_MAGERR_APER4': 'IRAC 8.0um, 4" diameter aperture magnitude uncertainty',
+                              'MASK_NAME': 'File name of field pixel mask',
+                              'SELECTION_MEMBERSHIP_0.77': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.77',
+                              'SELECTION_MEMBERSHIP_0.65': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.65',
+                              'SELECTION_MEMBERSHIP_0.61': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.61',
+                              'SELECTION_MEMBERSHIP_0.68': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.68',
+                              'SELECTION_MEMBERSHIP_0.57': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.57',
+                              'SELECTION_MEMBERSHIP_0.54': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.54',
+                              'SELECTION_MEMBERSHIP_0.62': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.62',
+                              'SELECTION_MEMBERSHIP_0.69': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.69',
+                              'SELECTION_MEMBERSHIP_0.86': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.86',
+                              'SELECTION_MEMBERSHIP_0.84': 'Fuzzy degree of membership of a galaxy into the AGN sample using a color threshold of [3.6] - [4.5] >= 0.84',
+                              'REDSHIFT': 'Photometric redshift of galaxy',
+                              'J_ABS_MAG': 'K-corrected J-band absolute magnitude',
+                              'COMPLETENESS_CORRECTION': 'Photometric completeness corrected weight using IRAC 4.5um magnitudes'}
+output_column_units = {'ALPHA_J2000': 'deg',
+                       'DELTA_J2000': 'deg',
+                       'I1_FLUX_APER4': 'uJy',
+                       'I2_FLUX_APER4': 'uJy',
+                       'I3_FLUX_APER4': 'uJy',
+                       'I4_FLUX_APER4': 'uJy',
+                       'I1_FLUXERR_APER4': 'uJy',
+                       'I2_FLUXERR_APER4': 'uJy',
+                       'I3_FLUXERR_APER4': 'uJy',
+                       'I4_FLUXERR_APER4': 'uJy',
+                       'I1_MAG_APER4': 'mag',
+                       'I2_MAG_APER4': 'mag',
+                       'I3_MAG_APER4': 'mag',
+                       'I4_MAG_APER4': 'mag',
+                       'I1_MAGERR_APER4': 'mag',
+                       'I2_MAGERR_APER4': 'mag',
+                       'I3_MAGERR_APER4': 'mag',
+                       'I4_MAGERR_APER4': 'mag',
+                       'J_ABS_MAG': 'mag'}
+
 # Get the color thresholds from the file
 with open(sdwfs_purity_color_threshold, 'r') as f:
     color_threshold_data = json.load(f)
@@ -107,7 +161,8 @@ sdwfs_selector = SelectFullFieldSDWFS(sextractor_cat=sdwfs_photometric_catalog, 
                                       photoz_catalog=sdwfs_photo_z_catalog,
                                       completeness_file=sdwfs_completeness_sim_results,
                                       purity_color_threshold_file=sdwfs_purity_color_threshold, sed=polletta_qso2,
-                                      irac_filter=irac_36um_filter, j_band_filter=flamingos_j_filter)
+                                      irac_filter=irac_36um_filter, j_band_filter=flamingos_j_filter,
+                                      gaia_cat=sdwfs_gaia_cat)
 sdwfs_agn_catalog = sdwfs_selector.run_selection(ch1_min_cov=sdwfs_ch1_min_coverage,
                                                  ch2_min_cov=sdwfs_ch2_min_coverage,
                                                  ch1_bright_mag=ch1_bright_mag,
@@ -117,7 +172,9 @@ sdwfs_agn_catalog = sdwfs_selector.run_selection(ch1_min_cov=sdwfs_ch1_min_cover
                                                  ch1_ch2_color=color_thresholds,
                                                  photo_cat_colnames=sdwfs_photometric_catalog_names,
                                                  output_name=None,
-                                                 output_colnames=output_column_names)
+                                                 output_colnames=output_column_names,
+                                                 output_coldescriptions=output_column_descriptions,
+                                                 output_colunits=output_column_units)
 sdwfs_agn_catalog.write(output_catalog, overwrite=True)
 
 print('Full pipeline finished. Run time: {:.2f}s'.format(time() - pipeline_start_time))
