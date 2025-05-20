@@ -281,15 +281,15 @@ def lnprior(params: tuple[float, ...]) -> float:
         # Define all priors
         if (0.0 <= theta <= 20. and
                 -20. <= eta <= 20. and
-                -5. <= zeta <= 5. and
+                -50 <= zeta <= 50 and
                 -3. <= beta <= 3. and
                 0.05 <= rc <= 0.5 and
                 0.0 <= c_local < np.inf):
             theta_lnprior = 0.0
             eta_lnprior = 0.0
             # eta_lnprior = -0.5 * np.sum((eta - h_eta)**2 / h_eta_err**2)
-            # zeta_lnprior = 0.0
-            zeta_lnprior = -0.5 * np.sum((zeta - h_zeta)**2 / h_zeta_err**2)
+            zeta_lnprior = 0.0
+            # zeta_lnprior = -0.5 * np.sum((zeta - h_zeta)**2 / h_zeta_err**2)
             beta_lnprior = 0.0
             rc_lnprior = 0.0
             if args.cluster_only:
