@@ -177,11 +177,14 @@ def generate_catalog_dict(cluster: Table) -> tuple[str, dict]:
     local_bkg_offset = local_bkg_surf_den - sdwfs_surf_den(agn_purity_color(cluster_z))
 
     # Set up a switch to handle the options for the radial separation
-    radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
-                     0.5: cluster['RADIAL_SEP_R500_HALF_OFFSET'],
-                     0.75: cluster['RADIAL_SEP_R500_075_OFFSET'],
-                     1.0: cluster['RADIAL_SEP_R500_OFFSET']}
-    cluster_radial_r500 = radial_switch[args.miscentering]
+    if args.empirical:
+        cluster_radial_r500 = cluster['RADIAL_SEP_R500']
+    else:
+        radial_switch = {0.0: cluster['RADIAL_SEP_R500'],
+                         0.5: cluster['RADIAL_SEP_R500_HALF_OFFSET'],
+                         0.75: cluster['RADIAL_SEP_R500_075_OFFSET'],
+                         1.0: cluster['RADIAL_SEP_R500_OFFSET']}
+        cluster_radial_r500 = radial_switch[args.miscentering]
 
     # Determine the maximum integration radius for the cluster in terms of r500 units.
     max_radius_r500 = max_radius * cosmo.kpc_proper_per_arcmin(cluster_z).to(u.Mpc / u.arcmin) / cluster_r500
